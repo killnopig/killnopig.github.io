@@ -1,0 +1,137 @@
+<!doctype html>
+<!-- Source of docs/images/fact.png (1536×1024). Render:
+     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars \
+       --window-size=1536,1024 --screenshot=docs/images/fact.png docs/images/src/fact-poster.html
+     An original 1940s film-noir look: case file, lamp, blinds, fedora silhouette. -->
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>FACT poster</title>
+<style>
+  :root {
+    --ink: #0d0b09;
+    --paper: #e9dcc0;
+    --paper-dim: #bfae8c;
+    --amber: #f2a93b;
+    --amber-soft: rgba(242, 169, 59, .55);
+    --red: #b3261e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1536px; height: 1024px; overflow: hidden; background: var(--ink); }
+  body { position: relative; color: var(--paper); font-family: "Songti TC", "PingFang TC", serif; }
+  .bg { position: absolute; inset: 0; }
+  .grain { position: absolute; inset: 0; opacity: .18; mix-blend-mode: overlay; }
+  .content { position: absolute; inset: 0; }
+
+  .kicker { position: absolute; left: 96px; top: 84px; font: 600 22px/1 "American Typewriter", "Courier New", monospace; letter-spacing: .32em; color: var(--amber); }
+  .fact { position: absolute; left: 88px; top: 118px; font: 900 250px/1 "Didot", "Bodoni 72", "Georgia", serif; letter-spacing: .04em; color: var(--paper);
+          text-shadow: 0 0 2px rgba(0,0,0,.6), 8px 10px 0 rgba(0,0,0,.55), 0 0 60px rgba(242,169,59,.25); }
+  .name { position: absolute; left: 100px; top: 392px; font: 900 76px/1 "Songti TC", "PingFang TC", serif; letter-spacing: .12em; color: var(--amber);
+          text-shadow: 3px 4px 0 rgba(0,0,0,.7); }
+  .expand { position: absolute; left: 102px; top: 492px; font: italic 400 30px/1.2 "Didot", "Georgia", serif; letter-spacing: .06em; color: var(--paper-dim); }
+  .tagline { position: absolute; left: 102px; top: 552px; font: 600 24px/1 "American Typewriter", "Courier New", monospace; letter-spacing: .2em; color: var(--paper); }
+  .tagline b { color: var(--amber); font-weight: 600; }
+
+  .file { position: absolute; left: 80px; top: 620px; width: 1376px; height: 230px; }
+  .tabs { display: flex; gap: 18px; position: absolute; left: 0; top: 0; width: 100%; }
+  .tab { flex: 1; height: 210px; background: var(--paper); color: var(--ink); position: relative; padding: 52px 20px 0 26px;
+         box-shadow: 6px 8px 0 rgba(0,0,0,.6); clip-path: polygon(0 26px, 34% 26px, 40% 0, 100% 0, 100% 100%, 0 100%); }
+  .tab::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(80,50,10,.18)); pointer-events: none; }
+  .tab .no { position: absolute; right: 18px; top: 8px; font: 700 15px/1 "American Typewriter", "Courier New", monospace; letter-spacing: .14em; color: #5b4a30; }
+  .tab .zh { font: 900 44px/1 "Songti TC", "PingFang TC", serif; letter-spacing: .1em; }
+  .tab .en { margin-top: 14px; font: 600 19px/1 "American Typewriter", "Courier New", monospace; letter-spacing: .08em; color: #3a2e1d; }
+  .tab .line { margin-top: 18px; height: 2px; background: repeating-linear-gradient(90deg, #6d5a3a 0 6px, transparent 6px 10px); opacity: .6; }
+  .tab .note { margin-top: 12px; font: 400 17px/1.3 "American Typewriter", "Courier New", monospace; color: #4a3b25; }
+
+  .motto { position: absolute; left: 0; right: 0; top: 888px; text-align: center; }
+  .motto .zh { font: 900 44px/1 "Songti TC", "PingFang TC", serif; letter-spacing: .22em; color: var(--paper); text-shadow: 2px 3px 0 rgba(0,0,0,.8); }
+  .motto .en { margin-top: 18px; font: italic 400 24px/1 "Didot", "Georgia", serif; letter-spacing: .14em; color: var(--amber); }
+
+  .stamp { position: absolute; left: 1110px; top: 64px; transform: rotate(-9deg); border: 5px solid var(--red); color: var(--red); padding: 10px 22px 8px;
+           font: 700 30px/1 "American Typewriter", "Courier New", monospace; letter-spacing: .2em; opacity: .85; mix-blend-mode: screen; }
+  .stamp small { display: block; font-size: 15px; letter-spacing: .3em; margin-top: 6px; text-align: center; }
+</style>
+</head>
+<body>
+<svg class="bg" width="1536" height="1024" viewBox="0 0 1536 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="lamp" cx="22%" cy="8%" r="80%">
+      <stop offset="0" stop-color="#5a3a12"/>
+      <stop offset=".35" stop-color="#2a1b0b"/>
+      <stop offset="1" stop-color="#0b0907"/>
+    </radialGradient>
+    <linearGradient id="beam" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f2a93b" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#f2a93b" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="vign" cx="50%" cy="50%" r="75%">
+      <stop offset=".6" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity=".75"/>
+    </radialGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f6d79a" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#f2a93b" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <rect width="1536" height="1024" fill="url(#lamp)"/>
+  <!-- light through the blinds -->
+  <g transform="rotate(-24 900 300)" opacity=".9">
+    <rect x="560" y="-200" width="1200" height="34" fill="url(#beam)"/>
+    <rect x="560" y="-130" width="1200" height="34" fill="url(#beam)"/>
+    <rect x="560" y="-60" width="1200" height="34" fill="url(#beam)"/>
+    <rect x="560" y="10" width="1200" height="34" fill="url(#beam)"/>
+    <rect x="560" y="80" width="1200" height="34" fill="url(#beam)"/>
+    <rect x="560" y="150" width="1200" height="34" fill="url(#beam)"/>
+    <rect x="560" y="220" width="1200" height="34" fill="url(#beam)"/>
+    <rect x="560" y="290" width="1200" height="34" fill="url(#beam)"/>
+  </g>
+  <!-- the detective: fedora and trench-coat silhouette, back to the light -->
+  <g fill="#060504">
+    <path d="M1150 610 C1160 520 1190 470 1240 450 L1250 420 C1235 405 1232 380 1240 360 L1222 352 C1205 346 1200 336 1215 330
+             C1250 318 1300 312 1340 316 C1380 312 1430 318 1462 330 C1476 336 1470 346 1454 352 L1436 360
+             C1444 380 1440 405 1426 420 L1434 450 C1486 470 1520 520 1536 590 L1536 640 L1150 640 Z"/>
+    <!-- crown of the hat with its pinch -->
+    <path d="M1252 336 C1258 282 1290 258 1338 256 C1386 258 1418 282 1424 336 C1396 326 1370 322 1338 322 C1306 322 1280 326 1252 336 Z"/>
+    <!-- coat collar -->
+    <path d="M1250 450 L1300 520 L1338 470 L1376 520 L1426 450 L1440 470 L1392 560 L1338 500 L1284 560 L1236 470 Z" fill="#0d0a07"/>
+  </g>
+  <path d="M1252 336 C1280 326 1306 322 1338 322 C1370 322 1396 326 1424 336" stroke="#5a3a12" stroke-width="7" fill="none" opacity=".9"/>
+  <!-- cigarette smoke -->
+  <path d="M1220 430 C1200 400 1235 380 1210 350 C1190 326 1222 300 1200 270 C1186 250 1210 228 1196 205" stroke="#cfc2a8" stroke-width="3" fill="none" opacity=".18"/>
+  <!-- magnifying glass, beside the word, never inside a letter -->
+  <g transform="translate(985 300) rotate(-28)">
+    <rect x="-14" y="92" width="28" height="150" rx="10" fill="#2a1a0b" stroke="#c98a2e" stroke-width="3"/>
+    <rect x="-18" y="84" width="36" height="22" rx="4" fill="#c98a2e"/>
+    <circle cx="0" cy="0" r="92" fill="url(#glass)" stroke="#d9a246" stroke-width="14"/>
+    <circle cx="0" cy="0" r="92" fill="none" stroke="#5a3a12" stroke-width="3"/>
+    <path d="M-52 -40 A66 66 0 0 1 -10 -66" stroke="#fff3d6" stroke-width="7" fill="none" stroke-linecap="round" opacity=".7"/>
+  </g>
+  <rect width="1536" height="1024" fill="url(#vign)"/>
+</svg>
+<svg class="grain" width="1536" height="1024" xmlns="http://www.w3.org/2000/svg">
+  <filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"/></filter>
+  <rect width="100%" height="100%" filter="url(#n)"/>
+</svg>
+<div class="content">
+  <div class="kicker">CASE FILE · JJPTT</div>
+  <div class="fact">FACT</div>
+  <div class="stamp">EVIDENCE<small>OVER OPINION</small></div>
+  <div class="name">真.事實查核</div>
+  <div class="expand">Facts, Accuracy, Credibility &amp; Truth</div>
+  <div class="tagline">證據勝於立場 <b>·</b> EVIDENCE OVER OPINION</div>
+  <div class="file">
+    <div class="tabs">
+      <div class="tab"><span class="no">NO.1</span><div class="zh">公開透明</div><div class="en">TRANSPARENCY</div><div class="line"></div><div class="note">每條規則都寫出來</div></div>
+      <div class="tab"><span class="no">NO.2</span><div class="zh">標準一致</div><div class="en">CONSISTENCY</div><div class="line"></div><div class="note">同一把尺量每個人</div></div>
+      <div class="tab"><span class="no">NO.3</span><div class="zh">不偏不倚</div><div class="en">IMPARTIALITY</div><div class="line"></div><div class="note">不看立場，只看行為</div></div>
+      <div class="tab"><span class="no">NO.4</span><div class="zh">證據優先</div><div class="en">EVIDENCE FIRST</div><div class="line"></div><div class="note">標記都附上理由</div></div>
+      <div class="tab"><span class="no">NO.5</span><div class="zh">勇於更正</div><div class="en">ACCOUNTABILITY</div><div class="line"></div><div class="note">錯了就改，寫進紀錄</div></div>
+    </div>
+  </div>
+  <div class="motto">
+    <div class="zh">不問立場，只問事實；不分對象，一體查核。</div>
+    <div class="en">One standard. For all. Fact over bias.</div>
+  </div>
+</div>
+</body>
+</html>

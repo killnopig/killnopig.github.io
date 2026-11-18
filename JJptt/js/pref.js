@@ -1,0 +1,1091 @@
+function PttChromePref(app, onInitializedCallback) {
+  this.values = {};
+  this.logins = null;
+  this.app = app;
+  this.shouldResetToDefault = false;
+
+  this.enableBlacklist = false;
+  this.blacklistedUserIds = {};
+  this.watchlistedUserIds = {};
+  this.notedUserIds = {};
+  this.tempBlacklist = {};   // id -> expiry time (ms), e.g. from the spam guard
+  this.tempBlacklistInfo = {};  // id -> why: { kind: 'flood'|'spam', n, url, title, board, link }
+  this.floodExempt = {};     // id -> expiry time (ms): taken off by hand, 連推 won't re-add
+  this.hideBlacklisted = false;
+  this.titleKeywords = [];
+
+  this.quickSearches = [];
+
+  //this.loadDefault(onInitializedCallback);
+  this.onInitializedCallback = onInitializedCallback;
+  this.initCallbackCalled = false;
+}
+
+PttChromePref.AUTO_LOG_KEY = 'jjptt.autoBlackLog';
+PttChromePref.AUTO_LOG_MAX = 200;
+
+PttChromePref.prototype = {
+
+  // Blacklisted permanently, or temporarily (not expired yet).
+  isBlacklisted: function(id) {
+    if (!id) return false;
+    id = String(id).toLowerCase();
+    if (id in this.blacklistedUserIds) return true;
+    var until = this.tempBlacklist[id];
+    return !!(until && until > Date.now());
+  },
+
+  // 不顯示 (hideBlacklisted) is for the people the user blacklisted by hand.
+  // The automatic rules (連推, 同網址洗版) can be wrong, so who they caught
+  // is only faded: still there to check (長按 / 右鍵 → 移出黑名單).
+  hidesBlacklisted: function(id) {
+    return !!(this.hideBlacklisted && id && String(id).toLowerCase() in this.blacklistedUserIds);
+  },
+
+  // info (optional) says why, for the list in settings:
+  // { kind: 'flood' | 'spam', n: count, link: spammed URL, url / title / board: the article }
+  addTempBlacklist: function(id, ms, info) {
+    this.addTempBlacklistMany([{ id: id, ms: ms, info: info }]);
+  },
+
+  // Several at once (one article can catch a few), then one redraw.
+  addTempBlacklistMany: function(list) {
+    if (!list.length) return;
+    this.pruneTempBlacklist();
+    for (var j = 0; j < list.length; ++j) {
+      var id = String(list[j].id).toLowerCase();
+      this.tempBlacklist[id] = Date.now() + list[j].ms;
+      if (list[j].info) this.tempBlacklistInfo[id] = list[j].info;
+      else delete this.tempBlacklistInfo[id];
+    }
+    this.logAutoBlack(list);
+    this.saveTempBlacklist();
+    this.app.view.redraw(true);
+    if (this.app.reader) this.app.reader.rerender();
+  },
+
+  // Taken off the blacklist by hand: also keep the automatic rules (連推,
+  // 同網址洗版) from putting them back for 24 hours -- they run again every
+  // time an article is loaded.
+  removeTempBlacklist: function(id) {
+    id = String(id).toLowerCase();
+    this.markAutoBlackRemoved(id);
+    this.pruneFloodExempt();
+    this.floodExempt[id] = Date.now() + 24 * 3600 * 1000;
+    this.values.floodExempt = JSON.stringify(this.floodExempt);
+    this.setStorage({ values: { floodExempt: this.values.floodExempt } });
+    if (!(id in this.tempBlacklist)) return;
+    delete this.tempBlacklist[id];
+    delete this.tempBlacklistInfo[id];
+    this.saveTempBlacklist();
+  },
+
+  // 自動黑名單紀錄: everyone the automatic rules caught, kept after they
+  // leave the list (the last 200, this device only), to check later whether
+  // a rule was wrong. Instead of a pop-up for each one.
+  autoBlackLog: function() {
+    try {
+      var log = JSON.parse(lib.safeGetItem(PttChromePref.AUTO_LOG_KEY) || '[]');
+      return Array.isArray(log) ? log : [];
+    } catch (e) {
+      return [];
+    }
+  },
+
+  saveAutoBlackLog: function(log) {
+    lib.safeSetItem(PttChromePref.AUTO_LOG_KEY, JSON.stringify(log.slice(0, PttChromePref.AUTO_LOG_MAX)));
+  },
+
+  logAutoBlack: function(list) {
+    var log = this.autoBlackLog(), now = Date.now(), added = false;
+    list.forEach(function(b) {
+      var info = b.info;
+      if (!info || (info.kind !== 'flood' && info.kind !== 'spam')) return;
+      log.unshift({ at: now, id: String(b.id).toLowerCase(), kind: info.kind, n: info.n || 0, link: info.link || '',
+                    url: info.url || '', title: info.title || '', board: info.board || '' });
+      added = true;
+    });
+    if (added) this.saveAutoBlackLog(log);
+  },
+
+  // Taken off by hand: the newest entry for them says so (誤判?).
+  markAutoBlackRemoved: function(id) {
+    var log = this.autoBlackLog();
+    for (var i = 0; i < log.length; ++i) {
+      if (log[i].id !== id) continue;
+      if (log[i].removed) return;
+      log[i].removed = Date.now();
+      this.saveAutoBlackLog(log);
+      return;
+    }
+  },
+
+  clearAutoBlackLog: function() {
+    this.saveAutoBlackLog([]);
+  },
+
+  // 「這個看板不算連推」from the log: adds the board to factFloodRunBoards
+  // and lets out everyone caught for 連推 there.
+  addFloodRunBoard: function(board) {
+    if (!board) return;
+    var cur = String(this.values.factFloodRunBoards || '');
+    if (typeof FactCheck !== 'undefined' && FactCheck.boardInList(board, cur)) return;
+    this.values.factFloodRunBoards = (cur.trim() ? cur.trim().replace(/[,，、\s]+$/, '') + ', ' : '') + board;
+    this.setStorage({ values: { factFloodRunBoards: this.values.factFloodRunBoards } });
+    var input = typeof $ === 'function' && $('#opt_factFloodRunBoards input');
+    if (input && input.val) input.val(this.values.factFloodRunBoards);
+    if (this.dropExemptFlood()) this.saveTempBlacklist();
+  },
+
+  isFloodExempt: function(id) {
+    var until = this.floodExempt[String(id).toLowerCase()];
+    return !!(until && until > Date.now());
+  },
+
+  // " ，在 [Board] title" for the automatic-blacklist toasts.
+  autoBlacklistWhere: function(info) {
+    if (!info || !info.title) return '';
+    return i18n('autoBlack_in').replace('%t', (info.board ? '[' + info.board + '] ' : '') + info.title);
+  },
+
+  // May an automatic rule (連推, 同網址洗版) put this id on the blacklist now?
+  // Not if already there, nor (option, default on) if the user took them off
+  // by hand in the last 24 hours.
+  mayAutoBlacklist: function(id) {
+    if (this.isBlacklisted(id)) return false;
+    var keep = !this.values || this.values.factFloodRunKeepRemoved !== false;
+    return !(keep && this.isFloodExempt(id));
+  },
+
+  // Temporary -> permanent (button in the list of automatic ones).
+  makeTempBlacklistPermanent: function(id) {
+    id = String(id).toLowerCase();
+    delete this.tempBlacklist[id];
+    delete this.tempBlacklistInfo[id];
+    this.saveTempBlacklist();
+    this.app.doAddBlacklistUserId(id);
+    this.refreshBlacklistOnUi();  // the textarea is read back on save
+    if (this.app.reader) this.app.reader.rerender();
+  },
+
+  // Takes people off the automatic blacklist who got there for 連推 in a
+  // [公告] / [測試] article (before that stopped counting). True if any.
+  dropExemptFlood: function() {
+    if (typeof FactCheck === 'undefined' || !FactCheck.floodRunExempt) return false;
+    var dropped = false;
+    for (var id in this.tempBlacklistInfo) {
+      var info = this.tempBlacklistInfo[id];
+      if (info && info.kind === 'flood' && (FactCheck.floodRunExempt(info.title) ||
+          FactCheck.boardInList(info.board, this.values && this.values.factFloodRunBoards))) {
+        delete this.tempBlacklist[id];
+        delete this.tempBlacklistInfo[id];
+        dropped = true;
+      }
+    }
+    return dropped;
+  },
+
+  pruneFloodExempt: function() {
+    var now = Date.now();
+    for (var id in this.floodExempt) {
+      if (this.floodExempt[id] <= now || isNaN(this.floodExempt[id])) delete this.floodExempt[id];
+    }
+  },
+
+  pruneTempBlacklist: function() {
+    var now = Date.now();
+    for (var id in this.tempBlacklist) {
+      if (this.tempBlacklist[id] <= now || isNaN(this.tempBlacklist[id])) delete this.tempBlacklist[id];
+    }
+    for (var k in this.tempBlacklistInfo) {
+      if (!(k in this.tempBlacklist)) delete this.tempBlacklistInfo[k];
+    }
+  },
+
+  saveTempBlacklist: function() {
+    this.values.tempBlacklist = JSON.stringify(this.tempBlacklist);
+    this.values.tempBlacklistInfo = JSON.stringify(this.tempBlacklistInfo);
+    this.setStorage({ values: { tempBlacklist: this.values.tempBlacklist, tempBlacklistInfo: this.values.tempBlacklistInfo } });
+    this.refreshTempBlacklistOnUi();
+    this.refreshAutoBlackLogOnUi();
+  },
+
+  refreshTempBlacklistOnUi: function() {
+    var box = $('#opt_tempBlacklist');
+    if (!box.length) return;
+    this.pruneTempBlacklist();
+    var now = Date.now();
+    var self = this;
+    var ids = Object.keys(this.tempBlacklist);
+    box.text(i18n('options_tempBlacklist') + (ids.length ? '' : i18n('options_tempBlacklistNone')));
+    ids.forEach(function(id) {
+      var hours = Math.max(1, Math.round((self.tempBlacklist[id] - now) / 3600000));
+      var row = $('<div class="jj-temp-black"></div>').appendTo(box);
+      $('<b></b>').text(id).appendTo(row);
+      var info = self.tempBlacklistInfo[id];
+      if (info && (info.kind === 'flood' || info.kind === 'spam')) {
+        var why = i18n('tempBlack_' + info.kind).replace('%n', info.n || '?');
+        if (info.kind === 'spam' && info.link) why += i18n('tempBlack_spamLink').replace('%u', info.link);
+        row.append(document.createTextNode(' — ' + why));
+        if (info.title || info.url) {
+          row.append(document.createTextNode(i18n('tempBlack_in')));
+          var label = (info.board ? '[' + info.board + '] ' : '') + (info.title || info.url);
+          if (/^https:\/\/(www\.)?ptt\.cc\//.test(info.url || '')) {
+            $('<a target="_blank" rel="noreferrer"></a>').attr('href', info.url).text(label).appendTo(row);
+          } else {
+            row.append(document.createTextNode(label));
+          }
+        }
+      } else {
+        row.append(document.createTextNode(' — ' + i18n('tempBlack_unknown')));
+      }
+      row.append(document.createTextNode(' — ' + i18n('options_tempBlacklistLeft').replace('%s', hours) + ' '));
+      $('<a href="#"></a>').text(i18n('options_tempBlacklistRemove')).click(function(e) {
+        e.preventDefault();
+        self.removeTempBlacklist(id);
+        self.refreshTempBlacklistOnUi();
+        self.app.view.redraw(true);
+        if (self.app.reader) self.app.reader.rerender();
+      }).appendTo(row);
+      row.append(document.createTextNode(' '));
+      $('<a href="#"></a>').text(i18n('options_tempBlacklistPermanent')).click(function(e) {
+        e.preventDefault();
+        self.makeTempBlacklistPermanent(id);
+      }).appendTo(row);
+    });
+  },
+
+  // 設定 → 黑名單: 自動黑名單紀錄 (folded; newest first)
+  refreshAutoBlackLogOnUi: function() {
+    var box = typeof $ === 'function' && $('#opt_autoBlackLog');
+    if (!box || !box.length) return;
+    var self = this;
+    var log = this.autoBlackLog();
+    var open = box.prop('open');
+    box.empty();
+    $('<summary></summary>').text(log.length ? i18n('autoLog_title').replace('%n', log.length) : i18n('autoLog_none')).appendTo(box);
+    var redraw = function() {
+      self.refreshTempBlacklistOnUi();
+      self.app.view.redraw(true);
+      if (self.app.reader) self.app.reader.rerender();
+    };
+    log.forEach(function(e) {
+      var row = $('<div class="jj-temp-black"></div>').appendTo(box);
+      var d = new Date(e.at);
+      row.append(document.createTextNode((d.getMonth() + 1) + '/' + d.getDate() + ' ' +
+        ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ' '));
+      $('<b></b>').text(e.id).appendTo(row);
+      var why = i18n('tempBlack_' + e.kind).replace('%n', e.n || '?');
+      if (e.kind === 'spam' && e.link) why += i18n('tempBlack_spamLink').replace('%u', e.link);
+      row.append(document.createTextNode(' — ' + why));
+      if (e.title || e.url) {
+        row.append(document.createTextNode(i18n('tempBlack_in')));
+        var label = (e.board ? '[' + e.board + '] ' : '') + (e.title || e.url);
+        if (/^https:\/\/(www\.)?ptt\.cc\//.test(e.url || '')) {
+          $('<a target="_blank" rel="noreferrer"></a>').attr('href', e.url).text(label).appendTo(row);
+        } else {
+          row.append(document.createTextNode(label));
+        }
+      }
+      var active = !e.removed && (self.tempBlacklist[e.id] || 0) > Date.now();
+      row.append(document.createTextNode(' — ' + i18n(active ? 'autoLog_active' : e.removed ? 'autoLog_removed' : 'autoLog_expired') + ' '));
+      if (active) {
+        $('<a href="#"></a>').text(i18n('autoLog_misjudge')).click(function(ev) {
+          ev.preventDefault();
+          self.removeTempBlacklist(e.id);
+          redraw();
+        }).appendTo(row);
+        row.append(document.createTextNode(' '));
+      }
+      if (e.kind === 'flood' && e.board && !FactCheck.boardInList(e.board, self.values.factFloodRunBoards)) {
+        $('<a href="#"></a>').text(i18n('autoLog_boardExempt').replace('%b', e.board)).click(function(ev) {
+          ev.preventDefault();
+          self.addFloodRunBoard(e.board);
+          redraw();
+        }).appendTo(row);
+      }
+    });
+    if (log.length) {
+      $('<a href="#"></a>').text(i18n('autoLog_clear')).click(function(ev) {
+        ev.preventDefault();
+        self.clearAutoBlackLog();
+        self.refreshAutoBlackLogOnUi();
+      }).appendTo($('<div></div>').appendTo(box));
+    }
+    box.prop('open', open);
+  },
+
+  updateSettingsToUi: function() {
+    this.refreshBlacklistOnUi();
+    this.refreshTempBlacklistOnUi();
+    this.refreshAutoBlackLogOnUi();
+    this.refreshWatchlistOnUi();
+    this.refreshNotesOnUi();
+
+    var self = this;
+    var htmlStr = '';
+    var n = 0;
+    var onMouseBrowsingHighlightColorChange = function(e) {
+      var qName = '#opt_mouseBrowsingHighlightColor';
+      var val = $(qName+' select').val();
+      var bg = $(qName+' .b'+val).css('background-color');
+      $(qName+' select').css('background-color', bg);
+    };
+
+    for (var i in this.values) {
+      var val = this.values[i];
+
+      // for blacklisted / watchlisted userids (filled above; #opt_tempBlacklist
+      // is the list of temporary ones, so it must not be emptied here)
+      if (i === 'blacklistedUserIds' || i === 'watchlistedUserIds' || i === 'notedUserIds' || i === 'tempBlacklist' || i === 'tempBlacklistInfo' || i === 'floodExempt') {
+        continue;
+      }
+      $('#opt_'+i).empty();
+      if (i === 'quickSearchList') {
+        this.setupQuickSearchUiList();
+        this.setupQuickSearchUiHandlers();
+        continue;
+      }
+
+      if (i === 'deleteDupLogin') {
+        var yesNode = $('#opt_deleteDupLoginYes');
+        if (val) {
+          yesNode.click();
+        }
+        continue;
+      }
+
+      // for the color selection box
+      if (i === 'mouseBrowsingHighlightColor') {
+        var qName = '#opt_'+i;
+        htmlStr = i18n('options_highlightColor')+'<select class="form-control">';
+        for (n = 1; n < 16; ++n) {
+          htmlStr += '<option value="'+n+'" class="b'+n+'"></option>';
+        }
+        htmlStr += '</select>';
+        $(qName).html(htmlStr);
+        $(qName+' select').val(val);
+        var bg = $(qName+' .b'+val).css('background-color');
+        $(qName+' select').css('background-color', bg);
+        $(qName+' select').on('change', onMouseBrowsingHighlightColorChange);
+        continue;
+      }
+
+      // for options that's predefined
+      if (i in PREF_OPTIONS) {
+        var optName = '#opt_'+i;
+        htmlStr = i18n('options_'+i) + '<select class="form-control">';
+        var options = PREF_OPTIONS[i];
+        for (n = 0; n < options.length; ++n) {
+          htmlStr += '<option value="'+n+'">'+i18n(options[n])+'</option>';
+        }
+        htmlStr += '</select>';
+        $(optName).html(htmlStr);
+        if (typeof(val) == 'boolean') {
+          val = val ? 1:0;
+        }
+        $(optName+' select').val(val);
+
+        continue;
+      }
+
+      var popoverTooltips = '';
+      if (i == 'fontFace' || i == 'antiIdleTime') {
+        popoverTooltips = ' data-toggle="popover" data-trigger="focus" data-content="'+i18n('tooltip_'+i)+'"';
+      }
+
+      switch(typeof(val)) {
+        case 'number':
+          $('#opt_'+i).html(
+            '<label style="font-weight:normal;">'+i18n('options_'+i)+'</label>'+
+            '<input type="number" class="form-control" value="'+val+'"'+popoverTooltips+'>');
+          break;
+        case 'string':
+          // *Color settings get a colour picker; values are set with .val()
+          // so quotes in user text can't break the markup.
+          var isColor = /Color$/.test(i);
+          $('#opt_'+i).html(
+            '<label style="font-weight:normal;">'+i18n('options_'+i)+'</label>'+
+            '<input type="'+(isColor ? 'color' : 'text')+'" class="form-control'+(isColor ? ' jj-color' : '')+'"'+popoverTooltips+'>');
+          $('#opt_'+i+' input').val(val);
+          break;
+        case 'boolean':
+          $('#opt_'+i).html(
+            '<label><input type="checkbox" '+(val?'checked':'')+'>'+i18n('options_'+i)+'</label>');
+          break;
+        default:
+          break;
+      }
+
+      // init popovers
+      if (i == 'fontFace' || i == 'antiIdleTime') {
+        $('#opt_'+i+' input').popover();
+      }
+    }
+
+    // autologin
+    $('#login_username').html(
+      '<label style="font-weight:normal;">'+i18n('autologin_username')+'</label>'+
+      '<input type="text" class="form-control">');
+    $('#login_password').html(
+      '<label style="font-weight:normal;">'+i18n('autologin_password')+'</label>'+
+      '<div class="input-group">'+
+        '<input type="password" class="form-control" autocomplete="off">'+
+        '<span class="input-group-btn">'+
+          '<button id="login_passwordToggle" class="btn btn-default" type="button" tabindex="-1">'+
+            '<span class="glyphicon glyphicon-eye-open"></span>'+
+          '</button>'+
+        '</span>'+
+      '</div>');
+    $('#login_username > input').val(this.logins[0]);
+    $('#login_password input').val(this.logins[1]);
+    $('#login_passwordToggle').click(function() {
+      var input = $('#login_password input');
+      var show = input.attr('type') === 'password';
+      input.attr('type', show ? 'text' : 'password');
+      $(this).find('.glyphicon')
+        .toggleClass('glyphicon-eye-open', !show)
+        .toggleClass('glyphicon-eye-close', show);
+    });
+    if (this.setupDependentFields) this.setupDependentFields();
+  },
+
+  setupSettingsUi: function() {
+    var self = this;
+    var i;
+    $('#opt_title').text(i18n('menu_settings'));
+
+    $('#opt_insightsHeading').text(i18n('options_insightsHeading'));
+    $('#opt_save').text(i18n('options_save'));
+    $('#opt_autosaveHint').text(i18n('options_autosaveHint'));
+
+    $('#opt_reset').off();
+    $('#opt_reset').text(i18n('options_reset'));
+    $('#opt_reset').click(function() {
+      self.shouldResetToDefault = true;
+      $('#prefModal').modal('hide');
+    });
+    // adjust the size alittle according to the locale
+    var lang = getLang();
+    if (lang == 'en_US') {
+      $('#opt_reset').css('fontSize', '12px');
+      $('#opt_reset').css('marginLeft', '-10px');
+    }
+
+    var cat = '';
+    for (i in PREFS_CATEGORIES) {
+      cat = PREFS_CATEGORIES[i];
+      $('#opt_'+cat).text(i18n('options_'+cat));
+    }
+    for (i in PREFS_NAV) {
+      cat = PREFS_NAV[i];
+      $('#optNav_'+cat).text(i18n('options_'+cat));
+    }
+
+    $('#opt_tabs a:first').tab('show');
+    var currTab = 'general';
+    $('#modalHeader').text(i18n('options_'+currTab));
+
+    $('#opt_autologinWarning').text(i18n('autologin_warning'));
+    $('#opt_layoutRefreshNote').text(i18n('options_layoutRefreshNote'));
+
+    // blacklist
+    $('#opt_blacklistInstruction').text(i18n('options_blacklistInstruction'));
+    $('#opt_watchlistInstruction').text(i18n('options_watchlistInstruction'));
+    $('#opt_notesInstruction').text(i18n('options_notesInstruction'));
+    $('#ext_quickSearchNote').text(i18n('ext_quickSearchNote'));
+    $('#ext_askAiNote').text(i18n('ext_askAiNote'));
+
+    this.setupExtensionsPage();
+
+    this.setupAboutPage();
+
+    $('#opt_tabs a').click(function(e) {
+      e.preventDefault();
+
+      var currTab = $(this).attr('name');
+      $('#modalHeader').text(i18n('options_'+currTab));
+      $(this).tab('show');
+    });
+
+    if (this.app.driveSync) {
+      this.app.driveSync.setupUi();
+    }
+    if (this.app.updater) {
+      this.app.updater.setupUi();
+    }
+    if (this.app.factCheck) {
+      this.app.factCheck.setupUi();
+    }
+    this.setupDependentFields();
+  },
+
+  // Grey out settings that only matter when another one is on.
+  setupDependentFields: function() {
+    var rules = [
+      // [switch, true when the switch turns them off, dependent fields]
+      ['#opt_noMouseBrowsing', true, ['#opt_mouseBrowsingHighlight', '#opt_mouseBrowsingHighlightColor']],
+      ['#opt_mouseBrowsingHighlight', false, ['#opt_mouseBrowsingHighlightColor']]
+    ];
+    var apply = function() {
+      var off = {};
+      rules.forEach(function(r) {
+        var on = $(r[0] + ' input').prop('checked');
+        var disabled = off[r[0]] || (r[1] ? on : !on);
+        r[2].forEach(function(sel) {
+          if (disabled) off[sel] = true;
+        });
+      });
+      rules.forEach(function(r) {
+        r[2].forEach(function(sel) {
+          $(sel).toggleClass('jj-disabled', !!off[sel]);
+          $(sel).find('input, select').prop('disabled', !!off[sel]);
+        });
+      });
+    };
+    rules.forEach(function(r) {
+      $(r[0] + ' input').off('change.dep').on('change.dep', apply);
+    });
+    apply();
+  },
+
+  populateSettingsToUi: function() {
+    var self = this;
+    this.setupSettingsUi();
+    this.updateSettingsToUi();
+
+    $('#prefModal').off();
+    $('#prefModal').on('show.bs.modal', function(e) {
+      var width = document.documentElement.clientWidth * 0.7;
+      width = (width > 730) ? width : 730;
+      width -= 190;
+      var height = document.documentElement.clientHeight * 0.9;
+      height = (height > 400) ? height: 400;
+      height -= 76;
+      $('#prefModal .modal-body').css('height', height + 'px');
+      $('#prefModal .modal-body').css('width', width + 'px');
+      $('#opt_blacklistedUsers').css('height', Math.max(100, height-420) + 'px');
+      self.refreshBlacklistOnUi();
+    });
+    $('#prefModal').on('shown.bs.modal', function(e) {
+      self.app.disableLiveHelper();
+      self.app.modalShown = true;
+      if (self.app.updater && self.app.updater.available()) self.app.updater.check(false);  // fresh status in the window
+    });
+    $('#prefModal').on('hidden.bs.modal', function(e) {
+      if (self.shouldResetToDefault) {
+        self.clearStorage();
+        self.values = JSON.parse(JSON.stringify(DEFAULT_PREFS));
+        self.blacklistedUserIds = {};
+        self.watchlistedUserIds = {};
+        self.notedUserIds = {};
+        self.quickSearches = JSON.parse(DEFAULT_PREFS.quickSearchList);
+        self.logins = ['',''];
+        self.updateSettingsToUi();
+        self.app.view.redraw(true);
+
+        self.shouldResetToDefault = false;
+      } else {
+        self.readValueFromUi();
+      }
+      self.saveAndDoneWithIt();
+      self.app.showToast(i18n('options_saved'));
+      self.app.switchToEasyReadingMode(self.app.view.useEasyReadingMode);
+    });
+  },
+
+  setupQuickSearchUiList: function() {
+    var self = this;
+    $('#ext_quickSearch').text(i18n('ext_quickSearch'));
+    var addNewSearchHtml = '<input type="text" class="form-control qSearchItemName" placeholder="' + i18n('ext_addQuickSearchNamePlaceholder') + '" /><input type="text" class="form-control qSearchItemQuery" placeholder="' + i18n('ext_addQuickSearchQueryPlaceholder') + '" />';
+    var buttonCloseHtml = '<button type="button" class="close">&times;</button>';
+    var buttonAddHtml = '<button type="button" class="close" data="add">&#43;</button>';
+    var quickSearchListHtml = '';
+
+    for (var i = 0; i < this.quickSearches.length; ++i) {
+      var qSearch = this.quickSearches[i];
+      quickSearchListHtml += '<li class="list-group-item">';
+      quickSearchListHtml += '<div class="qSearchItemName"><span>'+qSearch.name+'</span><input type="text" class="form-control" value="'+qSearch.name+'" /></div>';
+      quickSearchListHtml += '<div class="qSearchItemQuery"><span>'+qSearch.url+'</span><input type="text" class="form-control" value="'+qSearch.url+'" /></div>';
+      quickSearchListHtml += buttonCloseHtml + '</li>';
+    }
+    quickSearchListHtml += '<li class="list-group-item">' + addNewSearchHtml + buttonAddHtml + '</li>';
+    $('#ext_quickSearchList').html(quickSearchListHtml);
+  },
+
+  validateQuickSearchInput: function(node) {
+    var val = node.val();
+    if (val === '') {
+      node.addClass('has-error');
+      return;
+    }
+    var isQuery = node.hasClass('qSearchItemQuery') || node.parent().hasClass('qSearchItemQuery');
+    if (isQuery && val.indexOf('%s') < 0) {
+      node.addClass('has-error');
+    } else {
+      node.removeClass('has-error');
+    }
+  },
+
+  setupQuickSearchUiHandlers: function() {
+    var self = this;
+    $('#ext_quickSearchList li input').on('input', function(e) {
+      var node = $(this);
+      if (node.parent().is('li')) {
+        // is at the add new node, check if other node is also empty
+        var inputs = node.parent().find('input');
+        for (var i = 0; i < inputs.length; ++i) {
+          node = $(inputs[i]);
+          self.validateQuickSearchInput(node);
+        }
+      } else {
+        self.validateQuickSearchInput(node);
+      }
+    });
+
+    $('#ext_quickSearchList li button').click(function(e) {
+      if ($(this).attr('data') == 'add') {
+        var parent = $(this.parentNode);
+        var nameNode = parent.find('input.qSearchItemName');
+        var queryNode = parent.find('input.qSearchItemQuery');
+        var nameVal = nameNode.val();
+        var queryVal = queryNode.val();
+        // validate input
+        if (nameNode.hasClass('has-error') || queryNode.hasClass('has-error') ||
+            nameVal === '' || queryVal === '') {
+          return;
+        }
+
+        // add
+        self.quickSearches.push({ name: nameVal, url: queryVal });
+        self.setupQuickSearchUiList();
+        self.setupQuickSearchUiHandlers();
+      } else {
+        // update quickSearches then remove
+        var ind = $('#ext_quickSearchList li').index(this.parentNode);
+        if (ind > -1) {
+          self.quickSearches.splice(ind, 1);
+        }
+        $(this).parent().remove();
+      }
+    });
+
+    $('#ext_quickSearchList li div').click(function(e) {
+      $(this).parent().addClass('editMode');
+      var inputToSelect = $(this).find('input');
+      inputToSelect[0].select();
+    }).focusout(function(e) {
+      if (e.relatedTarget && e.relatedTarget.parentNode &&
+          this.parentNode == e.relatedTarget.parentNode.parentNode) {
+        return;
+      }
+
+      var parent = $(this).parent();
+      if (parent.find('.has-error').length) {
+        return;
+      }
+
+      if ($(this).is('input') && parent.is('li')) {
+        // focus out from add new
+      } else {
+        parent.removeClass('editMode');
+        // update on span
+        var nameVal = parent.find('.qSearchItemName input').val();
+        var queryVal = parent.find('.qSearchItemQuery input').val();
+        parent.find('.qSearchItemName span').text(nameVal);
+        parent.find('.qSearchItemQuery span').text(queryVal);
+
+        // save this now
+        var ind = $('#ext_quickSearchList li').index(this.parentNode);
+        if (ind > -1) {
+          self.quickSearches[ind] = { name: nameVal, url: queryVal };
+          // update the context menu as well
+        }
+      }
+    });
+  },
+
+  setupExtensionsPage: function() {
+    this.setupQuickSearchUiList();
+    this.setupQuickSearchUiHandlers();
+  },
+
+  setupAboutPage: function() {
+    var contents = [
+        'github', 'issues',
+        'forkedFrom', 'forkedBy', 'forkedLicense',
+        'version_title', 'source_title', 'traffic_title',
+        'new_title'
+      ];
+    for (var i in contents) {
+      var content = contents[i];
+      $('#about_'+content).text(i18n('about_'+content));
+    }
+
+    var kofi = $('#about_kofi').empty();
+    kofi.append(document.createTextNode(i18n('about_kofiPre')));
+    $('<a href="https://ko-fi.com/jjptt1980" target="_blank" rel="noopener noreferrer"></a>').text(i18n('about_kofiLink')).appendTo(kofi);
+    kofi.append(document.createTextNode(i18n('about_kofiPost')));
+
+    if (typeof JJPTT_PITCH !== 'undefined') {
+      var pitch = $('#about_pitch').empty();
+      $('<p class="jj-pitch-title"></p>').text(JJPTT_PITCH.title).appendTo(pitch);
+      var ul = $('<ul class="jj-pitch-list"></ul>').appendTo(pitch);
+      JJPTT_PITCH.points.forEach(function(pt) {
+        var li = $('<li></li>').appendTo(ul);
+        $('<b></b>').text(pt[0]).appendTo(li);
+        li.append(document.createTextNode('：' + pt[1]));
+      });
+      $('<p class="jj-pitch-foot"></p>').text(JJPTT_PITCH.footer).appendTo(pitch);
+      var traffic = $('#about_traffic').empty();
+      (JJPTT_PITCH.traffic || []).forEach(function(line) { $('<li></li>').text(line).appendTo(traffic); });
+    }
+
+    var latest = JJPTT_CHANGELOG[0];
+    $('#about_version').text('JJptt ' + latest.version + '（' + latest.date + '）');
+
+    // Release history, newest first.
+    var list = $('#about_new').empty();
+    JJPTT_CHANGELOG.forEach(function(entry) {
+      $('<li class="jj-changelog-ver"></li>')
+        .text('v' + entry.version + '（' + entry.date + '）').appendTo(list);
+      entry.changes.forEach(function(change) {
+        $('<li></li>').text(change).appendTo(list);
+      });
+    });
+  },
+
+  // Watchlist: one ID per line, optionally followed by a note.
+  refreshWatchlistOnUi: function() {
+    var ids = this.watchlistedUserIds;
+    var lines = Object.keys(ids).map(function(id) {
+      return ids[id] ? id + ' ' + ids[id] : id;
+    });
+    $('#opt_watchlistedUsers').val(lines.join('\n'));
+  },
+
+  readWatchlistValues: function() {
+    var listStr = $('#opt_watchlistedUsers').val() || '';
+    var ids = {};
+    listStr.split('\n').forEach(function(line) {
+      var m = /^\s*(\w+)\s*(.*?)\s*$/.exec(line);
+      if (m) ids[m[1].toLowerCase()] = m[2];
+    });
+    this.watchlistedUserIds = ids;
+    this.setWatchlistValue();
+  },
+
+  setWatchlistValue: function() {
+    this.values.watchlistedUserIds = JSON.stringify(this.watchlistedUserIds);
+  },
+
+  setWatchlistStorage: function() {
+    this.setWatchlistValue();
+    this.setStorage({ values: { watchlistedUserIds: this.values.watchlistedUserIds } });
+  },
+
+  // User notes: one ID per line followed by the note (e.g. 網軍), shown
+  // next to that user's pushes.
+  refreshNotesOnUi: function() {
+    var ids = this.notedUserIds;
+    var lines = Object.keys(ids).map(function(id) { return ids[id] ? id + ' ' + ids[id] : id; });
+    $('#opt_notedUsers').val(lines.join('\n'));
+  },
+
+  readNotesValues: function() {
+    var listStr = $('#opt_notedUsers').val() || '';
+    var ids = {};
+    listStr.split('\n').forEach(function(line) {
+      var m = /^\s*(\w+)\s*(.*?)\s*$/.exec(line);
+      if (m) ids[m[1].toLowerCase()] = m[2];
+    });
+    this.notedUserIds = ids;
+    this.setNotesValue();
+  },
+
+  customListName: function() {
+    return String((this.values && this.values.customListName) || '').trim() || '網軍';
+  },
+
+  // 'name' or 'name:note' when the user is on the custom list (and it is on), else ''.
+  customListLabel: function(id, sep) {
+    if (!this.values || this.values.customListEnabled === false) return '';
+    var notes = this.notedUserIds || {};
+    id = String(id || '').toLowerCase();
+    if (!(id in notes)) return '';
+    return this.customListName() + (notes[id] ? (sep || ':') + notes[id] : '');
+  },
+
+  // Faded like the blacklist (設定: 自訂名單的人推文也比照黑名單變暗).
+  fadesNoted: function(id) {
+    return !!(this.values && this.values.customListFade && this.customListLabel(id));
+  },
+
+  setNotesValue: function() {
+    this.values.notedUserIds = JSON.stringify(this.notedUserIds);
+  },
+
+  setNotesStorage: function() {
+    this.setNotesValue();
+    this.setStorage({ values: { notedUserIds: this.values.notedUserIds } });
+  },
+
+  refreshBlacklistOnUi: function() {
+    var listNode = $('#opt_blacklistedUsers');
+    var listStr = Object.keys(this.blacklistedUserIds).join('\n');
+    listNode.val(listStr);
+  },
+
+  readBlacklistValues: function() {
+    var listNode = $('#opt_blacklistedUsers');
+    var listStr = listNode.val();
+    var blacklistArray = listStr.split('\n');
+
+    this.blacklistedUserIds = {};
+
+    for (var i in blacklistArray) {
+      var b = blacklistArray[i];
+      if (!b) continue;
+      this.blacklistedUserIds[b.replace(' ','').toLowerCase()] = true;
+    }
+    this.setBlacklistValue();
+    this.app.view.redraw(true);
+  },
+
+  saveAndDoneWithIt: function() {
+    var self = this;
+    var data = {
+      values: self.values,
+      logins: {'u':self.logins[0], 'p':self.logins[1]}
+    };
+    this.setStorage(data);
+    this.updateToApp();
+    this.app.modalShown = false;
+    this.app.setInputAreaFocus();
+  },
+
+  readValueFromUi: function() {
+    this.readBlacklistValues();
+    this.readWatchlistValues();
+    this.readNotesValues();
+    var selectedVal;
+    var modeSel = $('#opt_blacklistMode select');
+    if (modeSel.length) {
+      var m = parseInt(modeSel.val(), 10) || 0;
+      this.values.enableBlacklist = m !== 2;
+      this.values.hideBlacklisted = m === 1;
+    }
+    for (var i in this.values) {
+      if (i === 'blacklistedUserIds' || i === 'watchlistedUserIds' || i === 'notedUserIds' || i === 'tempBlacklist' || i === 'tempBlacklistInfo' || i === 'floodExempt') {
+        continue;
+      }
+      if (i === 'quickSearchList') {
+        this.values[i] = JSON.stringify(this.quickSearches);
+        continue;
+      }
+
+      if (i === 'deleteDupLogin') {
+        var yesNode = $('#opt_deleteDupLoginYes');
+        this.values[i] = yesNode.prop('checked');
+        continue;
+      }
+
+      if (i === 'mouseBrowsingHighlightColor') {
+        selectedVal = $('#opt_'+i+' select').val();
+        this.values[i] = parseInt(selectedVal);
+        continue;
+      }
+
+      if (i in PREF_OPTIONS) {
+        if (!$('#opt_'+i+' select').length) continue;
+        selectedVal = $('#opt_'+i+' select').val();
+        this.values[i] = parseInt(selectedVal);
+        continue;
+      }
+
+      if (!$('#opt_'+i).length) continue;  // no field on the page: keep it
+      var elem = $('#opt_'+i+' input');
+      var type = typeof(this.values[i]);
+      switch(type) {
+        case 'number':
+          this.values[i] = parseInt(elem.val());
+          break;
+        case 'string':
+          this.values[i] = elem.val();
+          break;
+        case 'boolean':
+          this.values[i] = elem.prop('checked');
+          break;
+        default:
+          break;
+      }
+    }
+    var user = $('#login_username input').val();
+    var pswd = $('#login_password input').val();
+    if (user === '') {
+      pswd = '';
+    }
+    this.logins = [user, pswd];
+  },
+
+  loadDefault: function(callback) {
+    this.values = JSON.parse(JSON.stringify(DEFAULT_PREFS));
+    this.logins = {'u':'', 'p':''};
+    this.updateToApp();
+    this.populateSettingsToUi();
+    callback();
+  },
+
+  updateToApp: function() {
+    for (var i in this.values) {
+      this.app.onPrefChange(this, i);
+    }
+    if (this.logins[0]) {
+      this.app.conn.loginStr[1] = this.logins[0];
+    }
+    if (this.logins[1]) {
+      this.app.conn.loginStr[2] = this.logins[1];
+    }
+  },
+
+  resetSettings: function() {
+    this.clearStorage();
+    this.getStorage();
+  },
+
+  get: function(prefName) {
+    console.log(prefName + " = " + this.values[prefName]);
+    return this.values[prefName];
+  },
+
+  set: function(prefName, value) {
+    this.values[prefName] = value;
+  },
+
+  onStorageDone: function(msg) {
+    if (msg.data && msg.data.values) {
+      // iterate through default prefs to make sure all up to date
+      for (var i in DEFAULT_PREFS) {
+        if (!(i in msg.data.values) || msg.data.values[i] === null) {
+          this.values[i] = DEFAULT_PREFS[i];
+          if (i === 'quickSearchList') {
+            this.quickSearches = JSON.parse(this.values[i]).filter(function(q) { return !/goo\.gl/i.test(q.url); });
+          }
+        } else {
+          if (i === 'tempBlacklist') {
+            try { this.tempBlacklist = JSON.parse(msg.data.values[i]) || {}; } catch (e) { this.tempBlacklist = {}; }
+            this.values[i] = msg.data.values[i];
+          } else if (i === 'tempBlacklistInfo') {
+            try { this.tempBlacklistInfo = JSON.parse(msg.data.values[i]) || {}; } catch (e) { this.tempBlacklistInfo = {}; }
+            this.values[i] = msg.data.values[i];
+          } else if (i === 'floodExempt') {
+            try { this.floodExempt = JSON.parse(msg.data.values[i]) || {}; } catch (e) { this.floodExempt = {}; }
+            this.values[i] = msg.data.values[i];
+          } else if (i === 'watchlistedUserIds') {
+            this.watchlistedUserIds = JSON.parse(msg.data.values[i]);
+            this.values[i] = msg.data.values[i];
+          } else if (i === 'notedUserIds') {
+            try { this.notedUserIds = JSON.parse(msg.data.values[i]) || {}; } catch (e) { this.notedUserIds = {}; }
+            this.values[i] = msg.data.values[i];
+          } else if (i === 'blacklistedUserIds') {
+            this.blacklistedUserIds = JSON.parse(msg.data.values[i]);
+          } else if (i === 'quickSearchList') {
+            var val = msg.data.values[i];
+            this.quickSearches = JSON.parse(val).filter(function(q) { return !/goo\.gl/i.test(q.url); });
+            this.values[i] = val;
+          } else {
+            this.values[i] = msg.data.values[i];
+          }
+        }
+      }
+    }
+    // older settings: two switches -> one blacklist mode
+    // (stored values come back with defaults filled in, so look for old
+    // switches that disagree with the default mode)
+    if (msg.data && msg.data.values && !parseInt(this.values.blacklistMode, 10)) {
+      var v = msg.data.values;
+      if (v.enableBlacklist === false) this.values.blacklistMode = 2;
+      else if (v.hideBlacklisted === true) this.values.blacklistMode = 1;
+    }
+    if (msg.data && msg.data.values && msg.data.values.useMouseBrowsing === true && this.values.noMouseBrowsing !== false) {
+      this.values.noMouseBrowsing = false;  // was "use mouse browsing"
+    }
+    if (msg.data && msg.data.values && msg.data.values.closeQuery === true && this.values.noCloseQuery !== false) {
+      this.values.noCloseQuery = false;  // was "ask before closing"
+    }
+    if (msg.data && msg.data.values && msg.data.values.factReportExpanded === true &&
+        this.values.factReportCollapsed !== false) {
+      this.values.factReportCollapsed = false;  // was "expanded by default"
+    }
+    if (msg.data && msg.data.values && this.dropExemptFlood()) {
+      this.values.tempBlacklist = JSON.stringify(this.tempBlacklist);
+      this.values.tempBlacklistInfo = JSON.stringify(this.tempBlacklistInfo);
+      this.setStorage({ values: { tempBlacklist: this.values.tempBlacklist, tempBlacklistInfo: this.values.tempBlacklistInfo } });
+    }
+    if (msg.data && msg.data.logins) {
+      var data = msg.data.logins;
+      this.logins = [data.u, data.p];
+    }
+    this.updateToApp();
+    this.populateSettingsToUi();
+    if (!this.initCallbackCalled) {
+      if (this.values !== null && this.logins !== null) {
+        this.initCallbackCalled = true;
+        this.onInitializedCallback(this.app);
+        if (this.app.driveSync) this.app.driveSync.startup();
+        if (this.app.updater) this.app.updater.start();
+        this.app.announceUpdate();
+        this.app.checkOtherTabs();
+      }
+    }
+  },
+
+  getStorage: function(key) {
+    if (this.app.appConn.isConnected) {
+      this.app.appConn.appPort.postMessage({ action: 'storage', type: 'get', defaults: {
+        values: DEFAULT_PREFS,
+        logins: {'u':'', 'p':''}
+      } });
+    }
+  },
+
+  setBlacklistValue: function() {
+    var blacklist = JSON.stringify(this.blacklistedUserIds);
+    this.values.blacklistedUserIds = blacklist;
+  },
+
+  syncBlacklistWithDriveApi: function() {
+    // use the Drive API to sync the blacklist data
+
+  },
+
+  notifySync: function() {
+    if (this.app.driveSync) this.app.driveSync.onLocalChange();
+  },
+
+  setBlacklistStorage: function() {
+    this.notifySync();
+    if (this.app.appConn.isConnected) {
+      var items = {
+        values: {
+          blacklistedUserIds: this.values.blacklistedUserIds
+        }
+      };
+      this.app.appConn.appPort.postMessage({ action: 'storage', type: 'set', data: items });
+    }
+  },
+
+  setStorage: function(items) {
+    this.notifySync();
+    if (this.app.appConn.isConnected) {
+      this.app.appConn.appPort.postMessage({ action: 'storage', type: 'set', data: items });
+    }
+  },
+
+  clearStorage: function() {
+    if (this.app.appConn.isConnected) {
+      this.app.appConn.appPort.postMessage({ action: 'storage', type: 'clear' });
+    }
+  }
+
+};

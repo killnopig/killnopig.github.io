@@ -1,0 +1,60 @@
+# JJptt Android App
+
+**中文** | [English](android.en.md) | [日本語](android.ja.md)
+
+← [回 JJptt 首頁](../README.md)
+
+![JJptt Android：上 PTT，順手抓出帶風向的](images/android-cover.png)
+
+JJptt 也有 Android App 了：下載就能用，不用另外裝東西。App 自己直接連上 PTT，中間不經過別人的伺服器。
+
+- **真.事實查核**：秒推、同網段、機房 IP……直接標在推文旁邊，還能一鍵交給 AI 判讀；洗版的人自動淡化 24 小時（[規則說明](fact.md)）。
+- **推文、回文、發文**：推完馬上看到自己的推文（標「剛送出」），不用等 PTT 網站（www.ptt.cc）更新。
+- **好讀、好翻**：圖片、新聞卡片夾在內文裡；上一篇／下一篇可以浮在左右兩側，單手就能翻；登入後自動帶入 PTT 的我的最愛。
+- **版面隨你調**：字級、行距、推文樣式都能改，上方即時預覽；調好的版面可以變成一串「碼」（設定 → 版面 →「複製碼」），分享給朋友。
+- **跟擴充功能版共用設定**：擴充功能匯出的設定檔，手機可以直接匯入，反過來也可以（[怎麼搬](settings-file.md)）。
+- **帳號安全**：密碼用手機內建的保險箱（Android Keystore）加密，只存在這支手機，不會備份到雲端。
+- **問 AI、分享都一鍵**：選一段文字就能問 AI「這是不是事實？」，也能整篇交給 ChatGPT、Claude、Perplexity、Grok 或 Copilot；文章網址一鍵複製，或用瀏覽器開啟。
+
+![真.事實查核：一分鐘內五個人都說「真的超好喝」？標出來給你看](images/android-fact.png)
+
+<p align="center">
+  <img src="images/app-fact.png" width="24%" alt="文章上方的 FACT 報告">
+  <img src="images/app-pushes.png" width="24%" alt="推文旁標出秒推、同網段、機房">
+  <img src="images/app-sent.png" width="24%" alt="推完馬上看到自己的推文">
+  <img src="images/app-layout.png" width="24%" alt="版面設定與即時預覽">
+</p>
+<p align="center"><sub>FACT 報告 ｜ 每則推文的疑點 ｜ 推完馬上看到 ｜ 版面即時預覽</sub></p>
+
+## 把電腦上的設定搬到手機
+
+電腦上設好的黑名單、FACT 規則，存成一個檔案傳到手機打開，就不用重設一次；反過來從手機搬到電腦、換新手機也可以。密碼不會跟著搬，要重新登入。
+
+一步一步怎麼做、哪些會搬哪些不會：**[把設定搬到另一台](settings-file.md)**。
+
+## App 還不能做的事
+
+看信、修改或刪除自己的文章、精華區、聊天、投票這些，App 還沒有。每一項現在可以怎麼辦：**[PTT 有、但 JJptt 還沒做的功能](missing-features.md)**。
+
+## 下載與更新
+
+1. 用手機打開 [JJptt Android 正式版下載頁](https://github.com/JJptt1980/JJptt/releases/tag/android-stable)，點 `JJptt.apk` 下載（約 10 MB）。APK 就是 Android App 的安裝檔。
+2. 打開下載的檔案安裝。
+   - 第一次會問你要不要允許「安裝不明來源的應用程式」，選允許。
+   - 為什麼會問：JJptt 沒有上架 Google Play。從 Google Play 以外的地方裝 App，手機都會先問一次。
+   - Android 8 以上，這個允許只給你下載用的那個 App（例如 Chrome 或「檔案」），不會讓其他 App 也能亂裝東西。
+3. 之後有新版：App 裡 **設定 → 關於 →「檢查並自動更新」**，按一下就好，設定和登入都會保留。
+
+想搶先試還在測試的修改：設定 → 關於 → 打開「**接收測試版**」。
+
+支援 Android 7.0 以上；沒有上架 Google Play，請從上面的下載頁安裝。
+
+**流量**：看文章時會下載文章裡的圖片。用行動網路、流量有限時，可以到 設定 → 一般 →「閱讀」，關掉「預先讀取時連圖片一起下載」、打開「用低解析度圖片」。
+
+## 關於 iOS 版
+
+很多人問有沒有 iPhone 版，其實我也很想做。程式大部分可以沿用，但 iOS App 要上架，得先加入 Apple 的開發者計畫（每年 99 美元），也需要一支 iPhone 來測試直連 PTT 和推文這些功能。
+
+JJptt 一直是免費、沒有廣告的業餘專案，這筆費用目前還沒有著落。如果你覺得 JJptt 好用，也願意幫忙促成 iOS 版，歡迎到 [Ko-fi 請我喝杯咖啡](https://ko-fi.com/jjptt1980)——金額不拘、完全自由，不影響任何功能。湊到開發者帳號的費用我就開工，進度會再跟大家分享。
+
+<sub>宣傳圖裡的文章、帳號和 IP 都是示範用的虛構資料。</sub>
