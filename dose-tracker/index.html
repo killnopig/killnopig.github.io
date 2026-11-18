@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>注射與體重記錄</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#eef2f5;--card:#fff;--tx:#14212b;--mu:#5d6b78;--ln:#d5dde4;--dose:#0e7490;--wt:#c2410c;--btn:#14212b;--btnt:#fff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1419;--card:#172028;--tx:#e6edf2;--mu:#8fa0ae;--ln:#26333d;--dose:#38bdf8;--wt:#fb923c;--btn:#e6edf2;--btnt:#0e1419}}
+:root[data-theme="dark"]{--bg:#0e1419;--card:#172028;--tx:#e6edf2;--mu:#8fa0ae;--ln:#26333d;--dose:#38bdf8;--wt:#fb923c;--btn:#e6edf2;--btnt:#0e1419}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.5 "Noto Sans TC",system-ui,-apple-system,sans-serif}
+main{max-width:520px;margin:0 auto;padding:16px 16px 88px}
+h1{font-size:20px;margin:4px 0 12px;font-weight:700}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:14px;margin-bottom:12px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.stat{background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:12px}
+.stat b{display:block;font-size:26px;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat span{font-size:13px;color:var(--mu)}
+.wide{grid-column:1/-1}
+label{display:block;font-size:13px;color:var(--mu);margin:10px 0 4px}
+input,textarea,select{width:100%;font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--ln);border-radius:10px;padding:10px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{font:inherit;border:0;border-radius:10px;padding:12px 16px;background:var(--btn);color:var(--btnt);font-weight:600;width:100%;margin-top:14px}
+button.sec{background:transparent;color:var(--tx);border:1px solid var(--ln);margin-top:8px}
+button.x{width:auto;margin:0;padding:6px 10px;background:transparent;color:var(--mu);border:1px solid var(--ln);font-weight:400;font-size:13px}
+.item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--ln)}
+.item:first-child{border-top:0}
+.item small{color:var(--mu);display:block}
+.d{color:var(--dose);font-weight:600}.w{color:var(--wt);font-weight:600}
+.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom,0px)}
+.tabs button{margin:0;border-radius:0;background:transparent;color:var(--mu);padding:14px 0;flex:1}
+.tabs button.on{color:var(--tx);box-shadow:inset 0 3px 0 var(--dose)}
+.pane{display:none}.pane.on{display:block}
+.cv{position:relative;height:250px}
+.note{font-size:13px;color:var(--mu)}
+.empty{color:var(--mu);text-align:center;padding:18px 0}
+</style>
+</head>
+<body>
+<main>
+<div id="upd" class="card" style="display:none;cursor:pointer;text-align:center"><b>有新版本 <span id="nv"></span>，點此更新</b></div>
+<h1>注射與體重記錄</h1>
+<div class="note" id="sync" style="margin:-6px 0 10px;cursor:pointer">本機儲存</div>
+
+<section id="p-log" class="pane on">
+  <div class="stats">
+    <div class="stat"><b id="s-w">–</b><span>最新體重 (kg)</span></div>
+    <div class="stat"><b id="s-c">–</b><span>與第一筆相比 (kg)</span></div>
+    <div class="stat"><b id="s-d">–</b><span id="s-dl">最近一次劑量 (mg)</span></div>
+    <div class="stat"><b id="s-o">–</b><span>預估體內殘留 (mg)</span></div>
+    <div class="stat"><b id="s-b">–</b><span id="s-bs">BMI</span></div>
+    <div class="stat"><b id="s-t">–</b><span id="s-ts">距離目標 (kg)</span></div>
+    <div class="stat wide"><b id="s-n" style="font-size:18px">–</b><span id="s-ns"></span></div>
+  </div>
+  <div class="card">
+    <label for="f-date">日期</label>
+    <input type="date" id="f-date">
+    <div class="row">
+      <div><label for="f-dose">注射劑量 (mg)</label><input type="number" id="f-dose" inputmode="decimal" step="0.1" min="0" placeholder="例如 2.5"></div>
+      <div><label for="f-wt">體重 (kg)</label><input type="number" id="f-wt" inputmode="decimal" step="0.1" min="0" placeholder="例如 72.4"></div>
+    </div>
+    <label for="f-site">注射部位（有填劑量時記錄）</label>
+    <select id="f-site"></select>
+    <label for="f-note">備註（選填）</label>
+    <input type="text" id="f-note" placeholder="例如 左腹、輕微噁心">
+    <button id="add">儲存記錄</button>
+    <button id="cancel-edit" class="sec" style="display:none">取消編輯</button>
+    <div class="note" id="msg" style="margin-top:8px"></div>
+  </div>
+  <div class="card" id="list"></div>
+</section>
+
+<section id="p-chart" class="pane">
+  <div class="card"><b>體重</b><div class="cv"><canvas id="c-w"></canvas></div></div>
+  <div class="card"><b>劑量與預估體內殘留</b><div class="cv"><canvas id="c-d"></canvas></div>
+  <p class="note">殘留量依半衰期以指數衰減估算，假設注射後立即吸收，僅供趨勢參考，不是醫療建議。</p></div>
+</section>
+
+<section id="p-set" class="pane">
+  <div class="card">
+    <div class="row">
+      <div><label for="h">身高 (cm)</label><input type="number" id="h" inputmode="decimal" min="50" max="250"></div>
+      <div><label for="tw">目標體重 (kg)</label><input type="number" id="tw" inputmode="decimal" min="20" step="0.1"></div>
+    </div>
+    <p class="note">用來計算 BMI（採台灣成人標準）並在體重圖上畫出目標線。</p>
+    <button id="save-prof">儲存身高與目標</button>
+  </div>
+  <div class="card">
+    <label for="hl">半衰期（小時）</label>
+    <input type="number" id="hl" inputmode="decimal" min="1">
+    <p class="note">Tirzepatide 約 120 小時，Semaglutide 約 160 小時。</p>
+    <button id="save-hl">儲存半衰期</button>
+  </div>
+  <div class="card">
+    <b>Google Drive 雲端備份</b>
+    <p class="note">登入你自己的 Google 帳號後，資料會備份到你 Drive 裡的隱藏應用程式資料夾，只有這個網頁能讀寫，作者看不到你的資料。</p>
+    <button id="gd-btn">連線 Google Drive</button>
+    <button id="gd-off" class="sec" style="display:none">中斷連線</button>
+  </div>
+  <div class="card">
+    <b>備份與還原</b>
+    <p class="note">未連線 Google Drive 時，資料只存在這支手機的瀏覽器中，清除瀏覽資料或換手機會遺失。仍建議定期產生備份文字另存。</p>
+    <textarea id="bk" rows="5"></textarea>
+    <button id="exp" class="sec">產生備份文字</button>
+    <button id="imp" class="sec">從文字還原</button>
+    <div class="note" id="bmsg" style="margin-top:8px"></div>
+    <details style="margin-top:14px">
+      <summary style="cursor:pointer;font-weight:600">從其他 App 或 Excel 匯入</summary>
+      <div class="note" style="margin-top:10px;line-height:1.7">
+        <p>不同 App 的匯出格式都不一樣，建議請 AI 幫你轉成本 app 吃得進去的格式：</p>
+        <ol style="padding-left:20px">
+          <li>按「複製提示詞」。</li>
+          <li>貼到你慣用的 AI 對話，並把你的記錄（從 Excel 複製的表格、CSV 內容都可以）貼在提示詞最後面。</li>
+          <li>把 AI 回覆的內容複製起來，貼進上面的備份文字框，按「從文字還原」。</li>
+        </ol>
+        <p>注意：還原會取代目前所有資料。請先按「產生備份文字」另存一份；想保留現有記錄的話，把現有備份文字也一併貼給 AI，請它合併。</p>
+        <p>你的記錄會傳給你使用的 AI 服務，請自行評估是否適合。</p>
+      </div>
+      <textarea id="ai-prompt" readonly rows="6">請把我貼上的施打與體重記錄，轉換成下面格式的 JSON。只輸出 JSON，不要加任何說明文字。
+
+格式：
+{"entries":[{"date":"YYYY-MM-DD","dose":劑量數字,"wt":體重數字,"site":"部位","note":"備註"}],"hl":120,"h":0,"tw":0}
+
+規則：
+1. date 必須是 YYYY-MM-DD。如果我的資料沒有年份，或日期有歧義（例如 03/04 可能是 3 月 4 日或 4 月 3 日），請先問我，不要自己猜。
+2. dose 是注射劑量（mg），wt 是體重（kg）。同一天的劑量和體重放同一筆；只有其中一項時，另一項填 0。
+3. 如果體重單位是磅（lb），請換算成公斤，四捨五入到小數 1 位。
+4. site 只能是這七個之一：左腹、腹中、右腹、左大腿、右大腿、左上臂、右上臂。沒有部位或對不上就填空字串 ""，並把原本的部位文字寫進 note。
+5. 依日期由舊到新排序。
+6. 資料裡沒有的內容不要編造。
+7. hl 是藥物半衰期（小時），不知道就填 120；h 是身高（cm）、tw 是目標體重（kg），不知道就填 0。
+
+以下是我的資料：
+（把你的記錄貼在這裡）</textarea>
+      <button id="ai-copy" class="sec">複製提示詞</button>
+    </details>
+  </div>
+</section>
+<details class="card" style="margin-top:16px">
+  <summary style="cursor:pointer;font-weight:600">關於本 app 與免責聲明</summary>
+  <div class="note" style="margin-top:10px;line-height:1.7">
+    <p>本 app 是個人記錄與趨勢檢視工具，不是醫療器材，也不提供診斷、治療或用藥建議。</p>
+    <p>「預估體內殘留」是依半衰期做的簡化指數衰減估算，假設注射後立即吸收，與實際血中濃度不同，不可用來決定劑量。BMI 分類和「建議注射部位、下次注射日」只是輔助提醒，請以醫師或藥師的指示和藥品介紹為準。</p>
+    <p>用藥、調整劑量、漏打或出現不適症狀時，請詢問你的醫師或藥師；緊急狀況請立即就醫。</p>
+    <p>資料由使用者自行輸入，儲存在你的裝置瀏覽器；若你連線 Google Drive，也會備份在你自己的 Drive 中，作者無法存取。請自行定期備份，作者不保證資料不會遺失。</p>
+    <p>本 app 按現狀提供，不附任何保證，作者不對因使用或無法使用本 app 造成的任何後果負責。本 app 與任何藥廠或藥品品牌無關。</p>
+  </div>
+</details>
+<div class="note" id="ver" style="text-align:center;margin-top:12px"></div>
+</main>
+
+<nav class="tabs">
+  <button data-t="log" class="on">記錄</button>
+  <button data-t="chart">圖表</button>
+  <button data-t="set">設定</button>
+</nav>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const K='dosetrack-v1';
+let S={entries:[],hl:120,h:0,tw:0,ts:0};
+try{const r=localStorage.getItem(K);if(r){const p=JSON.parse(r);if(p&&Array.isArray(p.entries))S={entries:p.entries,hl:Number(p.hl)||120,h:Number(p.h)||0,tw:Number(p.tw)||0,ts:Number(p.ts)||0}}}catch(e){}
+const save=()=>{S.ts=Date.now();try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}schedPush()};
+const $=id=>document.getElementById(id);
+const pad=n=>String(n).padStart(2,'0');
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+const dn=s=>{const [y,m,d]=s.split('-').map(Number);return Math.round(Date.UTC(y,m-1,d)/864e5)};
+const fromDn=n=>{const d=new Date(n*864e5);return d.getUTCFullYear()+'-'+pad(d.getUTCMonth()+1)+'-'+pad(d.getUTCDate())};
+const md=s=>s.slice(5).replace('-','/');
+const sorted=()=>S.entries.slice().sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.id-b.id);
+const onBoard=(day)=>{const k=Math.LN2/(S.hl/24);let t=0;for(const e of S.entries){if(e.dose>0){const x=day-dn(e.date);if(x>=0)t+=e.dose*Math.exp(-k*x)}}return t};
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+let cw=null,cd=null;
+let editId=null;
+function startEdit(e){
+  editId=e.id;
+  $('f-date').value=e.date;$('f-dose').value=e.dose>0?e.dose:'';$('f-wt').value=e.wt>0?e.wt:'';
+  $('f-site').value=e.site||nextSite();$('f-note').value=e.note||'';
+  $('add').textContent='更新記錄';$('cancel-edit').style.display='block';
+  $('msg').textContent='正在編輯 '+e.date+' 的記錄。';
+  $('f-date').scrollIntoView({behavior:'smooth',block:'center'});
+}
+function cancelEdit(){
+  editId=null;$('add').textContent='儲存記錄';$('cancel-edit').style.display='none';
+  $('f-date').value=today();$('f-dose').value='';$('f-wt').value='';$('f-note').value='';$('msg').textContent='';
+  $('f-site').value=nextSite();
+}
+const SITES=['左腹','腹中','右腹','左大腿','右大腿','左上臂','右上臂'];
+function nextSite(){const l=sorted().filter(e=>e.dose>0&&e.site).pop();const i=l?SITES.indexOf(l.site):-1;return SITES[(i+1)%SITES.length]}
+SITES.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;$('f-site').appendChild(o)});
+
+function render(){
+  const es=sorted();
+  const ws=es.filter(e=>e.wt>0),ds=es.filter(e=>e.dose>0);
+  $('s-w').textContent=ws.length?ws[ws.length-1].wt.toFixed(1):'–';
+  if(ws.length>1){const c=ws[ws.length-1].wt-ws[0].wt;$('s-c').textContent=(c>0?'+':'')+c.toFixed(1)}else $('s-c').textContent='–';
+  $('s-d').textContent=ds.length?ds[ds.length-1].dose:'–';
+  $('s-dl').textContent=ds.length?'最近一次劑量 (mg，'+md(ds[ds.length-1].date)+')':'最近一次劑量 (mg)';
+  $('s-o').textContent=ds.length?onBoard(dn(today())).toFixed(1):'–';
+  const lw=ws.length?ws[ws.length-1].wt:0;
+  if(lw&&S.h>0){const m=S.h/100,b=lw/(m*m);$('s-b').textContent=b.toFixed(1);$('s-bs').textContent='BMI（'+(b<18.5?'過輕':b<24?'正常':b<27?'過重':'肥胖')+'）'}else{$('s-b').textContent='–';$('s-bs').textContent='BMI（請在設定輸入身高）'}
+  if(lw&&S.tw>0){const g=lw-S.tw;$('s-t').textContent=g>0?g.toFixed(1):'已達成';$('s-ts').textContent='距離目標 '+S.tw+' kg'}else{$('s-t').textContent='–';$('s-ts').textContent='距離目標（請在設定輸入）'}
+  const last=ds[ds.length-1];
+  if(last){const due=dn(last.date)+7,left=due-dn(today());const wd='日一二三四五六'[new Date(due*864e5).getUTCDay()];$('s-n').textContent='下次注射：'+md(fromDn(due))+'（週'+wd+'）';$('s-ns').textContent=(left>0?'還有 '+left+' 天':left===0?'就是今天':'已逾期 '+(-left)+' 天')+'，建議部位：'+nextSite()}
+  else{$('s-n').textContent='尚無注射記錄';$('s-ns').textContent='建議第一針部位：'+SITES[0]}
+  if(editId===null)$('f-site').value=nextSite();
+  const L=$('list');L.textContent='';
+  if(!es.length){const d=document.createElement('div');d.className='empty';d.textContent='還沒有記錄，先新增第一筆吧。';L.appendChild(d)}
+  es.slice().reverse().forEach(e=>{
+    const it=document.createElement('div');it.className='item';
+    const l=document.createElement('div');
+    const a=document.createElement('div');a.textContent=e.date;
+    const b=document.createElement('div');
+    if(e.dose>0){const s=document.createElement('span');s.className='d';s.textContent='注射 '+e.dose+' mg'+(e.site?'（'+e.site+'）':'');b.appendChild(s)}
+    if(e.dose>0&&e.wt>0)b.appendChild(document.createTextNode('　'));
+    if(e.wt>0){const s=document.createElement('span');s.className='w';s.textContent='體重 '+e.wt+' kg';b.appendChild(s)}
+    l.appendChild(a);l.appendChild(b);
+    if(e.note){const n=document.createElement('small');n.textContent=e.note;l.appendChild(n)}
+    const x=document.createElement('button');x.className='x';x.textContent='刪除';
+    x.onclick=()=>{if(x.dataset.c){if(editId===e.id)cancelEdit();S.entries=S.entries.filter(z=>z.id!==e.id);save();render();drawCharts()}else{x.dataset.c=1;x.textContent='再按一次確認';setTimeout(()=>{x.dataset.c='';x.textContent='刪除'},3000)}};
+    const ed=document.createElement('button');ed.className='x';ed.textContent='編輯';ed.onclick=()=>startEdit(e);
+    const bx=document.createElement('div');bx.style.cssText='display:flex;gap:6px;flex-shrink:0';bx.appendChild(ed);bx.appendChild(x);
+    it.appendChild(l);it.appendChild(bx);L.appendChild(it);
+  });
+}
+
+function drawCharts(){
+  if(typeof Chart==='undefined')return;
+  const tx=css('--tx'),mu=css('--mu'),ln=css('--ln'),dc=css('--dose'),wc=css('--wt');
+  Chart.defaults.color=mu;Chart.defaults.font.family='"Noto Sans TC",system-ui,sans-serif';
+  const es=sorted(),ws=es.filter(e=>e.wt>0),ds=es.filter(e=>e.dose>0);
+  if(cw)cw.destroy();if(cd)cd.destroy();
+  const grid={color:ln};
+  cw=new Chart($('c-w'),{type:'line',data:{labels:ws.map(e=>md(e.date)),datasets:[{label:'體重 (kg)',data:ws.map(e=>e.wt),borderColor:wc,backgroundColor:wc,tension:.25,pointRadius:3},...(S.tw>0?[{label:'目標 '+S.tw+' kg',data:ws.map(()=>S.tw),borderColor:mu,backgroundColor:mu,borderDash:[6,4],borderWidth:1.5,pointRadius:0}]:[])]},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:S.tw>0,labels:{color:tx,boxWidth:12}}},scales:{x:{grid},y:{grid}}}});
+  let labels=[],doses=[],ob=[];
+  if(ds.length){
+    const a=dn(ds[0].date),b=Math.max(dn(today()),dn(ds[ds.length-1].date))+7;
+    const dm={};ds.forEach(e=>{dm[e.date]=(dm[e.date]||0)+e.dose});
+    for(let i=a;i<=b;i++){const s=fromDn(i);labels.push(md(s));doses.push(dm[s]||null);ob.push(+onBoard(i).toFixed(2))}
+  }
+  cd=new Chart($('c-d'),{data:{labels,datasets:[
+    {type:'bar',label:'注射劑量 (mg)',data:doses,backgroundColor:dc,order:2},
+    {type:'line',label:'預估殘留 (mg)',data:ob,borderColor:wc,backgroundColor:wc,pointRadius:0,tension:.3,order:1}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{labels:{color:tx,boxWidth:12}}},scales:{x:{grid,ticks:{maxTicksLimit:8}},y:{grid,beginAtZero:true}}}});
+}
+
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='p-'+b.dataset.t));
+  if(b.dataset.t==='chart')drawCharts();
+  window.scrollTo(0,0);
+});
+
+$('f-date').value=today();
+const GOOGLE_CLIENT_ID='157434461885-nmum0qv1h34r1u9f0scn7g75u7s09iiu.apps.googleusercontent.com';
+const FN='dose-tracker.json',SCOPE='https://www.googleapis.com/auth/drive.appdata';
+let tok=null,tokExp=0,tc=null,fid=null,tmr=null,linked=false;
+try{linked=localStorage.getItem('dt-linked')==='1'}catch(e){}
+const setSync=t=>{$('sync').textContent=t};
+const ready=()=>tok&&Date.now()<tokExp-60000;
+function updUI(){
+  $('gd-btn').textContent=linked?(ready()?'立即同步':'重新連線 Google Drive'):'連線 Google Drive';
+  $('gd-off').style.display=linked?'block':'none';
+}
+async function gfetch(url,opt){
+  opt=opt||{};
+  const r=await fetch(url,Object.assign({},opt,{headers:Object.assign({Authorization:'Bearer '+tok},opt.headers||{})}));
+  if(r.status===401){tok=null;throw new Error('auth')}
+  if(!r.ok)throw new Error('http '+r.status);
+  return r;
+}
+async function findFile(){
+  const r=await gfetch('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id)&q='+encodeURIComponent("name='"+FN+"'"));
+  const j=await r.json();fid=j.files&&j.files[0]?j.files[0].id:null;
+}
+async function pushRemote(){
+  if(!ready()){setSync('Google Drive 需要重新連線（點此重新連線）');updUI();return}
+  try{
+    const data=JSON.stringify(S);
+    if(fid){await gfetch('https://www.googleapis.com/upload/drive/v3/files/'+fid+'?uploadType=media',{method:'PATCH',headers:{'Content-Type':'application/json'},body:data})}
+    else{
+      const bd='dtb'+Date.now();
+      const body='--'+bd+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify({name:FN,parents:['appDataFolder']})+'\r\n--'+bd+'\r\nContent-Type: application/json\r\n\r\n'+data+'\r\n--'+bd+'--';
+      const r=await gfetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+bd},body});
+      fid=(await r.json()).id;
+    }
+    setSync('已備份到 Google Drive');
+  }catch(e){setSync('Drive 備份失敗，資料仍在本機（點此重新連線）')}
+}
+function schedPush(){if(!linked)return;setSync('同步中…');clearTimeout(tmr);tmr=setTimeout(pushRemote,800)}
+async function pullAndMerge(){
+  await findFile();
+  if(fid){
+    const r=await gfetch('https://www.googleapis.com/drive/v3/files/'+fid+'?alt=media');
+    const d=await r.json();
+    if(d&&Array.isArray(d.entries)&&(d.ts||0)>(S.ts||0)){
+      S={entries:d.entries,hl:Number(d.hl)||120,h:Number(d.h)||0,tw:Number(d.tw)||0,ts:d.ts};
+      try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}
+      $('hl').value=S.hl;$('h').value=S.h||'';$('tw').value=S.tw||'';render();
+      if($('p-chart').classList.contains('on'))drawCharts();
+      setSync('已從 Google Drive 載入');return;
+    }
+  }
+  await pushRemote();
+}
+function connect(interactive){
+  if(GOOGLE_CLIENT_ID.startsWith('YOUR_')){setSync('尚未設定 Google Client ID，目前僅儲存在本機');return}
+  if(!window.google||!google.accounts){setSync('Google 登入元件尚未載入，請稍後再試');return}
+  if(!tc)tc=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:SCOPE,
+    callback:async r=>{
+      if(r.error||!r.access_token){setSync('Google 連線失敗（點此重新連線）');updUI();return}
+      tok=r.access_token;tokExp=Date.now()+(r.expires_in||3600)*1000;linked=true;
+      try{localStorage.setItem('dt-linked','1')}catch(e){}
+      try{await pullAndMerge()}catch(e){setSync('Drive 同步失敗，資料仍在本機（點此重新連線）')}
+      updUI();
+    },
+    error_callback:()=>{setSync('Google Drive 需要重新連線（點此重新連線）');updUI()}});
+  tc.requestAccessToken({prompt:interactive?'':'none'});
+}
+$('sync').onclick=()=>{if(linked&&!ready())connect(true)};
+$('gd-btn').onclick=()=>{if(linked&&ready()){setSync('同步中…');pullAndMerge().catch(()=>setSync('Drive 同步失敗，資料仍在本機'))}else connect(true)};
+$('gd-off').onclick=()=>{
+  try{if(tok&&window.google)google.accounts.oauth2.revoke(tok)}catch(e){}
+  tok=null;linked=false;fid=null;try{localStorage.removeItem('dt-linked')}catch(e){}
+  setSync('本機儲存（已中斷 Google Drive）');updUI();
+};
+updUI();
+if(linked)setSync('Google Drive 已連結，連線中…');
+window.addEventListener('load',()=>{if(linked)connect(false)});
+const APP_VERSION='1.2.0';
+$('ver').textContent='版本 '+APP_VERSION;
+let updShown=false;
+async function checkUpdate(){
+  if(updShown||!/^https?:/.test(location.protocol))return;
+  try{
+    const u=new URL('index.html',location.href);u.search='';u.hash='';
+    const r=await fetch(u.href+'?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok)return;
+    const m=(await r.text()).match(/APP_VERSION='(\d+\.\d+\.\d+)'/);
+    if(m&&m[1]!==APP_VERSION){updShown=true;$('nv').textContent=m[1];$('upd').style.display='block'}
+  }catch(e){}
+}
+$('cancel-edit').onclick=cancelEdit;
+$('ai-copy').onclick=async()=>{
+  const t=$('ai-prompt');
+  try{await navigator.clipboard.writeText(t.value)}catch(e){t.select();try{document.execCommand('copy')}catch(e2){}}
+  $('ai-copy').textContent='已複製';setTimeout(()=>$('ai-copy').textContent='複製提示詞',1500);
+};
+$('upd').onclick=()=>{location.replace(location.pathname+'?v='+Date.now())};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkUpdate()});
+window.addEventListener('load',()=>setTimeout(checkUpdate,1500));
+$('add').onclick=()=>{
+  const date=$('f-date').value,dose=parseFloat($('f-dose').value)||0,wt=parseFloat($('f-wt').value)||0;
+  if(!date){$('msg').textContent='請選擇日期。';return}
+  if(!(dose>0)&&!(wt>0)){$('msg').textContent='請至少輸入劑量或體重其中一項。';return}
+  const rec={date,dose,wt,site:dose>0?$('f-site').value:'',note:$('f-note').value.trim()};
+  const was=editId!==null;
+  const t=was?S.entries.find(z=>z.id===editId):null;
+  if(t)Object.assign(t,rec);else S.entries.push(Object.assign({id:Date.now()},rec));
+  cancelEdit();
+  save();$('f-dose').value='';$('f-wt').value='';$('f-note').value='';
+  $('msg').textContent=was?'已更新。':'已儲存。';render();
+};
+$('hl').value=S.hl;
+$('h').value=S.h||'';$('tw').value=S.tw||'';
+$('save-prof').onclick=()=>{S.h=parseFloat($('h').value)||0;S.tw=parseFloat($('tw').value)||0;save();render();$('save-prof').textContent='已儲存';setTimeout(()=>$('save-prof').textContent='儲存身高與目標',1500)};
+$('save-hl').onclick=()=>{const v=parseFloat($('hl').value);if(v>0){S.hl=v;save();render();$('save-hl').textContent='已儲存';setTimeout(()=>$('save-hl').textContent='儲存半衰期',1500)}};
+$('exp').onclick=()=>{$('bk').value=JSON.stringify(S);$('bk').select();$('bmsg').textContent='請全選複製，貼到備忘錄或傳給自己保存。'};
+$('imp').onclick=()=>{
+  try{const p=JSON.parse($('bk').value.replace(/```(json)?/g,'').trim());if(!p||!Array.isArray(p.entries))throw 0;
+    S={entries:p.entries.filter(e=>e&&typeof e.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(e.date)).map((e,i)=>({id:e.id||Date.now()+i,date:e.date,dose:+e.dose||0,wt:+e.wt||0,note:String(e.note||''),site:SITES.includes(e.site)?e.site:''})),hl:Number(p.hl)||120,h:Number(p.h)||0,tw:Number(p.tw)||0};
+    save();$('hl').value=S.hl;$('h').value=S.h||'';$('tw').value=S.tw||'';render();$('bmsg').textContent='已還原 '+S.entries.length+' 筆記錄'+(p.entries.length>S.entries.length?'，略過 '+(p.entries.length-S.entries.length)+' 筆日期格式不正確的記錄':'')+'。'}
+  catch(e){$('bmsg').textContent='格式不正確，請貼上完整的備份文字。'}
+};
+render();
+</script>
+</body>
+</html>
