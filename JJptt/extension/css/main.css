@@ -1716,6 +1716,9 @@ body.jj-mobile .jjm {
 .jjm-nrec-10 { background: #f9a825; color: #1a1300; }
 .jjm-nrec-1 { background: #2e7d32; color: #e8f5e9; }
 .jjm-nrec-boo { background: #3a3d3a; color: #a5aaa2; }
+/* quick 推文數 searches: PTT's 爆 (red dot) and 噓爆 (grey XX) */
+.jjm-quick-hot { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: #e53935; color: #fff; font-weight: 700; }
+.jjm-quick-boo { color: #8a8f88; font-weight: 700; letter-spacing: 1px; }
 
 /* article */
 .jjm-reading { font-size: var(--jjm-fs); }

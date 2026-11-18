@@ -81,9 +81,16 @@ JJPtt.prototype.connected = function() {
 
 // One job at a time, in order. When one fails, the hidden screen at that
 // moment is kept (設定 → 帳號 → 最後一次 PTT 畫面) to see what PTT showed.
-JJPtt.prototype.run = function(job) {
+// bg: a job nobody is waiting for (reading ahead); fgWaiting counts the
+// others still in the queue, so a long background read can give way.
+JJPtt.prototype.run = function(job, bg) {
   var self = this;
-  var p = this.queue.then(job, job).catch(function(err) {
+  var go = job;
+  if (!bg) {
+    this.fgWaiting = (this.fgWaiting || 0) + 1;
+    go = function() { self.fgWaiting--; return job(); };
+  }
+  var p = this.queue.then(go, go).catch(function(err) {
     self.lastFailure = { at: Date.now(), message: (err && err.message) || String(err), screen: self.screen() };
     try { window.localStorage.setItem(JJPtt.FAIL_KEY, JSON.stringify(self.lastFailure)); } catch (e) {}
     throw err;
@@ -93,6 +100,38 @@ JJPtt.prototype.run = function(job) {
 };
 
 // ---- the screen ---------------------------------------------------------------------
+
+// Resolves once the screen is the same on two looks in a row (at most `ms`).
+JJPtt.prototype.steady = function(ms) {
+  var self = this;
+  var until = Date.now() + (ms || 300);
+  return new Promise(function(resolve) {
+    var last = self.screen();
+    var tick = function() {
+      var now = self.screen();
+      if (now === last || Date.now() > until) return resolve();
+      last = now;
+      setTimeout(tick, JJPtt.STEP_MS);
+    };
+    setTimeout(tick, JJPtt.STEP_MS);
+  });
+};
+
+// Resolves once nothing has come from PTT for `ms` (at most `max`): a page
+// arrives in several pieces, more slowly on a phone's network, and one read
+// half drawn mixes rows of two pages. Without lastDataAt: steady().
+JJPtt.prototype.quiet = function(ms, max) {
+  var app = this.app, self = this;
+  if (typeof app.lastDataAt !== 'number') return this.steady(ms);
+  var until = Date.now() + (max || 2000);
+  return new Promise(function(resolve) {
+    var tick = function() {
+      if (Date.now() - app.lastDataAt >= ms || Date.now() > until || !self.connected()) return resolve();
+      setTimeout(tick, JJPtt.STEP_MS);
+    };
+    tick();
+  });
+};
 
 JJPtt.prototype.screen = function() {
   var buf = this.app.buf;
@@ -408,8 +447,9 @@ JJPtt.prototype.toArticle = function(url) {
     self.send('#');
     return self.wait({ ask: /文章代碼|AID/ }, 5000, before, '找文章代碼');
   }).then(function() {
+    var prev = self.screen();
     self.send(aid + '\r');
-    return JJPtt.sleep(500);
+    return self.settle(prev, 1500);
   }).then(function() {
     if (/找不到這個文章代碼|找不到|沒有這篇/.test(self.screen())) throw new Error('在 PTT 上找不到這篇文章');
   });
@@ -433,6 +473,10 @@ JJPtt.prototype.clearPrompt = function() {
 JJPtt.prototype.toBoard = function(board) {
   var self = this;
   if (!/^[A-Za-z0-9_\-]{1,20}$/.test(board || '')) return Promise.reject(new Error('看板名稱不對'));
+  // already in its article list (e.g. back from the last article read)
+  var here = this.screen(), lines = here.split('\n').filter(function(l) { return l.trim(); });
+  if (new RegExp('看板《' + board + '》', 'i').test(here) && /文章選讀/.test(here) && !/瀏覽 第/.test(here) &&
+      !JJPtt.PROMPT.test(lines[lines.length - 1] || '')) return Promise.resolve();
   // out of an article, then "s" (select board) -- which only works in a
   // list, not in the main menu: from there, 我的最愛 first
   return this.clearPrompt().then(function() {
@@ -1010,7 +1054,25 @@ JJPtt.prototype.boardPage = function(board, before) {
 
 // The article under the cursor in the list, every page of it, as lines;
 // back to the list afterwards.
-JJPtt.prototype.readHere = function() {
+JJPtt.prototype.readHere = function(onPage) {
+  var self = this;
+  var before = this.screen();
+  this.send('\r');
+  return this.wait({ article: /瀏覽 第/, gone: /本文已被刪除|找不到/ }, 8000, before, '打開文章').then(function(k) {
+    if (k === 'gone') throw new Error('這篇文章已經被刪除了');
+    return self.readPages(onPage);
+  }).then(function(lines) {
+    var prev = self.screen();
+    self.send('q');
+    return self.settle(prev, 1500).then(function() { return lines; });
+  });
+};
+
+// The article open on the screen, from its first page (Home first when
+// it is further down) to the last by Page Down, as lines. onPage(page,
+// pages, lines so far) after each page read; false from it stops there
+// (lines.stopped).
+JJPtt.prototype.readPages = function(onPage) {
   var self = this;
   var lines = [], pages = 0;
   var read = function() {
@@ -1022,28 +1084,41 @@ JJPtt.prototype.readHere = function() {
     }
     return st;
   };
+  var lastStart = 0, tries = 0;
   var page = function() {
-    // the bottom line first, then the page above it (PTT draws in pieces)
-    var prev = self.screen();
-    return self.settle(prev, 300).then(function() {
-      var st = read();
+    // PTT draws in pieces: read once nothing more comes and the screen
+    // holds still -- and only a new page (its status line moved on)
+    return self.quiet(150, 2000).then(function() { return self.steady(300); }).then(function() {
+      var st = status();
+      if (st && lastStart && st.rowIndexStart === lastStart && st.pagePercent < 100 && ++tries < 20) {
+        return JJPtt.sleep(100).then(page);
+      }
+      tries = 0;
+      st = read();
       if (!st) throw new Error('PTT 沒有打開這篇文章');
+      lastStart = st.rowIndexStart;
+      if (onPage && onPage(st.pageIndex, st.pageTotal || st.pageIndex, lines) === false) {
+        lines.stopped = true;
+        return;
+      }
       if (st.pagePercent >= 100 || ++pages > 300) return;
-      prev = self.screen();
+      var prev = self.screen();
       self.send('\x1b[6~');  // Page Down
       return self.wait({ next: /瀏覽 第/ }, 8000, prev, '讀下一頁').then(page);
     });
   };
-  var before = this.screen();
-  this.send('\r');
-  return this.wait({ article: /瀏覽 第/, gone: /本文已被刪除|找不到/ }, 8000, before, '打開文章').then(function(k) {
-    if (k === 'gone') throw new Error('這篇文章已經被刪除了');
-    return page();
-  }).then(function() {
-    var prev = self.screen();
-    self.send('q');
-    return self.settle(prev, 1500);
-  }).then(function() {
+  var status = function() {
+    var buf = self.app.buf;
+    return buf.getRowText((buf.rows || 24) - 1, 0, buf.cols).parseStatusRow();
+  };
+  var st = status();
+  var start = Promise.resolve();
+  if (st && st.rowIndexStart > 1) {
+    var prev = this.screen();
+    this.send('\x1b[1~');  // Home: the first page
+    start = this.wait({ top: /目前顯示: 第 0*1~/ }, 5000, prev, '回到第一頁');
+  }
+  return start.then(page).then(function() {
     for (var i = 0; i < lines.length; ++i) if (lines[i] === undefined) lines[i] = '';
     return lines;
   });
@@ -1052,17 +1127,24 @@ JJPtt.prototype.readHere = function() {
 // An article (its www.ptt.cc address, or jjterm:art/...) read on the BBS.
 // Resolves with { url: its www.ptt.cc address, html: an article page }.
 JJPtt.URL_IN_BOX = /https?:\/\/www\.ptt\.cc\/bbs\/[\w\-]+\/M\.\d+\.A\.\w+\.html/;
-JJPtt.prototype.termArticle = function(url) {
+// opts.onPage(page, pages, lines) after each page (see readPages); opts.bg:
+// reading ahead, which stops (err.yielded) when another job is waiting.
+JJPtt.prototype.termArticle = function(url, want, opts) {
   var self = this;
   var real = url;
+  opts = opts || {};
+  var yielded = false;
+  var onPage = function(i, n, lines) {
+    if (opts.bg && self.fgWaiting > 0) { yielded = true; return false; }
+    if (opts.onPage) return opts.onPage(i, n, lines, real);
+  };
   return this.run(function() {
+    if (opts.bg && self.fgWaiting > 0) { var e0 = new Error('讓給前面的工作'); e0.yielded = true; throw e0; }
     return self.ensureIn().then(function() {
       var m = /^jjterm:art\/([^\/]+)\/(\d+)$/.exec(url);
       if (!m) return self.toArticle(url);
       return self.toBoard(decodeURIComponent(m[1])).then(function() {
-        var prev = self.screen();
-        self.send(m[2] + '\r');
-        return self.settle(prev, 2000);
+        return self.cursorTo(+m[2], want);
       }).then(function() {
         // Q: the article's 文章網址 (for pushing and replying), any key closes it
         var prev = self.screen();
@@ -1075,9 +1157,112 @@ JJPtt.prototype.termArticle = function(url) {
         return self.settle(prev, 1500);
       });
     }).then(function() {
-      return self.readHere();
+      return self.readHere(onPage);
     }).then(function(lines) {
+      if (yielded) { var e = new Error('讓給前面的工作'); e.yielded = true; throw e; }
       return { url: real, html: JJPtt.articleHtml(lines) };
     });
+  }, opts.bg);
+};
+
+// Same title, as far as both show it: Re: / Fw: and spacing aside, and a
+// list cuts long titles at the screen edge.
+JJPtt.sameTitle = function(a, b) {
+  var n = function(t) { return String(t || '').replace(/^\s*(?:(?:Re|R|Fw|轉)\s*:\s*)+/i, '').replace(/\s+/g, ' ').replace(/…$/, '').trim(); };
+  a = n(a);
+  b = n(b);
+  return a === b || (Math.min(a.length, b.length) >= 6 && (a.indexOf(b) === 0 || b.indexOf(a) === 0));
+};
+
+// The list row PTT's cursor is on (JJPtt.parseArticleRow), or null.
+JJPtt.prototype.cursorRow = function() {
+  var buf = this.app.buf;
+  for (var r = 1; r < (buf.rows || 24) - 1; ++r) {
+    var text = buf.getRowText(r, 0, buf.cols);
+    if (/^[>●]/.test(text)) return JJPtt.parseArticleRow(text);
+  }
+  return null;
+};
+
+JJPtt.isWanted = function(row, want) {
+  return !!row && (!want || (String(row.author).toLowerCase() === String(want.author).toLowerCase() &&
+    JJPtt.sameTitle(row.title, want.title)));
+};
+
+// In a board's list, the cursor onto article `num`, which has to be `want`
+// ({ author, title }) when given. The number seen in a filtered list
+// (推文數, search results) is that list's own, not the board's: then it is
+// found among the author's posts (a) instead.
+JJPtt.prototype.cursorTo = function(num, want) {
+  var self = this;
+  var jump = function(n) {
+    var prev = self.screen();
+    self.send(n + '\r');
+    return self.settle(prev, 2000);
+  };
+  return jump(num).then(function() {
+    if (JJPtt.isWanted(self.cursorRow(), want)) return;
+    if (!want || !want.author) throw new Error('找不到第 ' + num + ' 篇');
+    var prev = self.screen();
+    self.send('a');
+    return self.wait({ ask: /作者/ }, 5000, prev, '搜尋作者').then(function() {
+      prev = self.screen();
+      self.type(want.author + '\r');
+      return self.settle(prev, 3000);
+    }).then(function() {
+      var pages = 0;
+      var look = function() {
+        var buf = self.app.buf, hit = 0;
+        for (var r = 1; r < (buf.rows || 24) - 1; ++r) {
+          var row = JJPtt.parseArticleRow(buf.getRowText(r, 0, buf.cols));
+          if (row && row.num && JJPtt.isWanted(row, want)) hit = row.num;  // the newest one on screen
+        }
+        if (hit) return jump(hit);
+        if (++pages > 5) throw new Error('在 ' + want.author + ' 的文章裡找不到「' + want.title + '」');
+        var p2 = self.screen();
+        self.send('\x1b[5~');  // Page Up: older posts
+        return self.settle(p2, 1500).then(function(moved) {
+          if (!moved) throw new Error('在 ' + want.author + ' 的文章裡找不到「' + want.title + '」');
+          return look();
+        });
+      };
+      return look();
+    }).then(function() {
+      if (!JJPtt.isWanted(self.cursorRow(), want)) throw new Error('找不到「' + want.title + '」');
+    });
   });
+};
+
+// ---- a second, hidden connection (extension, www.ptt.cc down) --------------------------------
+// The extension's one connection is the user's own screen. To read articles
+// ahead while www.ptt.cc is down, a second one logs in with the saved
+// account and reads in the background: JJPtt on an app-like object with its
+// own screen buffer and connection, nothing drawn (PttReader.bgPtt).
+JJPtt.headlessApp = function(main) {
+  var h = { idleTime: 0, lastDataAt: 0, prefs: main.prefs };
+  h.buf = new TermBuf(80, 24);
+  h.conn = new main.conn.constructor(h);  // SSH or telnet, as the main one
+  h.conn.keepAlive = main.conn.keepAlive;
+  h.view = {
+    charset: 'big5', conn: h.conn, EnterChar: '\r', blinkOn: false, useEasyReadingMode: false,
+    bbscore: { navigateTo: { board: null } },
+    update: function() {}, updateCursorPos: function() {}
+  };
+  h.buf.setView(h.view);
+  h.parser = new lib.AnsiParser(h.buf);
+  h.onData = function(d) {
+    h.lastDataAt = Date.now();
+    h.parser.feed(d);
+  };
+  h.onClose = function() { h.conn.isConnected = false; };
+  h.appConn = new lib.AppConnection({
+    onConnect: function() { h.conn.isConnected = true; },
+    onDisconnect: function() { h.onClose(); },
+    onReceive: function(s) { h.conn.onDataAvailable(s); }
+  });
+  h.connect = function(site) {
+    var port = (main.connectedUrl && main.connectedUrl.port) || 23;
+    h.appConn.connect(function() { h.conn.connect(site, port); });
+  };
+  return h;
 };

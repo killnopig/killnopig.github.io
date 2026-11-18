@@ -474,7 +474,8 @@ FactCheck.prototype.analyze = function(article) {
   }
 
   // Phase 2: patterns over many articles
-  this.history.record(article, ids, this.lastFastIds || {}, this.lastTaskIds);
+  // (not an article still being read on the BBS: only what is in so far)
+  if (!article.partial) this.history.record(article, ids, this.lastFastIds || {}, this.lastTaskIds);
   this.historyTags(article, ids, add, report);
 
   // Phase 3: data-centre / VPN addresses. Shown first: the report line goes

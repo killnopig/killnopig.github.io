@@ -576,6 +576,9 @@ locale.en_US = {
   "cmenu_openReader": {
     "message": "Open in reader view"
   },
+  "reader_termPage": {
+    "message": "PTT's web site is down: reading on the BBS, page %1 of %2"
+  },
   "reader_needFirstPage": {
     "message": "Go back to the article's first page (with author and title) first"
   },

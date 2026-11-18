@@ -573,6 +573,9 @@ locale.zh_TW = {
   "cmenu_openReader": {
     "message": "用閱讀模式開啟"
   },
+  "reader_termPage": {
+    "message": "PTT 網頁故障，從 BBS 讀取中 %1／%2 頁"
+  },
   "reader_needFirstPage": {
     "message": "請先回到文章第一頁（看得到作者、標題的那頁）再開啟"
   },

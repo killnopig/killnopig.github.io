@@ -115,6 +115,9 @@ PttReader.prototype.onTerminalUpdate = function() {
   if (!this.available()) return;
   this.trackTerminal();
   if (!this.enabled) return;
+  // paging through an article for terminalArticle: PTT redrawing each page
+  // is not the user leaving it
+  if (this.termReading) return;
   if (this.app.buf.pageState != 3) {
     // left the article: allow it to open again next time
     this.dismissedKey = '';
@@ -195,7 +198,11 @@ PttReader.prototype.waitForPush = function(h, key) {
       last = article;
       if (article.pushes.length > pf.count) return done(article);
       setTimeout(round, PttReader.PUSH_POLL_MS);
-    }, function() {
+    }, function(err) {
+      // www.ptt.cc down: the terminal already has the push
+      if (self.canReadTerminal(err)) {
+        return self.terminalArticle(url, key, h).then(function() { self.pushFrom = null; }, function() { done(null); });
+      }
       setTimeout(round, PttReader.PUSH_POLL_MS);
     });
   };
@@ -208,6 +215,10 @@ PttReader.prototype.waitForPush = function(h, key) {
 // over18 cookie: a session rule adds it to our requests to www.ptt.cc (this
 // works even when third-party cookies are blocked), and the cookie itself is
 // set as a fallback.
+// Picture hosts that need a referrer (also in extension/manifest.json's
+// host_permissions, which the referrer rule needs).
+PttReader.REFERER_HOSTS = ['i.verb.tw'];
+
 PttReader.prototype.ensureOver18 = function() {
   if (this.cookieReady) return this.cookieReady;
   if (!lib.isExtension()) {  // the app sends the cookie with each request
@@ -221,7 +232,7 @@ PttReader.prototype.ensureOver18 = function() {
       return;
     }
     dnr.updateSessionRules({
-      removeRuleIds: [1801],
+      removeRuleIds: [1801, 1802],
       addRules: [{
         id: 1801,
         priority: 1,
@@ -230,6 +241,17 @@ PttReader.prototype.ensureOver18 = function() {
           requestHeaders: [{ header: 'cookie', operation: 'set', value: 'over18=1' }]
         },
         condition: { urlFilter: '||www.ptt.cc/', resourceTypes: ['xmlhttprequest'] }
+      }, {
+        // image hosts that refuse a picture asked for without a referrer
+        // (403), which is all the extension's page can send: as if from
+        // www.ptt.cc, where the link was posted
+        id: 1802,
+        priority: 1,
+        action: {
+          type: 'modifyHeaders',
+          requestHeaders: [{ header: 'referer', operation: 'set', value: PttReader.WEB + '/' }]
+        },
+        condition: { requestDomains: PttReader.REFERER_HOSTS, resourceTypes: ['image', 'media', 'xmlhttprequest'] }
       }]
     }, function() {
       if (chrome.runtime.lastError) console.log('over18 rule:', chrome.runtime.lastError.message);
@@ -254,14 +276,14 @@ PttReader.prototype.ensureOver18 = function() {
   return this.cookieReady;
 };
 
-PttReader.prototype.fetchDoc = function(url) {
+PttReader.prototype.fetchDoc = function(url, opts) {
   var self = this;
-  if (typeof JJPtt !== 'undefined' && JJPtt.isTermUrl(url)) return this.termDoc(url);
+  if (typeof JJPtt !== 'undefined' && JJPtt.isTermUrl(url)) return this.termDoc(url, null, opts);
   return this.webDoc(url).catch(function(err) {
     // www.ptt.cc down (HTTP 5xx, no answer): the app reads it on the BBS
+    if (PttReader.webDown(err)) PttReader.webDownAt = Date.now();
     if (!PttReader.webDown(err) || !self.termSource()) throw err;
-    PttReader.webDownAt = Date.now();
-    return self.termDoc(url, err);
+    return self.termDoc(url, err, opts);
   });
 };
 
@@ -284,8 +306,12 @@ PttReader.prototype.termSource = function() {
 
 // A board index or an article read on the BBS instead of www.ptt.cc
 // (see JJPtt.boardPage / termArticle); doc.jjFromTerm marks it, doc.jjUrl is
-// the article's own www.ptt.cc address.
-PttReader.prototype.termDoc = function(url, webErr) {
+// the article's own www.ptt.cc address. opts.onPartial(article so far,
+// page, pages) while an article is read page by page; opts.bg: reading
+// ahead (gives way to what the user opens, see JJPtt.termArticle).
+PttReader.prototype.termDoc = function(url, webErr, opts) {
+  var self = this;
+  opts = opts || {};
   var ptt = this.termSource();
   var down = 'PTT 網頁版現在故障' + (webErr && webErr.webStatus ? '（HTTP ' + webErr.webStatus + '）' : '');
   if (!ptt) return Promise.reject(new Error(down));
@@ -295,17 +321,29 @@ PttReader.prototype.termDoc = function(url, webErr) {
       (m = /^https?:\/\/www\.ptt\.cc\/bbs\/([\w\-]+)\/index\.html$/.exec(plain))) {
     job = function() { return ptt.boardPage(decodeURIComponent(m[1]), m[2] ? +m[2] : 0); };
   } else if (/^jjterm:art\/[^\/]+\/\d+$/.test(plain) || /^https?:\/\/www\.ptt\.cc\/bbs\/[\w\-]+\/M\.\d+\.A\.\w+\.html$/.test(plain)) {
-    job = function() { return ptt.termArticle(plain); };
+    var onPage = opts.onPartial && function(i, n, lines, real) {
+      try {
+        var d = PttReader.htmlDoc(JJPtt.articleHtml(lines), real);
+        opts.onPartial(self.articleFromDoc(d, real || url, true), i, n);
+      } catch (e) { console.log('JJptt BBS 部分內容', e); }
+    };
+    job = function() { return ptt.termArticle(plain, null, { bg: opts.bg, onPage: onPage }); };
   } else {
     return Promise.reject(new Error(down + '，這裡暫時不能用（看板文章可以改用 BBS 連線看）'));
   }
   if (!ptt.user) return Promise.reject(new Error(down + '。登入 PTT 帳號後，就能改用 BBS 連線看看板和文章'));
   return job().then(function(r) {
-    var doc = new DOMParser().parseFromString(typeof r === 'string' ? r : r.html, 'text/html');
-    doc.jjFromTerm = true;
-    if (r && r.url) doc.jjUrl = r.url;
-    return doc;
+    return PttReader.htmlDoc(typeof r === 'string' ? r : r.html, r && r.url);
   });
+};
+
+// A page made from the BBS screen, as a document (jjFromTerm; jjUrl: the
+// article's www.ptt.cc address, when known).
+PttReader.htmlDoc = function(html, url) {
+  var doc = new DOMParser().parseFromString(html, 'text/html');
+  doc.jjFromTerm = true;
+  if (url && !JJPtt.isTermUrl(url)) doc.jjUrl = url;
+  return doc;
 };
 
 PttReader.prototype.webDoc = function(url) {
@@ -396,7 +434,8 @@ PttReader.prototype.snapshotList = function() {
     var title = text.parseThreadTitle();
     if (!author || !title) continue;
     if (/^[>●]/.test(text)) cursor = rows.length;
-    rows.push({ author: author, title: title });
+    var row = typeof JJPtt !== 'undefined' && JJPtt.parseArticleRow(text);
+    rows.push({ author: author, title: title, num: (row && row.num) || 0 });
   }
   if (cursor >= 0 && this.lastBoard) this.listSnap = { board: this.lastBoard, rows: rows, index: cursor };
 };
@@ -419,6 +458,109 @@ PttReader.prototype.startPrefetch = function(board, author, title) {
 };
 
 PttReader.PREFETCH_TTL = 600000;  // 10 minutes
+
+// ---- reading ahead on a hidden connection (extension, www.ptt.cc down) ----------------
+
+// The hidden connection (JJPtt.headlessApp), logged in with the account
+// saved in the settings; null without a saved password, or in the app (it
+// has its own) or the web version.
+PttReader.prototype.bgPtt = function() {
+  if (lib.isApp() || !lib.isExtension || !lib.isExtension() || typeof JJPtt === 'undefined' || !this.app.conn) return null;
+  var l = this.app.pref && this.app.pref.logins;
+  var user = l && (Array.isArray(l) ? l[0] : l.u), pass = l && (Array.isArray(l) ? l[1] : l.p);
+  if (!user || !pass) {
+    if (!this.bgNoLogin) console.log('JJptt 背景預讀：設定裡沒有存 PTT 帳號密碼，不預讀');
+    this.bgNoLogin = true;
+    return null;
+  }
+  if (!this.bg) this.bg = new JJPtt(JJPtt.headlessApp(this.app));
+  this.bg.user = user;
+  this.bg.pass = pass;
+  return this.bg;
+};
+
+// The order to read ahead from row `index` of the list: the article itself,
+// then its neighbours (the way being read first when dir is set), as many
+// on each side as 預先讀取上下幾篇.
+PttReader.prototype.bgOrder = function(snap, index, dir) {
+  var n = this.prefetchCount(), out = [index];
+  for (var d = 1; d <= n; ++d) {
+    if (dir) out.push(index + dir * d, index - dir * d);
+    else out.push(index + d, index - d);
+  }
+  return out.filter(function(i) { return snap.rows[i] && snap.rows[i].num; });
+};
+
+// www.ptt.cc down: plans reading ahead around row `index` on the hidden
+// connection, replacing what was planned before (the one being read goes
+// on). False when it can't (web up, no saved password...): then as usual.
+PttReader.prototype.bgPlan = function(snap, index, dir) {
+  if (!snap || !PttReader.webRecentlyDown() || !this.prefetchCount()) return false;
+  var bg = this.bgPtt();
+  if (!bg) return false;
+  var self = this;
+  this.prefetch = this.prefetch || {};
+  // what was waiting for an earlier plan is dropped
+  (this.bgQueue || []).forEach(function(job) {
+    if (self.prefetch[job.key] === job.entry) delete self.prefetch[job.key];
+  });
+  this.bgQueue = [];
+  this.bgOrder(snap, index, dir).forEach(function(i) {
+    var row = snap.rows[i];
+    var key = PttReader.prefetchKey(snap.board, row.author, row.title);
+    var have = self.prefetch[key];
+    if (have && Date.now() - have.at < PttReader.PREFETCH_TTL) return;
+    var job = { key: key, board: snap.board, num: row.num, want: { author: row.author, title: row.title } };
+    var entry = job.entry = { at: Date.now(), board: snap.board.toLowerCase(), author: row.author.toLowerCase(),
+                              title: PttReader.prefetchKey('', '', row.title).slice(2), bg: true, done: false, num: row.num };
+    entry.promise = new Promise(function(resolve, reject) { job.resolve = resolve; job.reject = reject; });
+    entry.promise.catch(function() {});
+    self.prefetch[key] = entry;
+    self.bgQueue.push(job);
+  });
+  if (this.bgQueue.length) console.log('JJptt 背景預讀：' + snap.board + ' 排了 ' + this.bgQueue.length + ' 篇');
+  this.bgNext();
+  return true;
+};
+
+// An article read ahead that the terminal is showing while reading mode
+// gave up on it (it was asked for before it was ready): show it now.
+PttReader.prototype.bgArrived = function(job) {
+  var cur = this.lastHeader;
+  if (!cur || !this.enabled || this.isOpen() || this.loadingKey || !this.app.buf || this.app.buf.pageState != 3) return;
+  if (String(cur.board).toLowerCase() !== job.entry.board || String(cur.author).toLowerCase() !== job.entry.author ||
+      !JJPtt.sameTitle(cur.title, job.want.title)) return;
+  this.dismissedKey = '';
+  this.openFor(cur, cur.key);
+};
+
+// Reads the next planned article on the hidden connection, one at a time.
+PttReader.prototype.bgNext = function() {
+  if (this.bgBusy || !this.bgQueue || !this.bgQueue.length) return;
+  var self = this;
+  var job = this.bgQueue.shift();
+  var bg = this.bgPtt();
+  if (!bg) return;
+  this.bgBusy = true;
+  var t0 = Date.now();
+  bg.termArticle(JJPtt.TERM + 'art/' + encodeURIComponent(job.board) + '/' + job.num, job.want).then(function(r) {
+    var doc = new DOMParser().parseFromString(r.html, 'text/html');
+    doc.jjFromTerm = true;
+    var article = self.articleFromDoc(doc, r.url);
+    job.entry.done = true;
+    job.resolve(article);
+    self.bgArrived(job);
+    console.log('JJptt 背景預讀好了：' + job.board + ' 第 ' + job.num + ' 篇「' + (article.meta['標題'] || '') + '」' + (Date.now() - t0) + 'ms');
+    self.preloadMedia(article);
+  }, function(err) {
+    console.log('JJptt 背景預讀失敗', job.board, job.num, err && err.message);
+    if (self.prefetch[job.key] === job.entry) delete self.prefetch[job.key];
+    job.reject(err);
+  }).then(function() {
+    self.bgBusy = false;
+    self.bgNext();
+  });
+};
 
 // Setting: how long the list cursor must rest on an article before it is
 // loaded (ms).
@@ -450,6 +592,8 @@ PttReader.prototype.schedulePrefetch = function() {
   this.prefetchPending = key;
   clearTimeout(this.prefetchTimer);
   this.prefetchTimer = setTimeout(function() {
+    // www.ptt.cc down: the article and its neighbours on the hidden connection
+    if (self.bgPlan(snap, snap.index, 0)) return;
     self.startPrefetch(snap.board, cur.author, cur.title);
   }, this.listPrefetchDelay());
 };
@@ -464,6 +608,7 @@ PttReader.prototype.prefetchNeighbours = function(h) {
   var n = this.prefetchCount();
   var idx = [];
   var dir = this.navDir;
+  if (this.bgPlan(snap, snap.index, dir)) return;
   var pv = this.app.pref && this.app.pref.values;
   if (n && dir && !(pv && pv.readerPrefetchAhead === false)) {
     // reading in one direction: twice as many ahead, fewer behind
@@ -498,76 +643,158 @@ PttReader.prototype.takePrefetch = function(h) {
     }
   }
   if (!hit || Date.now() - hit.at > PttReader.PREFETCH_TTL) return null;
+  // still waiting on the hidden connection: reading it on the screen is sooner
+  if (hit.bg && !hit.done) return null;
   delete this.prefetch[key];
-  return hit.promise.then(function(article) {
+  var p = hit.promise.then(function(article) {
     var t = PttReader.normalizeTitle(article.meta['時間']);
-    if (h.time && t && t !== PttReader.normalizeTitle(h.time)) throw new Error('prefetch mismatch');
+    if (h.time && t && t !== PttReader.normalizeTitle(h.time)) {
+      console.log('JJptt 預讀的不是這篇：要 ' + h.board + ' ' + h.author + '「' + h.title + '」' + h.time +
+        '，拿到 ' + (article.meta['作者'] || '') + '「' + (article.meta['標題'] || '') + '」' + t + ' ' + (article.url || '') +
+        (hit.bg ? '（背景連線第 ' + hit.num + ' 篇）' : ''));
+      throw new Error('prefetch mismatch');
+    }
     return article;
   });
+  p.catch(function() {});  // not waited for when the article's address is known
+  return p;
 };
 
 PttReader.articleUrl = function(url) {
   return String(url || '').replace(/[?#].*$/, '');
 };
 
-PttReader.prototype.fetchArticle = function(url) {
+// opts: see termDoc (only used when the article is read on the BBS).
+PttReader.prototype.fetchArticle = function(url, opts) {
   var self = this;
-  return this.fetchDoc(url).then(function(doc) {
-    var main = doc.getElementById('main-content');
-    if (!main) throw new Error('no article content');
-    var meta = {};
-    var metas = main.querySelectorAll('.article-metaline, .article-metaline-right');
-    for (var i = 0; i < metas.length; ++i) {
-      var tag = metas[i].querySelector('.article-meta-tag');
-      var val = metas[i].querySelector('.article-meta-value');
-      if (tag && val) meta[tag.textContent.trim()] = val.textContent.trim();
-    }
-    var pushes = [];
-    var pushNodes = main.querySelectorAll('.push');
-    for (var j = 0; j < pushNodes.length; ++j) {
-      var n = pushNodes[j];
-      var tagEl = n.querySelector('.push-tag');
-      var idEl = n.querySelector('.push-userid');
-      if (!tagEl || !idEl) continue;  // e.g. "檔案過大！部分文章無法顯示"
-      n.setAttribute('data-push-index', pushes.length);
-      var contentEl = n.querySelector('.push-content');
-      var ipdt = (n.querySelector('.push-ipdatetime') || {}).textContent || '';
-      var content = (contentEl ? contentEl.textContent : '').replace(/^:\s?/, '');
-      // Some pushes (e.g. with characters outside Big5) come with the IP and
-      // time inside the content instead of their own element: move them back.
-      if (!ipdt.trim()) {
-        var tail = /\s+((?:\d{1,3}\.){3}\d{1,3}\s+)?(\d{1,2}\/\d{1,2}(?:\s+\d{1,2}:\d{2})?)\s*$/.exec(content);
-        if (tail) {
-          ipdt = (tail[1] || '') + tail[2];
-          content = content.slice(0, tail.index);
-        }
+  return this.fetchDoc(url, opts).then(function(doc) {
+    return self.articleFromDoc(doc, url);
+  });
+};
+
+// An article page (www.ptt.cc's, or one made from the BBS screen) -> the
+// article: meta, body, pushes; spam guard and fact check run on it.
+PttReader.prototype.articleFromDoc = function(doc, url, partial) {
+  var self = this;
+  var main = doc.getElementById('main-content');
+  if (!main) throw new Error('no article content');
+  var meta = {};
+  var metas = main.querySelectorAll('.article-metaline, .article-metaline-right');
+  for (var i = 0; i < metas.length; ++i) {
+    var tag = metas[i].querySelector('.article-meta-tag');
+    var val = metas[i].querySelector('.article-meta-value');
+    if (tag && val) meta[tag.textContent.trim()] = val.textContent.trim();
+  }
+  var pushes = [];
+  var pushNodes = main.querySelectorAll('.push');
+  for (var j = 0; j < pushNodes.length; ++j) {
+    var n = pushNodes[j];
+    var tagEl = n.querySelector('.push-tag');
+    var idEl = n.querySelector('.push-userid');
+    if (!tagEl || !idEl) continue;  // e.g. "檔案過大！部分文章無法顯示"
+    n.setAttribute('data-push-index', pushes.length);
+    var contentEl = n.querySelector('.push-content');
+    var ipdt = (n.querySelector('.push-ipdatetime') || {}).textContent || '';
+    var content = (contentEl ? contentEl.textContent : '').replace(/^:\s?/, '');
+    // Some pushes (e.g. with characters outside Big5) come with the IP and
+    // time inside the content instead of their own element: move them back.
+    if (!ipdt.trim()) {
+      var tail = /\s+((?:\d{1,3}\.){3}\d{1,3}\s+)?(\d{1,2}\/\d{1,2}(?:\s+\d{1,2}:\d{2})?)\s*$/.exec(content);
+      if (tail) {
+        ipdt = (tail[1] || '') + tail[2];
+        content = content.slice(0, tail.index);
       }
-      var ipm = /((?:\d{1,3}\.){3}\d{1,3})/.exec(ipdt);
-      pushes.push({
-        tag: tagEl.textContent.trim(),
-        id: idEl.textContent.trim(),
-        content: content,
-        ip: ipm ? ipm[1] : '',
-        time: ipdt.replace(ipm ? ipm[1] : '', '').trim()
-      });
     }
-    var body = main.cloneNode(true);
-    // pushes stay in place (marked with data-push-index) so that "※ 編輯"
-    // lines between them keep their position and line numbers stay right
-    var drop = body.querySelectorAll('.article-metaline, .article-metaline-right, .richcontent, .push:not([data-push-index])');
-    for (var k = 0; k < drop.length; ++k) drop[k].parentNode.removeChild(drop[k]);
-    PttReader.assignBlocks(body, pushes);
-    // the article's own address: a query added to get past caches (the
-    // app reloads with ?_=time after a push) is not another article -- it
-    // was counted as one by 共伴 and 同網址洗版 and blacklisted people
-    var article = { url: PttReader.articleUrl(doc.jjUrl || url), fromTerm: !!doc.jjFromTerm, meta: meta, text: body.textContent, body: body, pushes: pushes };
-    if (self.app.spamGuard) {
-      try { self.app.spamGuard.record(article); } catch (e) { console.log('spam guard', e); }
+    var ipm = /((?:\d{1,3}\.){3}\d{1,3})/.exec(ipdt);
+    pushes.push({
+      tag: tagEl.textContent.trim(),
+      id: idEl.textContent.trim(),
+      content: content,
+      ip: ipm ? ipm[1] : '',
+      time: ipdt.replace(ipm ? ipm[1] : '', '').trim()
+    });
+  }
+  var body = main.cloneNode(true);
+  // pushes stay in place (marked with data-push-index) so that "※ 編輯"
+  // lines between them keep their position and line numbers stay right
+  var drop = body.querySelectorAll('.article-metaline, .article-metaline-right, .richcontent, .push:not([data-push-index])');
+  for (var k = 0; k < drop.length; ++k) drop[k].parentNode.removeChild(drop[k]);
+  PttReader.assignBlocks(body, pushes);
+  // the article's own address: a query added to get past caches (the
+  // app reloads with ?_=time after a push) is not another article -- it
+  // was counted as one by 共伴 and 同網址洗版 and blacklisted people
+  var article = { url: PttReader.articleUrl(doc.jjUrl || url), fromTerm: !!doc.jjFromTerm, partial: !!partial, meta: meta, text: body.textContent, body: body, pushes: pushes };
+  if (self.app.spamGuard && !partial) {  // a part still being read is not counted
+    try { self.app.spamGuard.record(article); } catch (e) { console.log('spam guard', e); }
+  }
+  if (self.app.factCheck && !partial) {
+    try { self.app.factCheck.analyze(article); } catch (e) { console.log('fact check', e); }
+  }
+  return article;
+};
+
+// Extension, www.ptt.cc down: the article open in the terminal is read
+// page by page there (Page Down) behind the reading-mode page, which shows
+// the first page at once and grows as the rest comes in; then Home takes the
+// terminal back to the top. Not the app: it reads on its own connection
+// (termDoc).
+PttReader.prototype.canReadTerminal = function(err) {
+  return PttReader.webDown(err) && !lib.isApp() && typeof JJPtt !== 'undefined' &&
+    !!(this.app.conn && this.app.buf && this.app.buf.pageState == 3);
+};
+PttReader.TERM_RENDER_MS = 1500;  // re-draw the growing article at most this often
+PttReader.prototype.terminalArticle = function(url, key, h) {
+  var self = this;
+  var t = new JJPtt(this.app);
+  PttReader.webDownAt = Date.now();
+  var shown = false, lastDraw = 0;
+  // moved to another article or back to the terminal: stop paging
+  var gone = function() { return self.loadingKey !== key && self.currentKey !== key; };
+  var build = function(lines, done) {
+    var doc = new DOMParser().parseFromString(JJPtt.articleHtml(lines), 'text/html');
+    doc.jjFromTerm = true;
+    // 文章網址 goes by while paging (trackTerminal)
+    return self.articleFromDoc(doc, url || self.lastUrl || '', !done);
+  };
+  var draw = function(article) {
+    if (!shown) {
+      shown = true;
+      self.setLoading(false);
+      self.loadingKey = '';
+      self.currentKey = key;
+      self.article = article;
+      self.render(article, h);
+      self.show();
+      self.overlay.querySelector('.jjt-scroll').scrollTop = 0;
+    } else {
+      self.article = article;
+      self.rerender();
     }
-    if (self.app.factCheck) {
-      try { self.app.factCheck.analyze(article); } catch (e) { console.log('fact check', e); }
+    lastDraw = Date.now();
+  };
+  var onPage = function(n, total, lines) {
+    if (gone()) return false;
+    self.setLoading(true, i18n('reader_termPage').replace('%1', n).replace('%2', total));
+    if (!shown || Date.now() - lastDraw > PttReader.TERM_RENDER_MS) draw(build(lines.slice(), false));
+  };
+  self.termReading = true;
+  var done = function() { self.termReading = false; };
+  return t.readPages(onPage).then(function(lines) {
+    if (lines.stopped || gone()) {
+      done();
+      if (self.loadingKey === key) self.loadingKey = '';
+      if (!shown || self.currentKey !== key) self.setLoading(false);
+      return;
     }
-    return article;
+    self.setLoading(false);
+    draw(build(lines, true));
+    var prev = t.screen();
+    t.send('\x1b[1~');  // back to the first page, where the header is
+    return t.settle(prev, 1500).then(done);
+  }, function(err) {
+    done();
+    self.setLoading(false);
+    throw err;
   });
 };
 
@@ -946,7 +1173,17 @@ PttReader.prototype.openFor = function(h, key, manual) {
   var load = url ? this.fetchArticle(url) :
     pre ? pre.catch(function() { how = 'search'; return self.findArticle(h); }) : this.findArticle(h);
   this.setLoading(true);
+  load = load.catch(function(e) {
+    // still on this article (PTT redrawing may have cleared loadingKey)
+    var here = self.lastHeader && self.lastHeader.key === key;
+    if (!self.canReadTerminal(e) || (self.loadingKey !== key && !(here && !self.loadingKey && !self.currentKey))) throw e;
+    self.loadingKey = key;
+    // shows the article itself as its pages come in
+    console.log('JJptt 閱讀模式載入：PTT 網頁故障，從 BBS 畫面讀');
+    return self.terminalArticle(url, key, h).then(function() { return null; });
+  });
   load.then(function(article) {
+    if (!article) return;
     var tFetched = Date.now();
     PttReader.lastTiming = { how: how, fetchMs: tFetched - t0 };
     if (self.loadingKey === key) self.setLoading(false);
@@ -982,13 +1219,15 @@ PttReader.prototype.openFor = function(h, key, manual) {
 };
 
 // "閱讀模式載入中…" at the top while the article is being fetched.
-PttReader.prototype.setLoading = function(on) {
+// With `text`: that instead (the pages read so far, terminalArticle).
+PttReader.prototype.setLoading = function(on, text) {
   var n = document.getElementById('jjLoading');
   if (!n) {
-    n = PttReader.el('div', '', i18n('app_loading'));
+    n = PttReader.el('div', '');
     n.id = 'jjLoading';
     document.body.appendChild(n);
   }
+  n.textContent = text || i18n('app_loading');
   n.classList.toggle('show', !!on);
 };
 

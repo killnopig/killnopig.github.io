@@ -10,13 +10,31 @@ JJMobile.prototype.renderArticle = function(screen) {
   this.readUrls = this.readUrls || {};
   this.readUrls[screen.url] = true;
   var wait = this.loading(v);
-  this.getArticle(screen.url).then(function(article) {
+  var shown = false;
+  // read on the BBS (www.ptt.cc down): the first page at once, the rest
+  // as it comes, the place kept
+  var draw = function(article, note) {
+    var top = v.scrollTop;
+    v.innerHTML = '';
+    self.fillArticle(screen, article);
+    if (note) v.appendChild(JJMobile.el('div', 'jjm-hint jjm-term-note', note));
+    v.scrollTop = top;
+  };
+  var last = 0;
+  var partial = function(article, i, n) {
+    if (!v.isConnected || (shown && Date.now() - last < 1500)) return;
+    last = Date.now();
+    shown = true;
+    draw(article, 'PTT 網頁版現在故障，從 BBS 連線讀取中… ' + i + '／' + n + ' 頁');
+  };
+  this.getArticle(screen.url, partial).then(function(article) {
     if (!v.isConnected) return;
     wait.remove();
     // opened from a list read on the BBS: its www.ptt.cc address (Q) is
     // what pushing and replying need
     if (JJPtt.isTermUrl(screen.url) && article.url && !JJPtt.isTermUrl(article.url)) screen.url = article.url;
-    self.fillArticle(screen, article);
+    if (shown) draw(article);
+    else self.fillArticle(screen, article);
     if (screen.list) self.prefetchList(screen.list, screen.index + 1);
   }).catch(function(err) {
     wait.remove();

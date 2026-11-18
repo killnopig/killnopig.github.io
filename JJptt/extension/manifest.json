@@ -29,7 +29,8 @@
     "clipboardWrite"
   ],
   "host_permissions": [
-    "https://www.ptt.cc/*"
+    "https://www.ptt.cc/*",
+    "https://i.verb.tw/*"
   ],
   "optional_host_permissions": [
     "http://*/*",

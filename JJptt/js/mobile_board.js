@@ -188,7 +188,9 @@ JJMobile.prototype.markRead = function(screen) {
   screen.entries.forEach(function(e) { if (e.row && read[e.url]) e.row.classList.add('jjm-read'); });
 };
 
-JJMobile.QUICK_PUSH = [[20, '推 ≥ 20'], [100, '爆文'], [-100, '噓爆']];
+// [推文數, label, what the button shows instead of the label (PTT's own
+// marks: 爆 in a red dot, a grey XX)]
+JJMobile.QUICK_PUSH = [[20, '推 ≥ 20'], [100, '爆文', '爆', 'jjm-quick-hot'], [-100, '噓爆', 'XX', 'jjm-quick-boo']];
 
 // 推文數 search in the title: 爆文 / 噓爆 / 推 ≥ N / 噓 ≥ N
 JJMobile.pushQueryLabel = function(n) {
@@ -236,10 +238,15 @@ JJMobile.prototype.searchSheet = function(screen) {
   // one tap: the usual 推文數 searches (爆 = 100 推, 噓爆 = 噓比推多 100)
   var quick = el('div', 'jjm-chips jjm-quick');
   JJMobile.QUICK_PUSH.forEach(function(qk) {
-    quick.appendChild(JJMobile.button('jjm-chip', qk[1], function() {
+    var b = JJMobile.button('jjm-chip', qk[2] ? '' : qk[1], function() {
       self.closeSheet();
       self.open({ type: 'board', board: screen.board, query: 'recommend:' + qk[0] });
-    }));
+    });
+    if (qk[2]) {
+      b.appendChild(el('span', qk[3], qk[2]));
+      b.setAttribute('aria-label', qk[1]);
+    }
+    quick.appendChild(b);
   });
   box.appendChild(quick);
   box.appendChild(el('button', 'jjm-btn jjm-btn-main', '搜尋'));
@@ -256,13 +263,33 @@ JJMobile.prototype.searchSheet = function(screen) {
 
 // ---- loading articles (with the cache that makes the next one instant) -----------
 
-JJMobile.prototype.getArticle = function(url) {
+// onPartial(article so far, page, pages): while www.ptt.cc is down and the
+// article is read on the BBS page by page -- also when a read ahead of it
+// is already under way. bg: reading ahead (gives way to the others).
+JJMobile.prototype.getArticle = function(url, onPartial, bg) {
   var c = this.articles[url];
-  if (c && Date.now() - c.at < JJMobile.CACHE_MS) return c.promise;
   var self = this;
-  var p = this.app.reader.fetchArticle(url);
-  this.articles[url] = { promise: p, at: Date.now() };
-  p.catch(function() { delete self.articles[url]; });
+  if (c && Date.now() - c.at < JJMobile.CACHE_MS) {
+    if (!onPartial) return c.promise;
+    c.listener = onPartial;
+    if (c.last) onPartial.apply(null, c.last);
+    // a read ahead that gave way to something else: read it now
+    return c.promise.catch(function(err) {
+      if (!(err && err.yielded)) throw err;
+      return self.getArticle(url, onPartial);
+    });
+  }
+  var entry = { at: Date.now(), listener: onPartial || null, last: null };
+  var p = this.app.reader.fetchArticle(url, {
+    bg: !!bg,
+    onPartial: function(a, i, n) {
+      entry.last = [a, i, n];
+      if (entry.listener) entry.listener(a, i, n);
+    }
+  });
+  entry.promise = p;
+  this.articles[url] = entry;
+  p.catch(function() { if (self.articles[url] === entry) delete self.articles[url]; });
   var keys = Object.keys(this.articles);
   if (keys.length > 80) delete this.articles[keys[0]];
   return p;
@@ -279,17 +306,22 @@ JJMobile.prototype.aheadCount = function() {
 // when 預先讀取時連圖片一起下載 is on.
 JJMobile.prototype.prefetchList = function(screen, from) {
   var self = this;
-  // not while www.ptt.cc is down: each would be read on the BBS, one at a
-  // time, ahead of the article the user opens
-  if (PttReader.webRecentlyDown()) return;
-  var todo = screen.entries.slice(from, from + this.aheadCount() * 2).filter(function(e) { return e.url && !JJPtt.isTermUrl(e.url); });
+  // www.ptt.cc down: each is read on the BBS, one at a time, and gives way
+  // as soon as the user opens something else; a few only
+  var down = PttReader.webRecentlyDown();
+  var ptt = this.app.reader && this.app.reader.termSource();
+  if (down && !(ptt && ptt.user)) return;
+  var n = down ? Math.min(3, this.aheadCount()) : this.aheadCount() * 2;
+  var todo = screen.entries.slice(from, from + n).filter(function(e) { return e.url && (down || !JJPtt.isTermUrl(e.url)); });
+  var token = this.prefetchToken = {};
   var next = function() {
+    if (self.prefetchToken !== token) return;  // another list or article since
     var e = todo.shift();
     if (!e) return;
-    self.getArticle(e.url).then(function(a) {
+    self.getArticle(e.url, null, true).then(function(a) {
       self.app.reader.preloadMedia(a);
     }, function() {}).then(next);
   };
   next();
-  next();
+  if (!down) next();
 };
