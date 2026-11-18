@@ -250,7 +250,7 @@ export function renderSettings(root) {
       fold('other-glossary', h('span.small', '名詞說明'), [glossaryList()]),
       fold('other-legal', h('span.small', '關於本 app 與免責聲明'), [h('div', { style: { marginTop: '8px' } }, legal())]),
       dangerCard()]); })(),
-    h('p.mu.small.one', { style: { textAlign: 'center', margin: '18px 0 6px' } }, '覺得好用？', h('a', { href: 'https://ko-fi.com/killnopig', target: '_blank', rel: 'noopener', style: { color: 'var(--ac)' } }, '請我喝杯咖啡'), '（自願）'));
+    h('p.mu.small.one', { style: { textAlign: 'center', margin: '18px 0 6px' } }, '覺得好用？', h('a', { href: 'https://ko-fi.com/jjptt1980', target: '_blank', rel: 'noopener', style: { color: 'var(--ac)' } }, '請我喝杯咖啡'), '（自願）'));
 }
 
 /** 一鍵全部展開／收起：展開只開大卡片，收起連卡片裡的小區塊一起收 */
