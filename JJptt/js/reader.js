@@ -22,7 +22,7 @@ function PttReader(app) {
 // Open the connections the article view needs before the first article,
 // so the first one does not wait for DNS / TLS.
 PttReader.warmUp = function() {
-  if (typeof document === 'undefined' || PttReader.warmed) return;
+  if (typeof document === 'undefined' || !document.head || PttReader.warmed) return;
   PttReader.warmed = true;
   ['https://www.ptt.cc', 'https://i.imgur.com', 'https://i.ytimg.com', 'https://pbs.twimg.com'].forEach(function(origin) {
     var l = document.createElement('link');
@@ -255,6 +255,60 @@ PttReader.prototype.ensureOver18 = function() {
 };
 
 PttReader.prototype.fetchDoc = function(url) {
+  var self = this;
+  if (typeof JJPtt !== 'undefined' && JJPtt.isTermUrl(url)) return this.termDoc(url);
+  return this.webDoc(url).catch(function(err) {
+    // www.ptt.cc down (HTTP 5xx, no answer): the app reads it on the BBS
+    if (!PttReader.webDown(err) || !self.termSource()) throw err;
+    PttReader.webDownAt = Date.now();
+    return self.termDoc(url, err);
+  });
+};
+
+// The web site is failing, not the page missing or the over18 question.
+PttReader.webDown = function(err) {
+  return !!err && (err.webStatus >= 500 || err instanceof TypeError);
+};
+
+// www.ptt.cc failed in the last few minutes.
+PttReader.webDownAt = 0;
+PttReader.webRecentlyDown = function() {
+  return Date.now() - PttReader.webDownAt < 5 * 60 * 1000;
+};
+
+// The app's background PTT connection (JJPtt), when there is one.
+PttReader.prototype.termSource = function() {
+  var m = this.app.mobile;
+  return lib.isApp() && m && m.ptt && typeof JJPtt !== 'undefined' ? m.ptt : null;
+};
+
+// A board index or an article read on the BBS instead of www.ptt.cc
+// (see JJPtt.boardPage / termArticle); doc.jjFromTerm marks it, doc.jjUrl is
+// the article's own www.ptt.cc address.
+PttReader.prototype.termDoc = function(url, webErr) {
+  var ptt = this.termSource();
+  var down = 'PTT 網頁版現在故障' + (webErr && webErr.webStatus ? '（HTTP ' + webErr.webStatus + '）' : '');
+  if (!ptt) return Promise.reject(new Error(down));
+  var plain = PttReader.articleUrl(url);
+  var m, job;
+  if ((m = /^jjterm:list\/([^\/]+)\/(\d+)$/.exec(plain)) ||
+      (m = /^https?:\/\/www\.ptt\.cc\/bbs\/([\w\-]+)\/index\.html$/.exec(plain))) {
+    job = function() { return ptt.boardPage(decodeURIComponent(m[1]), m[2] ? +m[2] : 0); };
+  } else if (/^jjterm:art\/[^\/]+\/\d+$/.test(plain) || /^https?:\/\/www\.ptt\.cc\/bbs\/[\w\-]+\/M\.\d+\.A\.\w+\.html$/.test(plain)) {
+    job = function() { return ptt.termArticle(plain); };
+  } else {
+    return Promise.reject(new Error(down + '，這裡暫時不能用（看板文章可以改用 BBS 連線看）'));
+  }
+  if (!ptt.user) return Promise.reject(new Error(down + '。登入 PTT 帳號後，就能改用 BBS 連線看看板和文章'));
+  return job().then(function(r) {
+    var doc = new DOMParser().parseFromString(typeof r === 'string' ? r : r.html, 'text/html');
+    doc.jjFromTerm = true;
+    if (r && r.url) doc.jjUrl = r.url;
+    return doc;
+  });
+};
+
+PttReader.prototype.webDoc = function(url) {
   return this.ensureOver18().then(function() {
     // the app's fetch goes through Android (CapacitorHttp): no browser
     // limits on reading www.ptt.cc, but cookies have to be sent by hand
@@ -263,7 +317,11 @@ PttReader.prototype.fetchDoc = function(url) {
   }).then(function(res) {
     if (/\/ask\/over18/.test(res.url)) throw new Error(i18n('reader_err_over18'));
     if (res.status === 404) throw new Error(i18n('reader_err_notOnWeb'));
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      var err = new Error('HTTP ' + res.status);
+      err.webStatus = res.status;
+      throw err;
+    }
     return res.text();
   }).then(function(html) {
     var doc = new DOMParser().parseFromString(html, 'text/html');
@@ -502,7 +560,7 @@ PttReader.prototype.fetchArticle = function(url) {
     // the article's own address: a query added to get past caches (the
     // app reloads with ?_=time after a push) is not another article -- it
     // was counted as one by 共伴 and 同網址洗版 and blacklisted people
-    var article = { url: PttReader.articleUrl(url), meta: meta, text: body.textContent, body: body, pushes: pushes };
+    var article = { url: PttReader.articleUrl(doc.jjUrl || url), fromTerm: !!doc.jjFromTerm, meta: meta, text: body.textContent, body: body, pushes: pushes };
     if (self.app.spamGuard) {
       try { self.app.spamGuard.record(article); } catch (e) { console.log('spam guard', e); }
     }

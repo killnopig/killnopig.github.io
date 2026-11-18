@@ -890,3 +890,194 @@ JJPtt.prototype.favorites = function() {
     });
   });
 };
+
+// ---- reading through the connection when www.ptt.cc is down --------------------------------
+// PTT's web pages (www.ptt.cc) sometimes fail (HTTP 500) while the BBS
+// itself works. Then the board list and the articles are read from the BBS
+// screen and turned into the same HTML as the web pages, so the rest of the
+// app is unchanged (PttReader.termDoc). Addresses used instead of web pages:
+//   jjterm:list/<board>/<before>   the articles numbered below <before> (0: the newest)
+//   jjterm:art/<board>/<number>    article <number> of the board
+
+JJPtt.TERM = 'jjterm:';
+JJPtt.isTermUrl = function(url) {
+  return String(url || '').indexOf(JJPtt.TERM) === 0;
+};
+
+// One row of a board's article list:
+// "  12345 + 10 11/19 someone      □ [問卦] title" ->
+// { num, nrec, date, author, title, deleted }; 置底 (★) rows give num 0.
+JJPtt.parseArticleRow = function(row) {
+  var m = /^[>●\s]?\s*(\d+|★)\s([+mMsSD*!=~ ])\s?(爆|X[X\d]|\d{1,2})?\s*(\d{1,2}\/\d{2}) (\S+) +(□|轉|R:?)\s?(.*)$/.exec(String(row || ''));
+  if (!m) return null;
+  var title = m[7].replace(/\s+$/, '');
+  if (m[6] === '轉') title = 'Fw: ' + title;
+  else if (m[6] !== '□') title = 'Re: ' + title;
+  return {
+    num: m[1] === '★' ? 0 : +m[1],
+    nrec: m[3] || '',
+    date: m[4],
+    author: m[5] === '-' ? '-' : m[5],
+    title: title,
+    deleted: m[5] === '-' || /^\(本文已被刪除\)/.test(m[7])
+  };
+};
+
+JJPtt.esc = function(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+};
+
+// A board index page like www.ptt.cc's (what JJMobile.parseIndex reads).
+JJPtt.indexHtml = function(board, rows, older) {
+  var esc = JJPtt.esc;
+  var h = ['<div id="topbar"><a class="board">看板 ' + esc(board) + '</a></div><div class="btn-group-paging">'];
+  if (older) h.push('<a class="btn" href="' + esc(older) + '">‹ 上頁</a>');
+  h.push('</div><div class="r-list-container">');
+  rows.forEach(function(r) {
+    var t = r.deleted ? esc(r.title) : '<a href="' + esc(JJPtt.TERM + 'art/' + encodeURIComponent(board) + '/' + r.num) + '">' + esc(r.title) + '</a>';
+    h.push('<div class="r-ent"><div class="nrec">' + esc(r.nrec) + '</div><div class="title">' + t +
+      '</div><div class="meta"><div class="author">' + esc(r.author) + '</div><div class="date">' + esc(r.date) + '</div></div></div>');
+  });
+  h.push('</div>');
+  return h.join('');
+};
+
+// The article's lines as read from the screen -> an article page like
+// www.ptt.cc's (#main-content with the header lines and .push lines).
+JJPtt.PUSH_LINE = /^(推|噓|→) ?(\w+)\s*:(.*?)\s*((?:\d{1,3}\.){3}\d{1,3})?\s*(\d{1,2}\/\d{1,2}(?:\s+\d{1,2}:\d{2})?)\s*$/;
+JJPtt.articleHtml = function(lines) {
+  var esc = JJPtt.esc;
+  var link = function(s) {
+    return esc(s).replace(/https?:\/\/[^\s<>"]+/g, function(u) { return '<a href="' + u + '">' + u + '</a>'; });
+  };
+  var meta = [], i = 0;
+  for (; i < Math.min(lines.length, 6); ++i) {
+    var l = lines[i] || '';
+    var m = /^\s*作者\s+(.+?)(?:\s{2,}看板\s+(\S+))?\s*$/.exec(l);
+    if (m) {
+      meta.push('<div class="article-metaline"><span class="article-meta-tag">作者</span><span class="article-meta-value">' + esc(m[1].trim()) + '</span></div>');
+      if (m[2]) meta.push('<div class="article-metaline-right"><span class="article-meta-tag">看板</span><span class="article-meta-value">' + esc(m[2]) + '</span></div>');
+      continue;
+    }
+    m = /^\s*(標題|時間)\s+(.*?)\s*$/.exec(l);
+    if (m) {
+      meta.push('<div class="article-metaline"><span class="article-meta-tag">' + m[1] + '</span><span class="article-meta-value">' + esc(m[2]) + '</span></div>');
+      continue;
+    }
+    if (/^\s*[─-]{10,}\s*$/.test(l)) ++i;
+    break;
+  }
+  var body = [];
+  for (; i < lines.length; ++i) {
+    var line = lines[i] || '';
+    var p = JJPtt.PUSH_LINE.exec(line);
+    if (p) {
+      body.push('<div class="push"><span class="push-tag">' + p[1] + ' </span><span class="push-userid">' + esc(p[2]) +
+        '</span><span class="push-content">: ' + link(p[3].trim()) + '</span><span class="push-ipdatetime"> ' +
+        (p[4] ? p[4] + ' ' : '') + p[5] + '\n</span></div>');
+    } else {
+      body.push(link(line) + '\n');
+    }
+  }
+  return '<div id="main-content">' + meta.join('') + body.join('') + '</div>';
+};
+
+// A board's article list, one screen: the newest, or those below `before`.
+// Resolves with an index page's HTML (JJPtt.indexHtml).
+JJPtt.prototype.boardPage = function(board, before) {
+  var self = this;
+  return this.run(function() {
+    return self.ensureIn().then(function() {
+      return self.toBoard(board);
+    }).then(function() {
+      var prev = self.screen();
+      // a number then Enter jumps there; End: the newest article
+      self.send(before > 1 ? String(before - 1) + '\r' : '\x1b[4~');
+      return self.settle(prev, 2000);
+    }).then(function() {
+      var buf = self.app.buf, rows = [], low = 0;
+      for (var r = 1; r < (buf.rows || 24) - 1; ++r) {
+        var a = JJPtt.parseArticleRow(buf.getRowText(r, 0, buf.cols));
+        if (!a || !a.num || (before && a.num >= before)) continue;  // 置底 have no number to open
+        rows.push(a);
+        if (!low || a.num < low) low = a.num;
+      }
+      var older = low > 1 ? JJPtt.TERM + 'list/' + encodeURIComponent(board) + '/' + low : '';
+      return JJPtt.indexHtml(board, rows, older);
+    });
+  });
+};
+
+// The article under the cursor in the list, every page of it, as lines;
+// back to the list afterwards.
+JJPtt.prototype.readHere = function() {
+  var self = this;
+  var lines = [], pages = 0;
+  var read = function() {
+    var buf = self.app.buf, n = buf.rows || 24;
+    var st = buf.getRowText(n - 1, 0, buf.cols).parseStatusRow();
+    if (!st) return null;
+    for (var r = 0; r < n - 1 && st.rowIndexStart + r <= st.rowIndexEnd; ++r) {
+      lines[st.rowIndexStart - 1 + r] = buf.getRowText(r, 0, buf.cols).replace(/\s+$/, '');
+    }
+    return st;
+  };
+  var page = function() {
+    // the bottom line first, then the page above it (PTT draws in pieces)
+    var prev = self.screen();
+    return self.settle(prev, 300).then(function() {
+      var st = read();
+      if (!st) throw new Error('PTT 沒有打開這篇文章');
+      if (st.pagePercent >= 100 || ++pages > 300) return;
+      prev = self.screen();
+      self.send('\x1b[6~');  // Page Down
+      return self.wait({ next: /瀏覽 第/ }, 8000, prev, '讀下一頁').then(page);
+    });
+  };
+  var before = this.screen();
+  this.send('\r');
+  return this.wait({ article: /瀏覽 第/, gone: /本文已被刪除|找不到/ }, 8000, before, '打開文章').then(function(k) {
+    if (k === 'gone') throw new Error('這篇文章已經被刪除了');
+    return page();
+  }).then(function() {
+    var prev = self.screen();
+    self.send('q');
+    return self.settle(prev, 1500);
+  }).then(function() {
+    for (var i = 0; i < lines.length; ++i) if (lines[i] === undefined) lines[i] = '';
+    return lines;
+  });
+};
+
+// An article (its www.ptt.cc address, or jjterm:art/...) read on the BBS.
+// Resolves with { url: its www.ptt.cc address, html: an article page }.
+JJPtt.URL_IN_BOX = /https?:\/\/www\.ptt\.cc\/bbs\/[\w\-]+\/M\.\d+\.A\.\w+\.html/;
+JJPtt.prototype.termArticle = function(url) {
+  var self = this;
+  var real = url;
+  return this.run(function() {
+    return self.ensureIn().then(function() {
+      var m = /^jjterm:art\/([^\/]+)\/(\d+)$/.exec(url);
+      if (!m) return self.toArticle(url);
+      return self.toBoard(decodeURIComponent(m[1])).then(function() {
+        var prev = self.screen();
+        self.send(m[2] + '\r');
+        return self.settle(prev, 2000);
+      }).then(function() {
+        // Q: the article's 文章網址 (for pushing and replying), any key closes it
+        var prev = self.screen();
+        self.send('Q');
+        return self.wait({ url: JJPtt.URL_IN_BOX }, 5000, prev, '找文章網址');
+      }).then(function() {
+        real = JJPtt.URL_IN_BOX.exec(self.screen())[0].replace(/^http:/, 'https:');
+        var prev = self.screen();
+        self.send(' ');
+        return self.settle(prev, 1500);
+      });
+    }).then(function() {
+      return self.readHere();
+    }).then(function(lines) {
+      return { url: real, html: JJPtt.articleHtml(lines) };
+    });
+  });
+};

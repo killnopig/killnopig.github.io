@@ -13,6 +13,9 @@ JJMobile.prototype.renderArticle = function(screen) {
   this.getArticle(screen.url).then(function(article) {
     if (!v.isConnected) return;
     wait.remove();
+    // opened from a list read on the BBS: its www.ptt.cc address (Q) is
+    // what pushing and replying need
+    if (JJPtt.isTermUrl(screen.url) && article.url && !JJPtt.isTermUrl(article.url)) screen.url = article.url;
     self.fillArticle(screen, article);
     if (screen.list) self.prefetchList(screen.list, screen.index + 1);
   }).catch(function(err) {

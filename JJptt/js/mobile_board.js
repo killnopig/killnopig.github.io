@@ -3,6 +3,12 @@
 
 // ---- board: article list ------------------------------------------------------------
 
+// A link on a board page: www.ptt.cc's are site paths, the ones made from
+// the BBS screen (PTT's web site down, JJPtt.indexHtml) are jjterm: addresses.
+JJMobile.webUrl = function(href) {
+  return /^(?:https?|jjterm):/.test(href) ? href : JJMobile.WEB + href;
+};
+
 // "https://www.ptt.cc/bbs/Gossiping/index.html" etc. -> entries, newest first.
 JJMobile.parseIndex = function(doc, newestFirst) {
   var out = [];
@@ -15,7 +21,7 @@ JJMobile.parseIndex = function(doc, newestFirst) {
     var a = n.querySelector('.title a');
     out.push({
       title: ((a || n.querySelector('.title')) || {}).textContent.trim(),
-      url: a ? JJMobile.WEB + a.getAttribute('href') : '',
+      url: a ? JJMobile.webUrl(a.getAttribute('href')) : '',
       author: ((n.querySelector('.meta .author') || {}).textContent || '').trim(),
       date: ((n.querySelector('.meta .date') || {}).textContent || '').trim(),
       nrec: ((n.querySelector('.nrec') || {}).textContent || '').trim(),
@@ -25,7 +31,7 @@ JJMobile.parseIndex = function(doc, newestFirst) {
   var older = '';
   var links = doc.querySelectorAll('.btn-group-paging a');
   for (var k = 0; k < links.length; ++k) {
-    if (/上頁/.test(links[k].textContent) && links[k].getAttribute('href')) older = JJMobile.WEB + links[k].getAttribute('href');
+    if (/上頁/.test(links[k].textContent) && links[k].getAttribute('href')) older = JJMobile.webUrl(links[k].getAttribute('href'));
   }
   var board = ((doc.querySelector('#topbar .board') || {}).textContent || '').replace(/^\s*看板\s*/, '').trim();
   var normal = out.filter(function(e) { return !e.pinned; });
@@ -67,6 +73,9 @@ JJMobile.prototype.renderBoard = function(screen) {
         if (self.stack[self.stack.length - 1] === screen) self.setBar(screen);
       }
       screen.older = page.older;
+      if (first && doc.jjFromTerm) {
+        v.insertBefore(el('div', 'jjm-hint jjm-term-note', 'PTT 網頁版現在故障，改用 BBS 連線讀取（比較慢，不能搜尋，沒有顏色）'), screen.listNode);
+      }
       // 置底公告, unless hidden (設定 → 一般; the extension's hidePinned)
       var pv2 = (self.app.pref && self.app.pref.values) || {};
       if (first && page.pinned.length && !pv2.hidePinned) {
@@ -270,7 +279,10 @@ JJMobile.prototype.aheadCount = function() {
 // when 預先讀取時連圖片一起下載 is on.
 JJMobile.prototype.prefetchList = function(screen, from) {
   var self = this;
-  var todo = screen.entries.slice(from, from + this.aheadCount() * 2).filter(function(e) { return e.url; });
+  // not while www.ptt.cc is down: each would be read on the BBS, one at a
+  // time, ahead of the article the user opens
+  if (PttReader.webRecentlyDown()) return;
+  var todo = screen.entries.slice(from, from + this.aheadCount() * 2).filter(function(e) { return e.url && !JJPtt.isTermUrl(e.url); });
   var next = function() {
     var e = todo.shift();
     if (!e) return;
