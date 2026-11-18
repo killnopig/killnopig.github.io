@@ -51,7 +51,7 @@ You can also install the Android APK. Download the latest `dose-tracker-sync-v2.
 - Google Drive backup has been tested on the author's phone only.
 - To move from the Chrome version to the APK, connect both to the same Google account and let Drive load the data, or use backup text.
 - This build is signed with a debug key and is for personal sideloading only. You need to allow "Install unknown apps". Future APK updates must use the same signing key, otherwise you must uninstall first and your records will be lost.
-- Moving from 2.0.0 to 2.0.1: the website moved to a new address, so 2.0.0 no longer opens. 2.0.1 also has a new package name, so it cannot be installed over 2.0.0 and both apps will appear. Connect Google Drive in 2.0.1 to load your data, check it, then uninstall the old app. If you never turned on Drive backup in 2.0.0, do not uninstall it yet. You also need to allow Health Connect access again in the new app.
+- Moving from 2.0.0 to 2.0.1: 2.0.0 keeps working and your data is still there, so you do not have to switch. 2.0.1 has a new package name, so it cannot be installed over 2.0.0 and both apps will appear. To switch, make backup text in 2.0.0 and restore it in 2.0.1 (or connect both to the same Google account and load from Drive), check your data, then uninstall the old app. You also need to allow Health Connect access again in the new app.
 
 ## Health Connect sync (Android APK)
 
