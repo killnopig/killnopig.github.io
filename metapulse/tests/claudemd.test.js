@@ -20,6 +20,8 @@ const EXTERNAL = new Set([
   'dose-tracker-sync.json', 'dosetrack-v1-sync', 'maple_widget',
   'speechSynthesis', 'afconvert', 'generateContent', 'drive.appdata', 'metapulse.json',
   'FB_PAGE_ID', 'FB_PAGE_TOKEN', 'MetaPulse.apk', 'fb.png',
+  // killnopig/killnopig.github.io 鏡像（另一個 repo、帳號名稱、repo secret）
+  'metapulse/', 'killnopig', 'KILLNOPIG_PAGES_TOKEN',
 ]);
 
 function walk(dir, out = []) {
