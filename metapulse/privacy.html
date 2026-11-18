@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MetaPulse 隱私權政策</title>
+<style>
+:root{--bg:#f6f7f6;--card:#fff;--tx:#17201c;--mu:#66726c;--ln:#e3e7e4;--ac:#0f7b5f}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1311;--card:#171c19;--tx:#e7ece9;--mu:#91a097;--ln:#26302b;--ac:#3ccf9a}}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.7 system-ui,-apple-system,"Noto Sans TC","PingFang TC",sans-serif}
+main{max-width:640px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:17px;margin:24px 0 6px}
+.mu{color:var(--mu);font-size:14px}a{color:var(--ac)}ul{padding-left:20px}
+</style>
+</head>
+<body>
+<main>
+<h1>MetaPulse隱私權政策</h1>
+<div class="mu">最後更新：2026-11-17</div>
+
+<h2>概要</h2>
+<p>MetaPulse 是個人使用的飲食、斷食與用藥記錄工具。本 app 沒有自己的伺服器，不收集、不傳送你的資料給作者，也不含廣告或追蹤程式。</p>
+
+<h2>資料存在哪裡</h2>
+<ul>
+<li>你輸入的記錄存在你自己裝置的瀏覽器儲存空間（localStorage）。</li>
+<li>如果你連線 Google Drive，資料會備份到你自己 Google Drive 的隱藏應用程式資料夾（drive.appdata），只有本 app 能讀寫，作者無法存取。</li>
+</ul>
+
+<h2>Health Connect</h2>
+<ul>
+<li>在 Android APK 中，經你授權後，本 app 會從 Health Connect <b>讀取</b>血壓、心率（脈搏）、體重、體脂率、基礎代謝與運動消耗熱量。</li>
+<li>讀取的資料只用來顯示記錄、圖表與計算點數，存在你的裝置（以及你自己連線的 Google Drive 備份）中，不會傳給作者或任何第三方。</li>
+<li>本 app 不會寫入、修改或刪除 Health Connect 中的資料。</li>
+<li>你可以隨時在 Android 設定的 Health Connect 中撤銷本 app 的權限。</li>
+</ul>
+
+<h2>AI 辨識（Google Gemini）</h2>
+<p>如果你在設定中輸入自己的 Gemini API key，拍照或文字描述的餐點會直接從你的裝置送到 Google Gemini API 辨識，適用 Google 的條款與隱私權政策。API key 只存在你的裝置，不會列入備份。</p>
+
+<h2>刪除資料</h2>
+<p>清除瀏覽器或 app 資料即可刪除本機記錄；Google Drive 上的備份可在 Google Drive 設定的「管理應用程式」中刪除。</p>
+
+<h2>聯絡</h2>
+<p>問題或建議請到 <a href="https://github.com/JJptt1980/metapulse/issues">GitHub Issues</a> 回報。</p>
+</main>
+</body>
+</html>

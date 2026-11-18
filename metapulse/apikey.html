@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>申請 API 金鑰</title>
+<style>
+:root{--bg:#f6f7f6;--card:#fff;--tx:#17201c;--mu:#66726c;--ln:#e3e7e4;--ac:#0f7b5f;--soft:#eef3f0}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1311;--card:#171c19;--tx:#e7ece9;--mu:#91a097;--ln:#26302b;--ac:#3ccf9a;--soft:#1d2420}}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.7 system-ui,-apple-system,"Noto Sans TC","PingFang TC",sans-serif}
+main{max-width:640px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:22px;margin:0 0 4px}
+h2{font-size:18px;margin:0 0 6px}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:16px;padding:16px;margin:14px 0}
+.mu{color:var(--mu);font-size:14px}
+.path{display:inline-block;background:var(--soft);border-radius:8px;padding:0 6px;font-size:14px;font-weight:600}
+.note{background:var(--soft);border-radius:12px;padding:10px 12px;font-size:14px;margin-top:8px}
+ol,ul{padding-left:22px;margin:6px 0}li{margin:4px 0}
+a{color:var(--ac)}
+.back{display:inline-block;margin-top:8px;font-weight:600}
+</style>
+</head>
+<body>
+<main>
+<h1>申請 AI 的 API 金鑰</h1>
+<div class="mu">只有要用 AI 功能的人才需要。免費申請，大約 3 分鐘。</div>
+<a class="back" href="./">← 回到 MetaPulse</a>
+
+<div class="card">
+<h2>什麼時候需要金鑰</h2>
+<ul>
+<li><b>要金鑰</b>：拍照辨識食物、用文字描述食物、AI 飲食建議、週報的 AI 總結。</li>
+<li><b>不用金鑰</b>：自己輸入食物、食物庫、斷食、服藥、運動、身體記錄、圖表、Google Drive 同步、小工具。</li>
+</ul>
+<div class="note">每個人要用<b>自己的</b>金鑰。用誰的金鑰，就算誰的使用量。</div>
+</div>
+
+<div class="card">
+<h2>步驟</h2>
+<ol>
+<li>用手機或電腦打開 <a href="https://aistudio.google.com/apikey">Google AI Studio</a>，用你的 Google 帳號登入。第一次會請你同意使用條款。</li>
+<li>按 <span class="path">Create API key</span>（建立 API 金鑰）。如果問你要放在哪個專案，選預設的或建立新的都可以。</li>
+<li>畫面會出現一長串英文和數字，通常是 <b>AIza</b> 開頭。按旁邊的複製。</li>
+<li>回到 MetaPulse，到 <span class="path">設定 → AI 辨識食物</span>，貼到「API 金鑰」的框裡。</li>
+<li>按 <span class="path">測試連線</span>。看到「✓ 連線成功」就完成了。</li>
+</ol>
+</div>
+
+<div class="card">
+<h2>要注意</h2>
+<ul>
+<li><b>像密碼一樣保管</b>：不要傳給別人，也不要貼到群組。</li>
+<li><b>每台裝置各貼一次</b>：金鑰只存在那台裝置，不會放進 Google Drive 存檔。手機 App 和 Chrome 網頁版也要分開貼。換手機或重裝 App 後要再貼一次。</li>
+<li><b>免費額度</b>：一般個人使用通常夠用。如果出現「用量已滿」，通常隔天就會恢復。不用綁信用卡。</li>
+<li><b>不小心外流</b>：回到同一個網頁把那把金鑰刪掉，再建一把新的，貼回 MetaPulse。</li>
+<li><b>申請不了</b>：Google 帳號要滿 18 歲，有些國家或地區也還不能用。</li>
+</ul>
+</div>
+
+<p class="mu">照片和文字會從你的手機直接送到 Google 辨識，MetaPulse 沒有自己的伺服器，不會經手你的資料。</p>
+<a class="back" href="./">← 回到 MetaPulse</a>
+</main>
+</body>
+</html>

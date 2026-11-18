@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MetaPulse</title>
+<meta name="description" content="MetaPulse — 飲食、斷食與用藥記錄">
+<meta name="theme-color" content="#0f7b5f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<script>
+/* 版本號：發布新版時改這裡。版本檢查會比對線上 index.html 的這一行。 */
+window.APP_VERSION = '0.9.29';
+/* 載入失敗時不要只剩空白：記下錯誤，8 秒後程式還沒啟動就顯示原因與「重新載入」 */
+(function(){var errs=[];
+addEventListener('error',function(e){var t=e.target;if(t&&t!==window&&(t.src||t.href))errs.push('載入失敗：'+(t.src||t.href).split('/').slice(-2).join('/'));else errs.push((e.message||'程式檔載入失敗（網路或舊快取）')+(e.filename?'（'+e.filename.split('/').pop().split('?')[0]+':'+e.lineno+'）':''))},true);
+addEventListener('unhandledrejection',function(e){var r=e.reason;errs.push('未處理的錯誤：'+(r&&r.message?r.message:r))});
+setTimeout(function(){var v=document.getElementById('ver');if(v&&v.textContent)return;
+var d=document.createElement('div');d.style.cssText='position:fixed;left:12px;right:12px;top:80px;z-index:99;background:#b45309;color:#fff;border-radius:14px;padding:14px 16px;font:15px/1.6 system-ui,sans-serif';
+d.innerHTML='<b>程式沒有載入成功</b><div style="font-size:13px;margin:6px 0 10px;word-break:break-all"></div>';
+d.children[1].textContent=(errs.length?errs.slice(0,5).join('；'):'沒有收到錯誤訊息（可能是網路太慢或舊的快取）')+'。版本 '+window.APP_VERSION+'，'+navigator.userAgent.replace(/^.*?\(/,'(').slice(0,80);
+var b=document.createElement('button');b.textContent='重新載入（略過舊快取）';b.style.cssText='width:100%;padding:12px;border:0;border-radius:10px;font-weight:700;font-size:15px';
+b.onclick=function(){location.replace(location.pathname+'?r='+Date.now())};d.appendChild(b);document.body.appendChild(d)},8000)})();
+/* 在 MetaPulse app（APK）裡：Android 會讓畫面延伸到狀態列底下，上方要留空間 */
+try{if(window.Capacitor&&(window.Capacitor.isNativePlatform?window.Capacitor.isNativePlatform():window.Capacitor.getPlatform&&window.Capacitor.getPlatform()!=='web'))document.documentElement.classList.add('native')}catch(e){}
+/* 主題先套用，避免閃一下 */
+try{var _l=JSON.parse(localStorage.getItem('metapulse-local')||'{}');var _t=_l.theme==='auto'&&!_l.themeChosen?'light':(_l.theme||'light');if(_t==='light'||_t==='dark')document.documentElement.setAttribute('data-theme',_t);if(+_l.fontScale>0&&+_l.fontScale!==1)document.documentElement.style.zoom=_l.fontScale}catch(e){}
+/* 每個模組加上 ?v=版本，更新後不會吃到舊的快取 */
+(function(){var f=['app','config','points','units','foods','storage','gemini','state','advice','ui/advice','records','migrate','drive','ui/log','ui/charts','ui/backup','health','ui/health','fasting','longterm','messages','ui/fasting','ui/fx','sync','omron','summary','ui/omron','ui/reset','ledger','notify','ui/meds','ui/weekly','ui/exercise','widget','lines','sounds','ui/sounds','ui/common','ui/today','ui/addMeal','ui/mealEditor','ui/settings','ui/library'],m={};
+f.forEach(function(n){m['./js/'+n+'.js']='./js/'+n+'.js?v='+window.APP_VERSION});
+var s=document.createElement('script');s.type='importmap';s.textContent=JSON.stringify({imports:m});document.head.appendChild(s)})();
+</script>
+<style>
+:root{
+  --bg:#f6f7f6;--card:#fff;--tx:#17201c;--mu:#66726c;--ln:#e3e7e4;--soft:#eef2ef;
+  --ac:#0f7b5f;--ac-soft:#e2f1eb;--act:#fff;--warn:#b45309;--warn-soft:#fdf1e3;--bad:#b42318;
+  --r:16px;color-scheme:light;--c1:#3b6fd8;--c3:#7c3aed;--c4:#0e7490;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1311;--card:#171c19;--tx:#e7ece9;--mu:#91a097;--ln:#26302b;--soft:#1e2522;
+  --ac:#3ccf9a;--ac-soft:#173328;--act:#07140f;--warn:#f0a14a;--warn-soft:#33240f;--bad:#f2766b;color-scheme:dark;--c1:#7aa2ff;--c3:#b69cff;--c4:#4fd1e8}}
+:root[data-theme="dark"]{
+  --bg:#0f1311;--card:#171c19;--tx:#e7ece9;--mu:#91a097;--ln:#26302b;--soft:#1e2522;
+  --ac:#3ccf9a;--ac-soft:#173328;--act:#07140f;--warn:#f0a14a;--warn-soft:#33240f;--bad:#f2766b;color-scheme:dark;--c1:#7aa2ff;--c3:#b69cff;--c4:#4fd1e8}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.55 system-ui,-apple-system,"Segoe UI","Noto Sans TC","PingFang TC",sans-serif;
+  padding-top:env(safe-area-inset-top,0px)}
+main{max-width:560px;margin:0 auto;padding:14px 16px calc(92px + env(safe-area-inset-bottom,0px))}
+header{display:flex;align-items:baseline;gap:8px;margin:6px 2px 14px}
+header h1{font-size:21px;margin:0;font-weight:700;letter-spacing:.2px}
+.mu{color:var(--mu)}.small{font-size:13px}.tiny{font-size:12px}
+.num{font-variant-numeric:tabular-nums}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:var(--r);padding:16px;margin-bottom:12px}
+.card h2{font-size:15px;margin:0 0 10px;font-weight:650}
+.pane{display:none}.pane.on{display:block}
+label{display:block;font-size:13px;color:var(--mu);margin:12px 0 4px}
+input,select,textarea{width:100%;font:inherit;color:var(--tx);background:var(--soft);border:1px solid transparent;border-radius:12px;padding:10px 12px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--ac)}
+input[type=checkbox]{width:auto;accent-color:var(--ac)}
+input[type=range]{padding:0;background:transparent;accent-color:var(--ac);height:32px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.grid5 input{padding:8px 6px;text-align:center}
+.grid5 label{margin:8px 0 3px;text-align:center;font-size:12px;line-height:1.25}
+.grid5 label small{display:block;font-size:11px}
+details:not(:first-child){margin-top:12px}
+button{font:inherit;border:0;border-radius:12px;padding:12px 16px;cursor:pointer;background:var(--soft);color:var(--tx);font-weight:600}
+button.pri{background:var(--ac);color:var(--act)}
+button.ghost{background:transparent;border:1px solid var(--ln)}
+button.link{background:none;padding:6px 2px;color:var(--ac);font-weight:600}
+button.danger{background:transparent;color:var(--bad);border:1px solid var(--ln)}
+button.full{width:100%;margin-top:12px}
+button:disabled{opacity:.5}
+.row{display:flex;align-items:center;gap:8px}.row.between{justify-content:space-between}.grow{flex:1;min-width:0}
+.pills{display:flex;gap:6px;flex-wrap:wrap}
+.pills button{padding:7px 14px;border-radius:999px;font-size:14px;font-weight:500;background:transparent;border:1px solid var(--ln);color:var(--mu)}
+.pills button.on{background:var(--ac-soft);border-color:transparent;color:var(--ac);font-weight:650}
+.seg{display:flex;background:var(--soft);border-radius:12px;padding:3px;gap:3px}
+.seg button{flex:1;padding:9px 0;border-radius:10px;background:transparent;color:var(--mu);font-weight:550;display:flex;align-items:center;justify-content:center;gap:6px}
+.seg button.on{background:var(--card);color:var(--tx);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+details>summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:8px}
+details>summary::-webkit-details-marker{display:none}
+details>summary::after{content:"";width:8px;height:8px;border-right:1.6px solid var(--mu);border-bottom:1.6px solid var(--mu);transform:rotate(45deg);margin:0 4px 4px;transition:transform .15s;flex-shrink:0}
+details[open]>summary::after{transform:rotate(-135deg);margin-bottom:-2px}
+svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+/* 今日 */
+.hero{display:grid;grid-template-columns:118px 1fr;gap:16px;align-items:center}
+.ring{position:relative;width:118px;height:118px}
+.ring svg{width:118px;height:118px;transform:rotate(-90deg)}
+.ring .c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;line-height:1.15}
+.ring .c b{font-size:28px;font-weight:700}
+.bar{height:8px;border-radius:99px;background:var(--soft);overflow:hidden;margin:5px 0 2px}
+.bar i{display:block;height:100%;border-radius:99px;background:var(--ac);transition:width .3s}
+.bar.warn i{background:var(--warn)}
+.metric+.metric{margin-top:10px}
+.metric .row{font-size:14px}
+.cta{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:16px;padding:15px;font-size:17px;border-radius:14px}
+.cta svg.i{width:22px;height:22px}
+.list .it{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--ln);cursor:pointer}
+.list .it:first-child{border-top:0}
+.list .pts{font-weight:700;font-size:17px;white-space:nowrap}
+.thumb{width:40px;height:40px;border-radius:10px;object-fit:cover;flex-shrink:0;background:var(--soft)}
+.daygrp{border-top:1px solid var(--ln);padding:10px 0}
+.daygrp summary{font-size:14px}
+.empty{color:var(--mu);text-align:center;padding:14px 0;font-size:14px}
+.notice{background:var(--warn-soft);color:var(--tx);border-radius:12px;padding:10px 12px;font-size:14px;margin-top:10px}
+.notice.ok{background:var(--ac-soft)}
+.kv{display:grid;grid-template-columns:1fr auto auto auto;row-gap:6px;font-size:14px;background:var(--soft);border-radius:12px;padding:12px 14px;align-items:baseline}
+.kv .k{color:var(--mu)}.kv .i{text-align:right;font-weight:650}.kv .f{font-weight:650;min-width:1.4em}.kv .u{color:var(--mu);padding-left:4px;min-width:2.4em}
+.kv .sub{grid-column:1/-1;font-size:12px;color:var(--mu);margin:-6px 0 2px}
+/* 面板 */
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:30;display:none}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:31;max-height:94vh;overflow:auto;background:var(--bg);border-radius:20px 20px 0 0;
+  padding:8px 16px calc(20px + env(safe-area-inset-bottom,0px));max-width:560px;margin:0 auto;display:none;overscroll-behavior:contain}
+.sheet.on,.sheet-bg.on{display:block}
+.grab{width:40px;height:4px;border-radius:9px;background:var(--ln);margin:4px auto 10px}
+.sheet-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.sheet-h b{font-size:18px}
+.item-card .name{font-size:17px;font-weight:650;border:0;background:transparent;padding:0;border-radius:0}
+.item-card .big{font-size:26px;font-weight:700;color:var(--ac);white-space:nowrap}
+.quick{display:flex;gap:6px;margin-top:8px}
+.quick button{flex:1;padding:8px 0;font-size:14px;font-weight:500}
+.spin{width:22px;height:22px;border:2.5px solid var(--ln);border-top-color:var(--ac);border-radius:50%;animation:sp 1s linear infinite;display:inline-block;vertical-align:middle}
+@keyframes sp{to{transform:rotate(360deg)}}
+.preview{width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin-top:10px}
+.foot{position:sticky;bottom:calc(-20px - env(safe-area-inset-bottom,0px));background:var(--bg);padding:10px 0 4px;margin-top:6px}
+/* 底部分頁 */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:10;display:flex;justify-content:center;background:var(--card);border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav.tabs .in{display:flex;max-width:560px;width:100%}
+nav.tabs button{flex:1;background:transparent;border-radius:0;padding:8px 0 10px;color:var(--mu);font-size:12px;font-weight:500;display:flex;flex-direction:column;align-items:center;gap:2px}
+nav.tabs button.on{color:var(--ac)}
+nav.tabs button[hidden]{display:none}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(78px + env(safe-area-inset-bottom,0px));background:var(--tx);color:var(--bg);
+  padding:10px 16px;border-radius:12px;font-size:14px;z-index:50;display:none;max-width:90vw;text-align:center}
+#toast.bad{background:var(--bad);color:#fff}
+.modal{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px}
+.modal.on{display:flex}
+.modal .card{max-width:480px;max-height:90vh;overflow:auto;margin:0}
+.legal p{margin:0 0 8px}
+/* MetaPulse app：狀態列與手勢列不要蓋到內容 */
+.native body{padding-top:max(env(safe-area-inset-top,0px),32px)}
+.native body::before{content:"";position:fixed;top:0;left:0;right:0;height:max(env(safe-area-inset-top,0px),32px);background:#141917;z-index:45;pointer-events:none}
+.native nav.tabs{padding-bottom:max(env(safe-area-inset-bottom,0px),12px)}
+.native main{padding-bottom:calc(104px + env(safe-area-inset-bottom,0px))}
+/* 極簡：每個選項、按鈕、摘要都只佔一行；說明收在 ⓘ */
+button,label,select{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pills{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.pills::-webkit-scrollbar{display:none}
+.pills button{flex:0 0 auto}
+details>summary,details>summary *{white-space:nowrap}
+details>summary>*,details>summary .grow>*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.one{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+details.tip{margin-top:6px}
+details.tip>summary{display:inline-flex;justify-content:flex-start;gap:4px;font-size:12px;color:var(--mu);font-weight:500}
+details.tip>summary::after{display:none}
+details.tip>div{font-size:12px;color:var(--mu);line-height:1.65;margin-top:4px;white-space:normal}
+details.tip>div *{white-space:normal}
+@media (max-width:360px){.hero{grid-template-columns:100px 1fr}.ring,.ring svg{width:100px;height:100px}.grid5{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<main>
+  <div id="upd" class="card notice ok" style="display:none;cursor:pointer;text-align:center;font-weight:600">有新版本 <span id="nv"></span>，點此更新</div>
+  <header><h1>MetaPulse</h1><span id="ver" class="mu small"></span></header>
+  <div id="sync" class="mu tiny" style="margin:-10px 2px 12px;cursor:pointer"></div>
+
+  <section id="p-today" class="pane on"></section>
+  <section id="p-log" class="pane"></section>
+  <section id="p-chart" class="pane"></section>
+  <section id="p-set" class="pane"></section>
+</main>
+
+<nav class="tabs"><div class="in">
+  <button data-t="today" class="on"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>飲食運動</button>
+  <button data-t="log"><svg class="i" viewBox="0 0 24 24"><path d="M8 6h11M8 12h11M8 18h11"/><circle cx="4" cy="6" r=".6"/><circle cx="4" cy="12" r=".6"/><circle cx="4" cy="18" r=".6"/></svg>身體</button>
+  <button data-t="chart"><svg class="i" viewBox="0 0 24 24"><path d="M4 19h16M6 15l4-4 3 3 5-6"/></svg>圖表</button>
+  <button data-t="set"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3.9a7 7 0 0 0-2-1.2L14.2 3h-4.4l-.4 2.6a7 7 0 0 0-2 1.2l-2.3-.9-2 3.4 2 1.5A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.5 2 3.4 2.3-.9a7 7 0 0 0 2 1.2l.4 2.6h4.4l.4-2.6a7 7 0 0 0 2-1.2l2.3.9 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z"/></svg>設定</button>
+</div></nav>
+
+<div class="sheet-bg" id="sheet-bg"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
+<div class="modal" id="modal"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="bk-ask" class="card" style="display:none;position:fixed;left:12px;right:12px;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:20;margin:0 auto;max-width:536px;box-shadow:0 4px 18px rgba(0,0,0,.18)"></div>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<script type="module">import './js/app.js';</script>
+</body>
+</html>

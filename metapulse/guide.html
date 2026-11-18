@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MetaPulse 搬家說明</title>
+<style>
+:root{--bg:#f6f7f6;--card:#fff;--tx:#17201c;--mu:#66726c;--ln:#e3e7e4;--ac:#0f7b5f;--soft:#eef3f0}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1311;--card:#171c19;--tx:#e7ece9;--mu:#91a097;--ln:#26302b;--ac:#3ccf9a;--soft:#1d2420}}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.7 system-ui,-apple-system,"Noto Sans TC","PingFang TC",sans-serif}
+main{max-width:640px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:22px;margin:0 0 4px}
+h2{font-size:18px;margin:0 0 6px}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:16px;padding:16px;margin:14px 0}
+.mu{color:var(--mu);font-size:14px}
+.path{display:inline-block;background:var(--soft);border-radius:8px;padding:0 6px;font-size:14px;font-weight:600}
+.note{background:var(--soft);border-radius:12px;padding:10px 12px;font-size:14px;margin-top:8px}
+ol,ul{padding-left:22px;margin:6px 0}li{margin:4px 0}
+a{color:var(--ac)}
+.back{display:inline-block;margin-top:8px;font-weight:600}
+</style>
+</head>
+<body>
+<main>
+<h1>搬家說明：把其他 app 的資料整合到 MetaPulse</h1>
+<div class="mu">MetaPulse 可以把下面這些地方的記錄搬進來。每一種都可以<b>重複做</b>，已經有的記錄不會重複加入。</div>
+<a class="back" href="./">← 回到 MetaPulse</a>
+
+<div class="card">
+<h2>先做這一步：連線 Google Drive</h2>
+<ol>
+<li>打開 MetaPulse，到 <span class="path">設定 → 備份與匯入</span>，按「連線 Google Drive」。</li>
+<li>選你平常用的 Google 帳號（建議和同步版用同一個）。</li>
+</ol>
+<div class="note">連線之後，每次修改記錄都會自動存一份到你的 Google Drive（雲端硬碟）。手機 app 和電腦瀏覽器的記錄會<b>合併</b>在一起，不會互相蓋掉。</div>
+</div>
+
+<div class="card">
+<h2>1. 同步版（注射與體重記錄 同步版）</h2>
+<p class="mu" style="margin:0">「同步版」是你之前用的記錄 app。搬的時候只會<b>讀取</b>，不會改動同步版。</p>
+<p><b>方法一：從 Google Drive（最簡單）</b></p>
+<ol>
+<li>先在同步版按一次「同步」，讓雲端存檔是最新的。</li>
+<li>在 MetaPulse 到 <span class="path">設定 → 備份與匯入</span>，按「從 Google Drive 匯入同步版存檔」。</li>
+<li>看預覽：「存檔裡最新 7 天」會一天一行，寫出「新增幾筆」或「已存在」。確認最新的日期有出現。</li>
+<li>按「確認匯入」。</li>
+</ol>
+<p><b>方法二：貼上文字（雲端存檔不是最新時用）</b></p>
+<ol>
+<li>在同步版按「產生備份文字」，全部複製。</li>
+<li>在 MetaPulse 到 <span class="path">設定 → 備份與匯入 → 其他</span>，貼到框裡，按「匯入或還原」。</li>
+<li>看預覽，再按「確認匯入」。</li>
+</ol>
+<div class="note">搬家期間可以繼續用同步版記錄，之後再匯入一次就好，不會重複。</div>
+</div>
+
+<div class="card">
+<h2>2. Omron 血壓計、體重計</h2>
+<ol>
+<li>在手機的 <b>OMRON connect</b> app 裡，找到匯出資料的功能，把血壓、體重（體組成）匯出成 <b>CSV 檔</b>（一種表格檔），存到手機。</li>
+<li>在 MetaPulse 到 <span class="path">設定 → Omron 檔案匯入</span>，按「選擇檔案」，可以一次選好幾個檔案。</li>
+<li>看預覽（每個檔案有幾筆、會新增幾筆），按「確認匯入」。</li>
+</ol>
+<div class="note">骨骼肌、內臟脂肪、身體年齡只有 Omron 的檔案裡有。如果同一天已經有同樣的體重，MetaPulse 只會把缺的這些數值補上。匯錯了可以按「復原上次匯入」。</div>
+</div>
+
+<div class="card">
+<h2>3. Health Connect（只能在 MetaPulse 手機 app）</h2>
+<p class="mu" style="margin:0">Health Connect 是 Android 手機內建的「健康資料中心」，Omron、手錶等 app 會把量到的資料放在這裡。</p>
+<ol>
+<li>從手機主畫面的 <b>MetaPulse 圖示</b>打開（不是用 Chrome 打開網頁）。</li>
+<li>到 <span class="path">設定 → Health Connect 同步</span>，選期間（最近 30 天、90 天或 1 年），按「允許並讀取 Health Connect」。</li>
+<li>第一次會跳出權限畫面，請把血壓、心率、體重、體脂、基礎代謝、運動消耗都打開。要讀 30 天以前的資料，還要允許「讀取過去的資料」。</li>
+<li>看預覽，按「確認匯入」。</li>
+</ol>
+<div class="note">預設只讀 Omron 的血壓和體重，避免別的 app 的資料混進來。運動消耗會換算成可以多吃的點數（運動加回）。</div>
+</div>
+
+<div class="card">
+<h2>4. Excel 或其他 app</h2>
+<p class="mu" style="margin:0">每個 app 匯出的格式都不一樣，可以請 AI 幫你轉換。</p>
+<ol>
+<li>在 MetaPulse 到 <span class="path">設定 → 備份與匯入 → 其他 → 從其他 App 或 Excel 匯入</span>，按「複製提示詞」。</li>
+<li>打開你常用的 AI（例如 ChatGPT、Gemini），貼上提示詞，再把你的記錄（Excel 複製的表格、CSV 內容都可以）貼在最後面。</li>
+<li>把 AI 回覆的內容整段複製，貼回 MetaPulse 的框裡，按「匯入或還原」，看預覽再確認。</li>
+</ol>
+<div class="note">這樣只能匯入身體記錄（體重、血壓、體組成、注射），餐點不行。你的記錄會傳給你用的 AI 服務，請自己評估是否適合。</div>
+</div>
+
+<div class="card">
+<h2>5. 最後確認</h2>
+<ul>
+<li>到 <span class="path">身體</span> 分頁，確認最新幾天的記錄都在。</li>
+<li>手機 app 和電腦瀏覽器都連線同一個 Google 帳號，在其中一邊新增一筆，另一邊按「立即同步」看看有沒有出現。</li>
+<li>都沒問題後，就可以只用 MetaPulse 記錄，不用再開同步版。同步版的資料不會被刪掉，想留著備查也可以。</li>
+</ul>
+</div>
+
+<p class="mu">MetaPulse 是個人記錄工具，不是醫療器材，不提供診斷或用藥建議。</p>
+<a class="back" href="./">← 回到 MetaPulse</a>
+</main>
+</body>
+</html>
