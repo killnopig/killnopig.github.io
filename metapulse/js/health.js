@@ -80,9 +80,30 @@ export function planHealth(built, S) {
   const act = { add: [], update: [], same: 0 };
   for (const a of built.activity) {
     const ex = (S.activity || []).find(x => x.date === a.date);
-    if (!ex) act.add.push(a); else if (ex.kcal !== a.kcal || ex.src !== a.src) act.update.push(a); else act.same++;
+    if (!ex) act.add.push(a);
+    else if (ex.edited) act.same++;            // 使用者改過或刪掉的那天：同步不蓋回去
+    else if (ex.kcal !== a.kcal || ex.src !== a.src) act.update.push(a); else act.same++;
   }
   return { ...m, act };
+}
+
+/** 手錶（Health Connect）某一天的運動消耗：改大卡數、kcal＝0 當作不算；hc 留著手錶原本的數字 */
+export function editActivity(S, date, kcal) {
+  S.activity = S.activity || [];
+  const a = S.activity.find(x => x.date === date);
+  if (!a) return null;
+  if (a.hc == null) a.hc = a.kcal;
+  a.kcal = Math.max(0, Math.round(+kcal || 0));
+  a.edited = true;
+  return a;
+}
+/** 恢復手錶原本的數字，之後同步也會照手錶更新 */
+export function restoreActivity(S, date) {
+  const a = (S.activity || []).find(x => x.date === date);
+  if (!a || !a.edited) return a || null;
+  if (a.hc != null) a.kcal = a.hc;
+  delete a.hc; delete a.edited;
+  return a;
 }
 
 export function applyHealth(S, plan, uid) {

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildRecords, planHealth, applyHealth } from '../js/health.js';
+import { buildRecords, planHealth, applyHealth, editActivity, restoreActivity } from '../js/health.js';
 import { exerciseRefund } from '../js/points.js';
 import { defaultState } from '../js/storage.js';
 
@@ -49,6 +49,19 @@ test('重複同步：不重複新增，運動消耗依日期更新', () => {
   assert.equal(p3.act.update.length, 1);
   applyHealth(S, p3, uid);
   assert.equal(S.activity.find(a => a.date === '2026-11-17').kcal, 180);
+  // 使用者改過的那天，再同步不會被蓋回去；恢復後才照手錶
+  editActivity(S, '2026-11-17', 50);
+  const raw3 = { ...raw2, calories: [...raw2.calories, { sourceName: 'Watch', startDate: at('2026-11-17', '21:00'), value: 30 }] };
+  const p4 = planHealth(buildRecords(raw3), S);
+  assert.equal(p4.act.update.length, 0);
+  applyHealth(S, p4, uid);
+  const a = S.activity.find(x => x.date === '2026-11-17');
+  assert.equal(a.kcal, 50); assert.equal(a.hc, 180); assert.equal(a.edited, true);
+  editActivity(S, '2026-11-17', 0);
+  assert.equal(a.kcal, 0); assert.equal(a.hc, 180);
+  restoreActivity(S, '2026-11-17');
+  assert.equal(a.kcal, 180); assert.equal(a.edited, undefined);
+  assert.equal(planHealth(buildRecords(raw3), S).act.update.length, 1);
 });
 
 test('同一天手動記的體重，Health Connect 只補體組成', () => {

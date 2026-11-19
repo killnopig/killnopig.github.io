@@ -12,7 +12,7 @@ const sumText = r => { const t = r ? SYMPTOMS.filter(([k]) => r[k] > 0).map(([k,
 
 export function symptomCard() {
   const today = localDate(new Date());
-  if (!day || day > today || day < addDays(today, -1)) day = today;
+  if (!day || day > today) day = today;
   const r = rowOf(day);
   const set = (k, v) => {
     S.symptoms = S.symptoms || [];
@@ -22,14 +22,15 @@ export function symptomCard() {
     commit();
   };
   const body = h('div', { style: { marginTop: '8px' } },
-    h('div', { style: { marginBottom: '6px' } }, pills([[today, '今天'], [addDays(today, -1), '昨天']], day, v => { day = v; commit(); })),
+    h('div.row', { style: { marginBottom: '6px', gap: '8px' } }, pills([[today, '今天'], [addDays(today, -1), '昨天']], day, v => { day = v; commit(); }),
+      h('input', { type: 'date', value: day, max: today, 'aria-label': '其他日期', style: { flex: '1 1 0', minWidth: 0 }, onchange: e => { const v = e.target.value; if (/^\d{4}-\d{2}-\d{2}$/.test(v) && v <= today) { day = v; commit(); } } })),
     ...SYMPTOMS.map(([k, name]) => {
       const cur = r ? r[k] || 0 : -1;
       return h('div', { style: { display: 'grid', gridTemplateColumns: '64px repeat(4, 1fr)', gap: '4px', alignItems: 'center', marginTop: '4px' } },
         h('span.small', name),
         ...LEVELS.map((t, i) => h('button', { type: 'button', onclick: () => set(k, i), style: { padding: '5px 0', borderRadius: '8px', fontSize: '14px', minWidth: 0, border: '1px solid ' + (cur === i ? 'var(--ac)' : 'var(--ln)'), background: cur === i ? (i ? 'var(--ac-soft)' : 'var(--soft)') : 'transparent', color: cur === i ? 'var(--ac-tx)' : 'var(--tx)', fontWeight: cur === i ? 700 : 400 } }, t)));
     }),
-    tip('每天點一下就好：無、輕、中、重。沒有不舒服也可以點「無」，回診時才知道那天有記。「圖表」→「回診報告」會統計每一項幾天、最嚴重是哪天，方便跟醫師講。'));
+    tip('每天點一下就好：無、輕、中、重。忘了記的日子，可以點右邊的日期選其他天補記或修改。沒有不舒服也可以點「無」，回診時才知道那天有記。「圖表」→「回診報告」會統計每一項幾天、最嚴重是哪天，方便跟醫師講。'));
   const head = h('div.grow', h('h2', { style: { margin: 0 } }, '身體感覺'),
     h('div.small.one', { style: { marginTop: '2px' } }, (day === today ? '今天：' : md(day) + '：') + sumText(r)));
   return h('div.card', fold('symptoms', head, [body], { open: false }));
