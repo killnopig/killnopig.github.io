@@ -335,5 +335,5 @@ export function openAddMeal(o = {}) {
     }
     drawInput();
     drawItems();
-  }, () => busy?.abort());
+  }, () => { busy?.abort(); if (o.onDone) setTimeout(o.onDone, 350); });
 }

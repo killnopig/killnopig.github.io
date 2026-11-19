@@ -245,3 +245,21 @@ test('先存的標記（pending）存檔、讀檔後還在', async () => {
   assert.equal(normalizeMeal({ id: 'x', at: '2026-11-19T04:00:00.000Z', name: 'a', pending: true }).pending, true);
   assert.equal(normalizeMeal({ id: 'y', at: '2026-11-19T04:00:00.000Z', name: 'b' }).pending, undefined);
 });
+
+test('記錄頁：斷食段和進食段交替，窗口裡的餐點都在同一段', async () => {
+  const { periods } = await import('../js/fasting.js');
+  const iso = h => new Date(t0 - h * H).toISOString();
+  const g = (id, h) => ({ group: id, at: iso(h) });
+  const fasts = [{ id: 'a', start: iso(40), end: iso(24) }, { id: 'b', start: iso(18), end: iso(4) }];
+  const meals = [g('x1', 72), g('x2', 70), g('y1', 23), g('y2', 20), g('z1', 3.9), g('z2', 1), g('w', 10)];
+  const p = periods(meals, fasts, t0);
+  assert.deepEqual(p.map(x => x.type + x.meals.length), ['eat2', 'fast1', 'eat2', 'fast0', 'eat2']);
+  assert.equal(p[0].end, null, '最新的進食段還在進行');
+  assert.equal(p[1].meals[0].group, 'w', '斷食中補記的一餐放在斷食段裡');
+  assert.equal(p[2].start, t0 - 24 * H);
+  assert.equal(p[4].loose, true, '第一段斷食之前：照每天分');
+  const open = periods([g('m', 5)], [{ id: 'o', start: iso(2), end: null }], t0);
+  assert.deepEqual(open.map(x => x.type), ['fast', 'eat']);
+  assert.equal(open[0].end, null);
+  assert.equal(open[0].hours, 2);
+});

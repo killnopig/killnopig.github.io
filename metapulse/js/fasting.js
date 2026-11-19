@@ -283,3 +283,45 @@ export function fastNotes(fi, now, freq = 'phase', qs = '23:00', qe = '07:00', c
   if (fi.end > fi.start) out.push({ at: fi.end, kind: 'done', hours: (fi.end - fi.start) / H });
   return out.filter(x => x.at > now + 30000 && x.at <= until && !inQuiet(x.at, qs, qe)).sort((a, b) => a.at - b.at);
 }
+
+/**
+ * 「斷食與飲食記錄」用：把時間切成斷食段和進食段，交替排列，新的在前
+ * - 斷食段＝一筆斷食記錄（進行中的 end＝null）；斷食中補記的餐點掛在那一段的 meals
+ * - 進食段＝上一段斷食結束到下一段斷食開始，中間吃的都在同一段；最新的一段 end＝null（進行中）
+ * - 沒有斷食記錄的日子，或兩段斷食中間隔了超過 24 小時（忘了按），進食段依「每天」分開（loose＝true）
+ * @param groups 一餐一筆：[{group, at, ...}]（先存、還沒吃的不要放進來）
+ * @returns [{type:'fast'|'eat', start, end|null, hours, meals:[], rec?, loose?}]
+ */
+export function periods(groups, fasts, now = Date.now()) {
+  const fs = (fasts || []).filter(x => x && x.start).map(x => ({ rec: x, start: new Date(x.start).getTime(), end: x.end ? new Date(x.end).getTime() : null }))
+    .filter(x => x.start <= now).sort((a, b) => a.start - b.start);
+  const ms = (groups || []).map(g => ({ g, t: new Date(g.at).getTime() })).filter(x => x.t <= now).sort((a, b) => a.t - b.t);
+  const out = [];
+  const used = new Set();
+  for (const f of fs) {
+    const e = f.end == null ? now : f.end;
+    const inside = ms.filter(x => x.t >= f.start && x.t < e);
+    inside.forEach(x => used.add(x));
+    out.push({ type: 'fast', start: f.start, end: f.end, hours: (e - f.start) / H, meals: inside.map(x => x.g), rec: f.rec });
+  }
+  // 進食段：斷食之間的空檔
+  const gaps = [];
+  let prev = null;
+  for (const f of fs) { gaps.push({ start: prev, end: f.start }); prev = f.end == null ? Infinity : f.end; }
+  if (prev !== Infinity) gaps.push({ start: prev, end: null });
+  for (const gp of gaps) {
+    const a = gp.start == null ? -Infinity : gp.start, b = gp.end == null ? Infinity : gp.end;
+    const inside = ms.filter(x => !used.has(x) && x.t >= a && x.t < b);
+    const open = gp.end == null;
+    const span = (open ? now : b) - (gp.start == null ? (inside[0] ? inside[0].t : now) : a);
+    if (gp.start != null && span <= 24 * H) {
+      if (inside.length || open) out.push({ type: 'eat', start: a, end: open ? null : b, hours: ((open ? now : b) - a) / H, meals: inside.map(x => x.g) });
+      continue;
+    }
+    // 沒有斷食記錄、或忘了按很久：每天一段
+    const byDay = new Map();
+    for (const x of inside) { const d = new Date(x.t); const k = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(x); }
+    for (const list of byDay.values()) out.push({ type: 'eat', start: list[0].t, end: list[list.length - 1].t, hours: (list[list.length - 1].t - list[0].t) / H, meals: list.map(x => x.g), loose: true });
+  }
+  return out.sort((p, q) => q.start - p.start || (p.type === 'eat' ? -1 : 1));
+}

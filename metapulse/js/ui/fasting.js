@@ -4,7 +4,7 @@ import { h, fold, pills, toast, tip, info3, timePick, openSheet, closeSheet } fr
 import { FASTING } from '../config.js';
 import { HOURLY_MESSAGES, OMAD_DONE } from '../messages.js';
 import { fuelText, eatingText } from '../lines.js';
-import { currentFast, openFast, checkFast, fastEnd, eatPending, pendingMeals, mealShift, stageAt, stageStarts, hourlyMessage, hybridSuggestion, eatingWindow, hm, dur } from '../fasting.js';
+import { currentFast, openFast, checkFast, periods, targetHours, fastEnd, eatPending, pendingMeals, mealShift, stageAt, stageStarts, hourlyMessage, hybridSuggestion, eatingWindow, hm, dur } from '../fasting.js';
 import { openAddMeal } from './addMeal.js';
 import { timeStop, gears } from './fx.js';
 import { longTermIndex, weightTrend, longTermMessage, leanTrend, leanSummary } from '../longterm.js';
@@ -121,7 +121,7 @@ export function fastingCard() {
   const P = S.prefs;
   const mode = P.fastMode || 'PURE_DYNAMIC';
   const f = currentFast(S.meals, S.fasts, now);
-  const card = h('div.card');
+  const card = h('div.card.tight');
   const pend = pendingRows(f.fasting, now);
   const tg = targetOf(mode, f, now);
   if (!f.fasting) {
@@ -138,7 +138,9 @@ export function fastingCard() {
     if (f.start) card.append(h('div.small.one', { style: { marginTop: '8px', color: 'var(--ac-tx)', fontWeight: 600 } }, eatingText(now, f.start)));
     if (pend) card.append(pend);
     card.append(startBtn(),
-      tip('斷食只照你按的按鈕算：按「開始斷食」才開始，按「結束斷食」才結束，不會自己開始。進食窗口裡吃幾餐都可以，不會切成很多段。時間記錯了，可以到下面的記錄裡改。'));
+      h('div.row.between', { style: { marginTop: '2px' } },
+        tip('斷食只照你按的按鈕算：按「開始斷食」才開始，按「結束斷食」才結束，不會自己開始。進食窗口裡吃幾餐都可以，不會切成很多段。時間記錯了，到「斷食與飲食記錄」裡改。'),
+        journalLink()));
     return card;
   }
   const shift = mealShift(f.lastMeal);
@@ -164,12 +166,16 @@ export function fastingCard() {
   // 剛按下 30 分鐘內：按錯了可以取消
   const age = now - new Date(f.rec.start).getTime(), justNow = f.rec.at ? now - f.rec.at : age;
   const row2 = h('div.row.between', { style: { marginTop: '4px' } },
-    h('button.link.small', { type: 'button', onclick: () => openFastEditor(f.rec) }, '改開始時間・預計結束'),
+    h('button.link.small', { type: 'button', onclick: () => openFastEditor(f.rec) }, '改時間'),
+    journalLink(),
     justNow < 30 * 60000 ? h('button.link.small', { type: 'button', onclick: () => { S.fasts = S.fasts.filter(x => x !== f.rec); commit(); toast('已取消這次斷食'); } }, '按錯了，取消') : null);
   card.append(row2);
   card.append(stagesFold(f.hours, shift, st.index));
   return card;
 }
+
+/** 打開「斷食與飲食記錄」的連結 */
+export const journalLink = () => h('button.link.small', { type: 'button', style: { flex: '0 0 auto' }, onclick: () => openJournal() }, '斷食與飲食記錄 ›');
 
 /** 全部階段（收起來一行） */
 function stagesFold(hours, shift, idx) {
@@ -261,7 +267,7 @@ function startBtn() {
 /**
  * 修改／補記一段斷食。rec＝null 是補記新的一段；進行中的那一段只能改開始和預計結束
  */
-export function openFastEditor(rec) {
+export function openFastEditor(rec, onDone) {
   const isOpen = !!(rec && !rec.end);
   const now = Date.now();
   openSheet(sh => {
@@ -299,7 +305,7 @@ export function openFastEditor(rec) {
       sh.append(del);
     }
     sh.append(tip('時間不能跟別的斷食重疊，也不能晚於現在。圖表的斷食時間就是照這些記錄畫的。'));
-  });
+  }, onDone ? () => setTimeout(onDone, 350) : null);
 }
 
 /** 以前沒按按鈕的日子：用「兩餐之間」猜出來的斷食，勾選要留下的才變成記錄 */
@@ -400,4 +406,52 @@ export function leanParts() {
   const m = leanSummary(t);
   const sum = !m ? '資料累積中' + (t.readyIn ? '，約 ' + t.readyIn + ' 天後有判讀' : '') : m.line.replace('淨體重 28 天：', '28 天 ');
   return { sum: h('div.mu.small.row', { style: { marginTop: '2px', alignItems: 'center' } }, m ? dot(TONE[m.tone]) : null, h('span.one', sum)), body: leanBody(t) };
+}
+
+/* ---------- 斷食與飲食記錄：斷食段、進食段交替排列，全部可以在這裡改 ---------- */
+const mdT = t => { const x = new Date(t); return (x.getMonth() + 1) + '/' + x.getDate(); };
+const span = (a, b) => mdT(a) + ' ' + hm(a) + ' → ' + (b == null ? '進行中' : (mdT(a) === mdT(b) ? '' : mdT(b) + ' ') + hm(b));
+export function openJournal(journalDays = 14) {
+  const now = Date.now(), goal = targetHours(S.prefs);
+  const g = new Map();
+  for (const m of S.meals) {
+    if (m.pending) continue;
+    const k = m.group || m.id;
+    if (!g.has(k)) g.set(k, { group: k, at: m.at, names: [], points: 0 });
+    const x = g.get(k); x.names.push(m.name); x.points += +m.points || 0; if (m.at < x.at) x.at = m.at;
+  }
+  const all = periods([...g.values()], S.fasts, now);
+  const from = now - journalDays * 864e5;
+  const list = all.filter(p => (p.end == null ? now : p.end) >= from);
+  const back = () => openJournal(journalDays);
+  openSheet(sh => {
+    sh.append(h('div.sheet-h', h('b', '斷食與飲食記錄'), h('button.link', { type: 'button', onclick: () => closeSheet() }, '關閉')),
+      h('div.row.between', { style: { marginBottom: '6px' } },
+        h('span.mu.tiny.one', '點斷食段改時間，點食物改那一餐'),
+        h('button.link.small', { type: 'button', onclick: () => { closeSheet(); setTimeout(() => openFastEditor(null, back), 350); } }, '＋ 補記斷食')));
+    const mealLine = m => h('div.row', { style: { gap: '8px', padding: '5px 0 5px 12px', cursor: 'pointer' }, onclick: () => { closeSheet(); setTimeout(() => openAddMeal({ group: m.group, onDone: back }), 350); } },
+      h('span.small.num.mu', { style: { flex: '0 0 auto' } }, hm(m.at)), h('span.small.one.grow', m.names.join('、')), h('span.small.num', { style: { flex: '0 0 auto', fontWeight: 650 } }, roundTo(m.points) + ' 點'));
+    for (const p of list) {
+      const box = h('div', { style: { borderLeft: '4px solid ' + (p.type === 'fast' ? 'var(--c1)' : 'var(--ac)'), padding: '4px 0 4px 10px', margin: '8px 0' } });
+      if (p.type === 'fast') {
+        const ok = p.end != null && p.hours >= goal;
+        box.append(h('div.row.between', { style: { cursor: 'pointer', gap: '8px' }, onclick: () => { closeSheet(); setTimeout(() => openFastEditor(p.rec, back), 350); } },
+          h('div.grow', h('div.small', { style: { fontWeight: 650 } }, '斷食段'), h('div.mu.tiny.num.one', span(p.start, p.end))),
+          h('span.small.num', { style: { flex: '0 0 auto', fontWeight: 650, color: ok ? 'var(--ac-tx)' : '' } }, (p.end == null ? '已 ' : '') + (Math.round(p.hours * 10) / 10).toFixed(1) + ' 小時' + (ok ? ' ✓' : '')),
+          h('span.mu', { style: { flex: '0 0 auto' } }, '›')));
+        if (p.meals.length) box.append(h('div.mu.tiny', { style: { marginTop: '2px' } }, '斷食中補記的：'), ...p.meals.map(mealLine));
+      } else {
+        const pts = p.meals.reduce((a, m) => a + m.points, 0);
+        box.append(h('div.row.between', { style: { gap: '8px' } },
+          h('div.grow', h('div.small', { style: { fontWeight: 650 } }, p.loose ? mdT(p.start) + ' 的飲食' : '進食段'), p.loose ? null : h('div.mu.tiny.num.one', span(p.start, p.end))),
+          h('span.small.num', { style: { flex: '0 0 auto' } }, p.meals.length + ' 餐・' + roundTo(pts) + ' 點')));
+        if (p.meals.length) box.append(...p.meals.map(mealLine));
+        else box.append(h('div.mu.tiny', { style: { padding: '4px 0 0 12px' } }, '還沒有記錄食物'));
+      }
+      sh.append(box);
+    }
+    if (!list.length) sh.append(h('div.empty', '還沒有記錄'));
+    if (all.length > list.length) sh.append(h('button.ghost.full', { type: 'button', onclick: () => { closeSheet(); setTimeout(() => openJournal(journalDays + 30), 350); } }, '看更早'));
+    sh.append(tip('斷食段＝按「開始斷食」到「結束斷食」。進食段＝上一段斷食結束到下一段斷食開始，中間吃幾次都在同一段。以前沒有斷食記錄的日子，照每天分。'));
+  });
 }

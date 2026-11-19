@@ -8,7 +8,7 @@ import { localDate } from '../points.js';
 import { targetHours } from '../fasting.js';
 import { sortEntries, onBoard, dn, fromDn, md, wdOf, medAdherence } from '../records.js';
 import { ledgerSeries, activityByDay, allActivity } from '../ledger.js';
-import { longTermStatusCard, leanParts, longTermStatus, leanStatus } from './fasting.js';
+import { longTermStatusCard, leanParts, longTermStatus, leanStatus, openJournal } from './fasting.js';
 import { leanSummary, longTermRows } from '../longterm.js';
 
 const CHART_URL = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
@@ -550,6 +550,7 @@ async function drawCharts(root) {
       body.push(h('div', { style: { position: 'relative', height: sp.parts ? '130px' : '250px', marginTop: sp.parts ? '2px' : '10px' } }, c0));
       return [c0, pt.cfg];
     });
+    if (sp.id === 'fast') body.push(h('button.link.small', { type: 'button', onclick: () => openJournal() }, '改斷食記錄 ›'));
     if (sp.note) body.push(tip(sp.note));
     const inner = sp.group === 'more';
     let head = inner ? h('b', sp.title) : h('h2', { style: { margin: 0 } }, sp.title);

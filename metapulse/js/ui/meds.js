@@ -46,6 +46,7 @@ export function medCard() {
         h('span.one', { style: { fontWeight: x.due ? 650 : 400, color: x.late ? 'var(--warn)' : '' } }, m.time + ' ' + m.name + (x.late ? '・還沒吃' : '')), take));
     }
   }
+  L.collapsed['med-cal'] = 0;   // 服藥日曆每次都先收起來，要看再點開
   card.append(fold('med-cal', h('span.small', { style: { color: 'var(--ac-tx)', fontWeight: 650 } }, '服藥記錄'), [calendar()], { cls: 'daygrp' }));
   return { card, urgent };
 }
