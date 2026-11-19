@@ -11,7 +11,7 @@ const pts = kcal => kcal * BUDGET.exerciseRefund / BUDGET.kcalPerPoint;
 export const estKcal = (type, minutes, kg) => Math.round((MET[type] || 4) * (kg || 70) * (minutes || 0) / 60);
 const hm = iso => { const d = new Date(iso); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 
-export function exerciseCard() {
+export function exerciseCard(bare = false) {
   const today = localDate(new Date());
   const mine = (S.exercise || []).filter(x => x.date === today).sort((a, b) => (a.at < b.at ? -1 : 1));
   const watch = (S.activity || []).filter(a => a.date === today).reduce((a, x) => a + (+x.kcal || 0), 0);
@@ -27,7 +27,7 @@ export function exerciseCard() {
   if (watch) list.append(h('div.mu.tiny.one', { style: { marginTop: '6px' } }, 'Health Connect（手錶）今天 ' + Math.round(watch) + ' 大卡，+' + fmtPts(pts(watch)) + ' 點'));
   if (!mine.length && !watch) list.append(h('div.empty', '打球、走路都可以記，消耗會換成可以多吃的點數'));
   const head = h('div.row.between.grow', { style: { gap: '10px' } }, h('div.small.one', { style: { fontWeight: 600 } }, sum));
-  return h('div.card', fold('ex-card', head, [list, tip('加回點數＝消耗熱量 × 0.75 ÷ 40（手錶和估算常常算多，所以打 75 折）。消耗用「運動強度（MET）× 體重 × 時間」估算，估得不準可以直接改大卡數。手錶已經記到的運動（Health Connect 會自動加入），不要再手動記一次，不然會算兩次。')]));
+  return h(bare ? 'div' : 'div.card', bare ? { style: { marginTop: '6px' } } : null, fold('ex-card', head, [list, tip('加回點數＝消耗熱量 × 0.75 ÷ 40（手錶和估算常常算多，所以打 75 折）。消耗用「運動強度（MET）× 體重 × 時間」估算，估得不準可以直接改大卡數。手錶已經記到的運動（Health Connect 會自動加入），不要再手動記一次，不然會算兩次。')]));
 }
 
 /** 記運動／修改運動 */

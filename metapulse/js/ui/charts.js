@@ -118,7 +118,7 @@ export function chartSpecs(pal, range = 'all', bpv = 'all') {
       },
     });
   }
-  // 斷食時間：每天結束的最長一段斷食（兩餐之間；按過結束進餐／結束斷食就用那個時間）
+  // 斷食時間：每天結束的最長一段斷食（只用斷食記錄）
   const fdet = dailyFastDetail(S.meals, S.fasts);
   const fAxis = span(Object.keys(fdet).filter(d => (!cut || d >= cut) && d <= today).sort());
   if (fAxis.length) {
@@ -130,7 +130,7 @@ export function chartSpecs(pal, range = 'all', bpv = 'all') {
     sp.push({
       id: 'fast', title: '斷食時間', dates: fAxis,
       sub: last7.length ? '近 7 天平均 ' + (last7.reduce((a, b) => a + b, 0) / last7.length).toFixed(1) + ' 小時・達標 ' + last7.filter(x => x >= tgt).length + '/' + last7.length + ' 天' : '近 7 天沒有資料',
-      note: '每天一根：那天結束的最長一段斷食（兩餐之間）。按過「結束進餐」就從按的時間算，按過「結束斷食」就算到按的時間。漏記一餐時會高估；兩餐相隔超過 48 小時當作漏記，不畫。虛線是目標 ' + tgt + ' 小時，達標的長條用主色。',
+      note: '每天一根：那天結束的最長一段斷食，只用你的斷食記錄（按「開始斷食」「結束斷食」，或在「飲食運動」頁的記錄裡改過、補記的）。跨日的斷食畫在結束的那一天；還在進行的不畫。虛線是目標 ' + tgt + ' 小時，達標的長條用主色。',
       extra: i => { const x = fdet[fAxis[i]]; return x ? [hmOf(x.start) + ' → ' + hmOf(x.end)] : ['這天沒有資料']; },
       cfg: {
         data: { labels: fAxis.map(md), datasets: [
@@ -247,11 +247,11 @@ export function chartSpecs(pal, range = 'all', bpv = 'all') {
   // 1. 點數存摺
   const lk = from([...new Set(S.meals.map(m => localDate(m.at)))]);
   if (Pn.ok && lk) {
-    const rows = ledgerSeries(S.meals, allActivity(S), Pn.dailyPoints, lk[0], yday, P2.weekStart || 'roll'), ax = rows.map(r => r.date);
+    const rows = ledgerSeries(S.meals, allActivity(S), Pn.dailyPoints, lk[0], yday, P2.weekStart || 'roll', S.fasts), ax = rows.map(r => r.date);
     const left = rows.map(r => (r.logged ? +r.left.toFixed(1) : null));
     sp.push({
       id: 'ledger', group: 'more', screenOnly: true, title: '點數存摺', dates: ax,
-      note: '長條是每天剩下的點數（每日點數＋運動加回−吃掉的），綠色是有剩、橘色是超支。粗線是存摺餘額，算法跟「飲食運動」頁一樣，照設定的「' + ({ roll: '最近 7 天', sun: '每週日開始', mon: '每週一開始' }[P2.weekStart || 'roll']) + '」分期。過去每一天都用現在的每日點數 ' + Pn.dailyPoints + ' 點估算；沒記錄的日子不畫長條，存摺照今日頁的算法當作沒吃。',
+      note: '長條是每天剩下的點數（每日點數＋運動加回−吃掉的），綠色是有剩、橘色是超支。粗線是存摺餘額，算法跟「飲食運動」頁一樣，照設定的「' + ({ roll: '最近 7 天', sun: '每週日開始', mon: '每週一開始' }[P2.weekStart || 'roll']) + '」分期。過去每一天都用現在的每日點數 ' + Pn.dailyPoints + ' 點估算；沒記錄的日子不畫長條，也不算進存摺（整天都在斷食的日子算有記錄）。',
       extra: i => { const r = rows[i]; return r.logged ? ['額度 ' + p1(r.budget) + '・吃了 ' + p1(r.eaten) + (r.refund ? '・運動加回 ' + p1(r.refund) : '')] : ['這天沒記錄']; },
       cfg: { data: { labels: ax.map(md), datasets: [
         { type: 'bar', label: '當天剩下', data: left, backgroundColor: c => (c.raw != null && c.raw < 0 ? rc : wc), legendColor: wc, order: 2 },

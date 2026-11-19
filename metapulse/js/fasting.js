@@ -4,40 +4,115 @@ import { FASTING } from './config.js';
 const H = 3600000;
 const pad = n => String(n).padStart(2, '0');
 const dnLocal = d => Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 864e5);
+const md = t => { const d = new Date(t); return (d.getMonth() + 1) + '/' + d.getDate(); };
 const dnStr = s => { const [y, m, d] = s.split('-').map(Number); return Math.round(Date.UTC(y, m - 1, d) / 864e5); };
 
 /**
- * 目前的斷食狀態
- * - 平常：從最後一筆餐點算起
- * - 按了「開始斷食」且之後沒有記餐：從按下的時間算起
- * - 按了「結束斷食」但還沒記餐：從結束的時間重新算（視為吃過了）
- * @returns {{start:number|null, hours:number, manual:boolean, lastMeal:object[]|null}}
+ * 目前的斷食狀態：只看斷食記錄（使用者自己按的「開始斷食」「結束斷食」），不從餐點去猜、不自動開始
+ * - 有進行中的斷食記錄（有開始、沒結束）→ 斷食中，從那筆的開始算
+ * - 沒有 → 進食中。進食窗口從上一次斷食結束的時間算；從來沒有斷食記錄時，用最近 24 小時的第一餐
+ * @returns {{fasting, start:number|null, hours, rec, lastMeal:object[]|null, lastMealAt:number|null}}
  */
-export function currentFast(meals, fasts, now = Date.now(), override = null) {
-  let lastAt = -Infinity, lastGroup = null;
-  for (const m of meals) {
-    if (m.pending) continue;   // 先存、還沒吃的餐點：按「結束斷食」之前不算
+export function currentFast(meals, fasts, now = Date.now()) {
+  const rec = openFast(fasts, now);
+  const until = rec ? new Date(rec.start).getTime() : now;
+  let lastAt = -Infinity, lastGroup = null, firstRecent = Infinity;
+  for (const m of meals || []) {
+    if (m.pending) continue;   // 先存、還沒吃的餐點不算
     const t = new Date(m.at).getTime();
-    if (t <= now && t > lastAt) { lastAt = t; lastGroup = m.group || m.id; }
+    if (t <= until && t > lastAt) { lastAt = t; lastGroup = m.group || m.id; }
+    if (t <= now && t > now - 24 * H && t < firstRecent) firstRecent = t;
   }
-  const lastMeal = lastGroup ? meals.filter(m => (m.group || m.id) === lastGroup) : null;
-  const f = (fasts || []).filter(x => x && x.start).reduce((a, b) => (!a || new Date(b.start) > new Date(a.start) ? b : a), null);
-  let start = lastAt, manual = false, source = lastGroup ? { type: 'meal', group: lastGroup } : null;
-  if (f) {
-    const fs = new Date(f.start).getTime();
-    if (!f.end && fs > lastAt && fs <= now) { start = fs; manual = true; source = { type: 'manual', id: f.id }; }
-    else if (f.end) { const fe = new Date(f.end).getTime(); if (fe > start && fe <= now) { start = fe; source = { type: 'end', id: f.id }; } }
+  const lastMeal = lastGroup ? meals.filter(m => (m.group || m.id) === lastGroup && !m.pending) : null;
+  const lastMealAt = Number.isFinite(lastAt) ? lastAt : null;
+  if (rec) {
+    const start = new Date(rec.start).getTime();
+    return { fasting: true, start, hours: Math.max(0, (now - start) / H), rec, lastMeal, lastMealAt };
   }
-  // 使用者手動改過的時間最優先（記下一餐之前都有效）
-  const ov = overrideValid(override, lastGroup) ? override : null;
-  if (ov && Number.isFinite(ov.start) && ov.start <= now) { start = ov.start; source = { type: 'override' }; }
-  if (!Number.isFinite(start)) return { start: null, hours: 0, manual: false, lastMeal: null, source: null, override: ov };
-  return { start, hours: Math.max(0, (now - start) / H), manual, lastMeal: source.type === 'meal' ? lastMeal : null, source, override: ov };
+  const closed = lastClosedFast(fasts, now);
+  let start = closed ? new Date(closed.end).getTime() : null;
+  if (start == null && Number.isFinite(firstRecent)) start = firstRecent;
+  return { fasting: false, start, hours: start == null ? 0 : Math.max(0, (now - start) / H), rec: null, lastMeal, lastMealAt, lastEnd: closed ? start : null };
 }
 
-/** 手動修改只對「改的時候的那一餐之後」有效；記了新的一餐就失效 */
-export function overrideValid(ov, lastGroup) {
-  return !!ov && (ov.group || null) === (lastGroup || null) && (Number.isFinite(ov.start) || Number.isFinite(ov.end));
+/** 進行中的斷食記錄（有開始、沒結束，開始不晚於現在）：有好幾筆時取最新的 */
+export function openFast(fasts, now = Date.now()) {
+  let r = null;
+  for (const x of fasts || []) {
+    if (!x || !x.start || x.end) continue;
+    const t = new Date(x.start).getTime();
+    if (t <= now && (!r || t > new Date(r.start).getTime())) r = x;
+  }
+  return r;
+}
+
+/** 最近一筆結束了的斷食記錄（結束不晚於現在） */
+export function lastClosedFast(fasts, now = Date.now()) {
+  let r = null;
+  for (const x of fasts || []) {
+    if (!x || !x.start || !x.end) continue;
+    const t = new Date(x.end).getTime();
+    if (t <= now && (!r || t > new Date(r.end).getTime())) r = x;
+  }
+  return r;
+}
+
+/** 結束了的斷食記錄，新的在前：[{rec, start, end, hours}] */
+export function fastSegments(fasts) {
+  const out = [];
+  for (const x of fasts || []) {
+    if (!x || !x.start || !x.end) continue;
+    const s = new Date(x.start).getTime(), e = new Date(x.end).getTime();
+    if (e > s) out.push({ rec: x, start: s, end: e, hours: (e - s) / H });
+  }
+  return out.sort((a, b) => b.end - a.end);
+}
+
+/**
+ * 檢查一段斷食能不能存：結束要晚於開始、不能晚於現在、不能跟別的記錄重疊
+ * @param end null＝還在斷食
+ * @returns {string} 錯誤訊息；空字串＝可以存
+ */
+export function checkFast(fasts, start, end, now = Date.now(), selfId = null) {
+  if (!Number.isFinite(start)) return '請選開始時間';
+  if (start > now + 60000) return '開始時間不能晚於現在';
+  if (end != null) {
+    if (!Number.isFinite(end)) return '請選結束時間';
+    if (end <= start) return '結束時間要晚於開始時間';
+    if (end > now + 60000) return '結束時間不能晚於現在';
+  }
+  const e1 = end == null ? Infinity : end;
+  for (const x of fasts || []) {
+    if (!x || !x.start || x.id === selfId) continue;
+    const s2 = new Date(x.start).getTime(), e2 = x.end ? new Date(x.end).getTime() : Infinity;
+    if (end == null && !x.end) return '已經有一段進行中的斷食';
+    if (start < e2 && s2 < e1) return '跟另一段斷食（' + md(s2) + ' ' + hm(s2) + ' 開始）時間重疊';
+  }
+  return '';
+}
+
+/**
+ * 以前沒有按鈕記錄的日子：用「兩餐之間」猜出來的斷食，給使用者勾選要不要留下
+ * 只列 minH～48 小時、而且跟現有斷食記錄不重疊的。新的在前：[{start, end, hours}]
+ */
+export function guessFasts(meals, fasts, minH = 8, maxH = 48) {
+  const g = new Map();
+  for (const m of meals || []) {
+    if (m.pending) continue;
+    const k = m.group || m.id, t = new Date(m.at).getTime();
+    const x = g.get(k) || { first: t, last: t };
+    x.first = Math.min(x.first, t); x.last = Math.max(x.last, t); g.set(k, x);
+  }
+  const ms = [...g.values()].sort((a, b) => a.first - b.first);
+  const recs = (fasts || []).filter(x => x && x.start).map(x => [new Date(x.start).getTime(), x.end ? new Date(x.end).getTime() : Infinity]);
+  const out = [];
+  for (let i = 1; i < ms.length; i++) {
+    const s = ms[i - 1].last, e = ms[i].first, hrs = (e - s) / H;
+    if (hrs < minH || hrs > maxH) continue;
+    if (recs.some(([a, b]) => s < b && a < e)) continue;
+    out.push({ start: s, end: e, hours: hrs });
+  }
+  return out.reverse();
 }
 
 /**
@@ -70,18 +145,6 @@ export function targetHours(prefs = {}, cfg = FASTING) {
   return mode === 'STRICT_MANUAL' ? cfg.plans[prefs.strictPlan || '16:8'] : mode === 'HYBRID_GUIDED' ? 16 : (+prefs.fastTarget || cfg.freeTargetDefault);
 }
 
-/** 存這一餐會不會結束斷食：斷食中，而且用餐時間在斷食開始之後（補記更早的一餐不會） */
-export function mealEndsFast(fi, at) {
-  return !!(fi && fi.fasting && Number.isFinite(fi.start) && Number.isFinite(at) && at >= fi.start);
-}
-
-/** 目前最後一餐的 group（存手動修改時用） */
-export function lastMealGroup(meals, now = Date.now()) {
-  let lastAt = -Infinity, g = null;
-  for (const m of meals) { if (m.pending) continue; const t = new Date(m.at).getTime(); if (t <= now && t > lastAt) { lastAt = t; g = m.group || m.id; } }
-  return g;
-}
-
 /**
  * 「先存，等一下吃」的餐點（pending）：不影響斷食，等使用者自己按「結束斷食」。
  * 依 group 分組、照預計時間排序：[{group, at, items}]
@@ -111,12 +174,14 @@ export function eatPending(meals, fasts, at) {
 }
 
 /**
- * 預計結束與進度。手動改過的結束時間最優先，否則 開始 + 目標時數
+ * 預計結束與進度。使用者自己設的預計結束（斷食記錄的 goalEnd）最優先，否則 開始 + 目標時數
+ * @param goalEnd 毫秒或 ISO 字串；沒有就給 null
  * @returns {{end, left(小時，負數＝已超過), pct, custom}}
  */
-export function fastEnd(start, targetHours, override, now = Date.now()) {
+export function fastEnd(start, targetHours, goalEnd, now = Date.now()) {
   let end = start + targetHours * H, custom = false;
-  if (override && Number.isFinite(override.end) && override.end > start) { end = override.end; custom = true; }
+  const g = goalEnd == null ? NaN : new Date(goalEnd).getTime();
+  if (Number.isFinite(g) && g > start) { end = g; custom = true; }
   const pct = Math.max(0, (now - start) / (end - start) * 100);
   return { end, left: (end - now) / H, pct, custom };
 }
@@ -207,7 +272,7 @@ export function inQuiet(t, qs = '23:00', qe = '07:00') {
  * @returns [{at, kind:'stage'|'done'|'hour', hours, index}]，只留未來 36 小時內、不在勿擾時段的
  */
 export function fastNotes(fi, now, freq = 'phase', qs = '23:00', qe = '07:00', cfg = FASTING) {
-  if (!fi || !fi.start || freq === 'off') return [];
+  if (!fi || !fi.start || fi.fasting === false || freq === 'off') return [];   // 進食中不排斷食通知
   const H = 3600000, out = [], until = now + 36 * H;
   const starts = stageStarts(fi.shift || 0, cfg);
   if (freq === 'hourly') {

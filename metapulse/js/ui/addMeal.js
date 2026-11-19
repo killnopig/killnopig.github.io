@@ -7,7 +7,7 @@ import { itemTotals } from '../units.js';
 import { analyzeMeal, shrinkImage } from '../gemini.js';
 import { requestAdvice } from './advice.js';
 import { frequentMeals } from '../foods.js';
-import { closeFastsForMeal, reopenFastsForMeal, mealEndsFast, eatPending } from '../fasting.js';
+import { closeFastsForMeal, reopenFastsForMeal, eatPending } from '../fasting.js';
 import { gears } from './fx.js';
 import { fastInfo } from './fasting.js';
 
@@ -34,10 +34,10 @@ export function openAddMeal(o = {}) {
 
   openSheet(sh => {
     sh.append(h('div.sheet-h', h('b', editing ? '編輯這一餐' : '記一餐'), h('button.link', { type: 'button', onclick: () => closeSheet() }, '關閉')));
-    // 斷食中：提醒存了這一餐就會結束斷食（拍照、辨識不會，按儲存才會）
-    if (!editing && fastInfo().fasting) sh.append(h('div.notice', { style: { margin: '0 0 12px' } },
-      h('div.small.one', { style: { fontWeight: 600 } }, '斷食中：可以先存，等一下再吃'),
-      tip('拍照和辨識都不會影響斷食。按儲存時可以選「現在吃，結束斷食」，或「先存，等一下吃」：先存的話要選預計幾點吃，斷食會繼續，等你自己按「結束斷食」才算開始吃。')));
+    // 新的一餐：拍照、辨識都不會動到斷食；按儲存時才選「現在吃」或「先存，等一下吃」
+    if (!editing) sh.append(h('div.notice', { style: { margin: '0 0 12px' } },
+      h('div.small.one', { style: { fontWeight: 600 } }, fastInfo().fasting ? '斷食中：可以先存，等一下再吃' : '拍了不一定要吃：可以先存'),
+      tip('拍照和辨識都不會影響斷食。按儲存時可以選「現在吃」，或「先存，等一下吃」。先存的話要選預計幾點吃，斷食和進食窗口都不變，等你真的要吃時再按「結束斷食」或「開始吃」。')));
 
     const inputArea = h('div');
     const tabs = h('div.seg');
@@ -233,11 +233,22 @@ export function openAddMeal(o = {}) {
       totalTxt.textContent = items.length ? '本餐點數 ' + fmtPts(pts) + ' 點 · ' + Math.round(大卡) + ' 大卡 · 蛋白質 ' + r1(pro) + ' g' : '';
     }
 
-    // 斷食中按儲存：選「現在吃，結束斷食」（播特效）或「先存，等一下吃」（一定要選預計時間，斷食繼續）
+    // 新的一餐按儲存：一律先問「現在吃」或「先存，等一下吃」（一定要選預計時間，斷食和窗口都不變）
+    // 補記過去的一餐、而且落在斷食中：問要不要把斷食算到那個時間
     const choice = h('div');
     const fmtAt = d => toLocalInput(d).slice(11);
-    function showChoice(at) {
+    function showChoice(at, past) {
       choice.textContent = '';
+      const fi = fastInfo();
+      if (past) {
+        choice.append(
+          h('button.pri.full', { type: 'button', style: { background: 'var(--warn)', color: 'var(--on-warn)' }, onclick: () => save({ at, eatNow: true }) }, '吃了，斷食算到 ' + fmtAt(new Date(at))),
+          h('button.ghost.full', { type: 'button', style: { marginTop: '8px' }, onclick: () => save({ at }) }, '只補記這一餐，斷食照算'),
+          h('button.link.small', { type: 'button', onclick: () => { choice.remove(); saveBtn.hidden = false; } }, '返回'));
+        saveBtn.hidden = true; saveBtn.after(choice);
+        choice.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
       const later = h('div', { style: { marginTop: '8px' } });
       const pickLater = () => {
         later.textContent = '';
@@ -250,7 +261,7 @@ export function openAddMeal(o = {}) {
         later.scrollIntoView({ behavior: 'smooth', block: 'center' });
       };
       choice.append(
-        h('button.pri.full', { type: 'button', style: { background: 'var(--warn)', color: 'var(--on-warn)' }, onclick: () => save({ at, eatNow: true }) }, '現在吃，結束斷食'),
+        h('button.pri.full', { type: 'button', style: fi.fasting ? { background: 'var(--warn)', color: 'var(--on-warn)' } : null, onclick: () => save({ at, eatNow: true }) }, fi.fasting ? '現在吃，結束斷食' : '現在吃'),
         h('button.ghost.full', { type: 'button', style: { marginTop: '8px' }, onclick: pickLater }, '先存，等一下吃'),
         later,
         h('button.link.small', { type: 'button', onclick: () => { choice.remove(); saveBtn.hidden = false; } }, '返回'));
@@ -262,7 +273,10 @@ export function openAddMeal(o = {}) {
       if (!items.length) return;
       const at = (whenSet ? when : new Date()).toISOString();
       if (wasPending) return save({ at, pending: true });   // 改「先存」那一餐：還是先存，等你按「結束斷食」
-      if (!editing && mealEndsFast(fastInfo(), new Date(at).getTime())) return showChoice(at);
+      if (editing) return save({ at });
+      const t = new Date(at).getTime(), fi = fastInfo();
+      if (Math.abs(Date.now() - t) < 10 * 60000) return showChoice(at, false);        // 現在：問現在吃還是先存
+      if (fi.fasting && t >= fi.start) return showChoice(at, true);                  // 補記斷食中的一餐
       save({ at });
     };
 
@@ -280,13 +294,9 @@ export function openAddMeal(o = {}) {
           ...(pending ? { pending: true } : {}),
         });
       });
-      // 記了餐點，就結束進行中的手動斷食（記下是這一餐結束的，刪掉這一餐時會接回來）
-      // 編輯：先接回被這一餐結束的斷食，再照新的時間重新判斷。先存的一餐不結束斷食
-      if (editing) reopenFastsForMeal(S.fasts, group);
-      if (!pending) closeFastsForMeal(S.fasts, at, group);
-      if (eatNow) eatPending(S.meals, S.fasts, at);   // 現在吃了：之前先存的也一起算這一刻吃的
+      // 只有選了「現在吃，結束斷食」才結束斷食（記下是這一餐結束的，刪掉這一餐時會接回來）；其他情況都不動斷食
+      if (eatNow) { closeFastsForMeal(S.fasts, at, group); eatPending(S.meals, S.fasts, at); }   // 之前先存的也一起算這一刻吃的
       S.meals.sort((a, b) => a.at < b.at ? -1 : a.at > b.at ? 1 : 0);
-      // 手動修改的斷食時間不清掉：它只對改的時候的那一餐有效，記了新的一餐自動失效，刪掉這一餐又會恢復
       const ok = commit();
       closeSheet();
       if (ok) requestAdvice(group);

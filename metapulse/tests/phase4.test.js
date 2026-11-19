@@ -43,17 +43,16 @@ test('Omron：不規則脈波寫進備註、磅換公斤', () => {
 
 const at = (d, hh, mm = 0) => new Date(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8), hh, mm).toISOString();
 
-test('斷食時數：兩餐之間，按過結束進餐／結束斷食就用那個時間', () => {
-  const meals = [
-    { id: '1', group: 'A', at: at('2026-11-15', 19, 0) }, { id: '2', group: 'A', at: at('2026-11-15', 19, 30) },
-    { id: '3', group: 'B', at: at('2026-11-16', 12, 0) },
-    { id: '4', group: 'C', at: at('2026-11-16', 18, 0) },
-    { id: '5', group: 'D', at: at('2026-11-17', 14, 0) },
+test('斷食時數：只用斷食記錄，跨日算在結束那天', () => {
+  const fasts = [
+    { id: 'a', start: at('2026-11-15', 19, 30), end: at('2026-11-16', 12, 0) },
+    { id: 'b', start: at('2026-11-16', 20, 0), end: at('2026-11-17', 13, 0) },
+    { id: 'c', start: at('2026-11-17', 21, 0), end: null },
   ];
-  const fasts = [{ start: at('2026-11-16', 20, 0), end: at('2026-11-17', 13, 0) }];
-  const r = dailyFast(meals, fasts);
-  assert.equal(r['2026-11-16'], 16.5);       // 19:30 → 12:00（下午那段 6 小時比較短）
-  assert.equal(r['2026-11-17'], 17);         // 結束進餐 20:00 → 結束斷食 13:00
+  const r = dailyFast([], fasts);
+  assert.equal(r['2026-11-16'], 16.5);
+  assert.equal(r['2026-11-17'], 17);
+  assert.equal(Object.keys(r).length, 2, '進行中的不算');
 });
 
 test('數據摘要包含飲食與斷食', () => {
@@ -64,7 +63,9 @@ test('數據摘要包含飲食與斷食', () => {
     meals.push({ id: 'd' + i, group: 'D' + i, at: at(d, 19), points: 15, kcal: 600, protein: 40, carb: 50, fat: 20, fiber: 4 });
     es.push({ id: 'e' + i, date: d, wt: 105 - i * 0.1 });
   }
-  const S = { entries: es, meals, fasts: [], activity: [{ date: '2026-11-16', kcal: 320 }], profile: { height: 175, targetWeight: 85 } };
+  const fasts = [];
+  for (let i = 1; i <= 10; i++) { const d = '2026-11-' + String(17 - i).padStart(2, '0'), p = '2026-11-' + String(16 - i).padStart(2, '0'); fasts.push({ id: 'f' + i, start: at(p, 19), end: at(d, 12) }); }
+  const S = { entries: es, meals, fasts, activity: [{ date: '2026-11-16', kcal: 320 }], profile: { height: 175, targetWeight: 85 } };
   const P = { ok: true, dailyPoints: 50, poolPoints: 350, floorPoints: 45, proteinTarget: 100, tdee: 2600 };
   const t = buildSummary(S, P, '2026-11-17');
   assert.match(t, /請不要做診斷/);
@@ -136,13 +137,6 @@ test('淨體重：-0.1 kg 算持平；減掉的重量裡脂肪佔多少', async 
   assert.equal(s.line, '淨體重 28 天：−0.1 kg・幾乎持平 ✓');
   assert.match(s.lost, /體重平均少了 2\.0 kg：脂肪少 1\.9 kg、淨體重少 0\.1 kg → 減掉的重量約 95% 是脂肪/);
   assert.equal(s.tone, 'good');
-});
-
-test('兩餐相隔超過 48 小時視為漏記，不算斷食', () => {
-  const meals = [{ id: '1', at: at('2026-11-01', 19) }, { id: '2', at: at('2026-11-10', 12) }, { id: '3', at: at('2026-11-11', 8) }];
-  const r = dailyFast(meals, []);
-  assert.equal(r['2026-11-10'], undefined);
-  assert.equal(r['2026-11-11'], 20);
 });
 
 test('淨體重資料不夠時，估計還要幾天', async () => {

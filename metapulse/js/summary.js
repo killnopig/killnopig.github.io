@@ -2,6 +2,7 @@
 import { sortEntries, onBoard, dn, fromDn } from './records.js';
 import { localDate } from './points.js';
 import { leanTrend, leanSummary } from './longterm.js';
+import { fastSegments } from './fasting.js';
 
 const f = (n, d = 1) => (+n).toFixed(d);
 const sg = n => { const r = Math.round(n * 10) / 10; return (r > 0 ? '+' : r < 0 ? '−' : '') + Math.abs(r).toFixed(1); };
@@ -22,8 +23,8 @@ export function dailyFood(meals) {
 }
 
 /**
- * 每段斷食（兩餐之間）：開始＝上一餐最後一道的時間（之後按了「結束進餐」就用那個時間），
- * 結束＝下一餐第一道的時間（之前按了「結束斷食」就用那個時間）。依結束那天歸類，取每天最長的一段。
+ * 每天的斷食時數：只用斷食記錄（使用者按的「開始斷食」「結束斷食」，或自己改過、補記的），不從餐點去猜。
+ * 依結束那天歸類，取每天最長的一段；進行中的不算。
  * @returns { 'YYYY-MM-DD': 小時 }
  */
 export function dailyFast(meals, fasts) {
@@ -32,28 +33,14 @@ export function dailyFast(meals, fasts) {
   return o;
 }
 
-/** 同 dailyFast，另外附上那段斷食的開始、結束時間：{ 'YYYY-MM-DD': {hours, start, end} } */
+/** 同 dailyFast，另外附上那段斷食的開始、結束時間與記錄：{ 'YYYY-MM-DD': {hours, start, end, rec, count} } */
 export function dailyFastDetail(meals, fasts) {
-  const g = new Map();
-  for (const m of meals || []) {
-    if (m.pending) continue;   // 先存、還沒吃的不算
-    const k = m.group || m.id, t = new Date(m.at).getTime();
-    const x = g.get(k) || { first: t, last: t };
-    x.first = Math.min(x.first, t); x.last = Math.max(x.last, t); g.set(k, x);
-  }
-  const ms = [...g.values()].sort((a, b) => a.first - b.first);
-  const fs = (fasts || []).filter(x => x && x.start).map(x => ({ s: new Date(x.start).getTime(), e: x.end ? new Date(x.end).getTime() : null }));
   const out = {};
-  for (let i = 1; i < ms.length; i++) {
-    let s = ms[i - 1].last, e = ms[i].first;
-    for (const x of fs) {
-      if (x.s > s && x.s < e) s = x.s;
-      if (x.e && x.e > s && x.e < e) e = x.e;
-    }
-    const hrs = (e - s) / H;
-    if (hrs <= 0 || hrs > MAX_FAST_H) continue;   // 超過 48 小時多半是漏記餐點，不算斷食
-    const d = localDate(new Date(e));
-    if (!out[d] || out[d].hours < hrs) out[d] = { hours: hrs, start: s, end: e };
+  for (const x of fastSegments(fasts)) {
+    const d = localDate(new Date(x.end));
+    const c = (out[d] ? out[d].count : 0) + 1;
+    if (!out[d] || out[d].hours < x.hours) out[d] = { hours: x.hours, start: x.start, end: x.end, rec: x.rec, count: c };
+    else out[d].count = c;
   }
   return out;
 }

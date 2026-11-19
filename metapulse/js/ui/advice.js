@@ -32,7 +32,7 @@ export async function requestAdvice(group) {
 }
 
 /** 今日頁：最新一餐的回饋卡（今天沒有就不顯示） */
-export function latestAdviceCard() {
+export function latestAdviceCard(bare = false) {
   if (L.mealAdvice === false) return null;
   const today = localDate(new Date());
   const last = S.meals.filter(m => localDate(m.at) === today).sort((a, b) => a.at < b.at ? 1 : -1)[0];
@@ -40,7 +40,7 @@ export function latestAdviceCard() {
   const g = last.group || last.id;
   const first = S.meals.find(m => (m.group || m.id) === g);
   const names = S.meals.filter(m => (m.group || m.id) === g).map(m => m.name).join('、');
-  const card = h('div.card');
+  const card = bare ? h('div', { style: { marginTop: '10px', borderTop: '1px solid var(--ln)', paddingTop: '6px' } }) : h('div.card');
   if (pending.has(g)) {
     card.append(h('div.row.small.mu', h('span.spin'), '正在想想這一餐和下一餐…'));
     return card;
@@ -63,6 +63,6 @@ export function latestAdviceCard() {
   if (seen) { L.adviceSeen = sig; commitLocal(); }
   card.append(fold('advice', h('div.grow',
     h('div.mu.tiny', hm(last.at) + ' · ' + names),
-    h('div', { style: { color: 'var(--ac-tx)', fontWeight: 600, marginTop: '2px' } }, a.cheer || '這一餐記好了。')), body, { open: false, force: seen }));
+    h(bare ? 'div.one' : 'div', { style: { color: 'var(--ac-tx)', fontWeight: 600, marginTop: '2px' } }, a.cheer || '這一餐記好了。')), body, { open: false, force: seen && !bare }));
   return card;
 }

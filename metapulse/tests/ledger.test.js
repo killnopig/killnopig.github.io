@@ -39,7 +39,24 @@ test('週報：達標天數、和上一段比較（今天不算）', () => {
 test('手動記的運動也加回點數', async () => {
   const { allActivity } = await import('../js/ledger.js');
   const S = { activity: [{ date: '2026-11-18', kcal: 80 }], exercise: [{ id: 'x', date: '2026-11-18', kcal: 400, type: 'bball', minutes: 30 }] };
-  const l = ledger([], allActivity(S), 44, '2026-11-18', 'mon');
+  const l = ledger([], allActivity(S), 44, '2026-11-18', 'mon', null, null, new Date(2026, 10, 18, 20).getTime());
   assert.equal(l.today.refund, (80 + 400) * 0.75 / 40);   // 9 點
   assert.equal(l.today.left, 44 + 9);
+});
+
+test('存摺只算有記錄的日子：才記一天不會多出一百多點', () => {
+  const at = (d, hh) => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd, hh).toISOString(); };
+  const now = new Date(2026, 10, 19, 15).getTime();
+  const meals = [{ at: at('2026-11-19', 12), points: 20, group: 'a' }];
+  let l = ledger(meals, [], 33, '2026-11-19', 'roll', null, null, now);
+  assert.equal(l.balance, 13, '以前 6 天沒記錄：不算');
+  assert.equal(l.total, 33);
+  // 11/17 整天都在斷食：算有記錄、吃 0 點
+  const fasts = [{ start: at('2026-11-16', 20), end: at('2026-11-18', 9) }];
+  l = ledger(meals, [], 33, '2026-11-19', 'roll', null, fasts, now);
+  assert.equal(l.days.find(d => d.date === '2026-11-17').logged, true);
+  assert.equal(l.days.find(d => d.date === '2026-11-16').logged, false);
+  assert.equal(l.balance, 13 + 33);
+  // 今天還沒吃也算今日剩餘
+  assert.equal(ledger([], [], 33, '2026-11-19', 'roll', null, null, now).today.left, 33);
 });

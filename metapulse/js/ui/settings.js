@@ -13,7 +13,7 @@ import { dangerCard } from './reset.js';
 import { medsSettings } from './meds.js';
 import { soundSettings } from './sounds.js';
 import { WEEK_MODES } from '../ledger.js';
-import { AUTO_START, autoStartHours } from './fasting.js';
+import { fastModeBody } from './fasting.js';
 
 const r1 = x => Math.round(x * 10) / 10;
 
@@ -292,11 +292,21 @@ export function showDisclaimerOnce() {
 /* ---------- 斷食 ---------- */
 function fastSettings() {
   const sumEl = sumLine();
-  const draw = () => { const a = autoStartHours(); sumEl.textContent = '忘了按「結束進餐」：' + (a ? a + ' 小時後自動開始' : '不自動'); };
-  draw();
-  return section('fastset', '斷食', sumEl, [
-    h('div.small', { style: { fontWeight: 600 } }, '沒按「結束進餐」，幾小時後自動開始（小時）'),
-    h('div', { style: { marginTop: '8px' } }, pills(AUTO_START, autoStartHours(), v => { S.prefs.fastAutoHours = v; commit(); draw(); })),
-    tip('自動開始時，斷食一樣從上一餐的時間開始算。選「不自動」就一定要按「結束進餐，開始斷食」才會開始。這個設定會跟著 Google Drive 同步，斷食卡、桌面小工具和斷食通知都會照這個時間。'),
-  ]);
+  const m = fastModeBody();
+  sumEl.textContent = m.label;
+  const body = [...m.body];
+  // 剛剛「整理以前的斷食」留下的記錄：可以一次復原
+  const ids = L.fastGuessUndo;
+  if (Array.isArray(ids)) {
+    const undo = h('button.ghost.full', { type: 'button', style: { marginTop: '12px' } }, ids.length ? '復原整理（拿掉 ' + ids.length + ' 段）' : '重新整理以前的斷食');
+    undo.onclick = () => {
+      if (!undo.dataset.c) { undo.dataset.c = 1; undo.textContent = '再按一次確認'; setTimeout(() => { undo.dataset.c = ''; }, 3000); return; }
+      const set = new Set(ids);
+      S.fasts = S.fasts.filter(x => !set.has(x.id));
+      S.prefs.fastGuessDone = false; L.fastGuessUndo = null; commitLocal(); commit();
+      toast('已復原，可以到「飲食運動」頁重新整理');
+    };
+    body.push(undo);
+  }
+  return section('fastset', '斷食', sumEl, body);
 }

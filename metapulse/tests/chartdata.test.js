@@ -15,8 +15,8 @@ test('點數存摺圖：每天剩多少、餘額照分期歸零', () => {
   assert.equal(s[0].logged, true);
   const r = ledgerSeries(meals, [], 30, '2026-11-03', '2026-11-03', 'roll');
   assert.equal(r[0].balance, ledger(meals, [], 30, '2026-11-03', 'roll').balance);   // 跟今日頁同一個數
-  const sun = ledgerSeries([], [], 10, '2026-11-07', '2026-11-08', 'sun');          // 11/8 是週日：歸零重算
-  assert.deepEqual(sun.map(x => x.balance), [70, 10]);
+  const sun = ledgerSeries([{ at: at('2026-11-06', 12), points: 4, group: 'c' }, { at: at('2026-11-08', 12), points: 4, group: 'd' }], [], 10, '2026-11-07', '2026-11-08', 'sun');   // 11/8 是週日：歸零重算
+  assert.deepEqual(sun.map(x => x.balance), [6, 6], '11/7 沒記錄不算');
   assert.deepEqual(ledgerSeries([], [], 10, '2026-11-09', '2026-11-08'), []);
 });
 

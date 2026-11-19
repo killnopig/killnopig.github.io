@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { currentFast, mealShift, stageAt, hourlyMessage, hybridSuggestion, eatingWindow, closeFastsForMeal, reopenFastsForMeal, overrideValid, lastMealGroup, mealEndsFast, targetHours } from '../js/fasting.js';
+import { currentFast, mealShift, stageAt, hourlyMessage, hybridSuggestion, eatingWindow, closeFastsForMeal, reopenFastsForMeal, targetHours, checkFast, guessFasts, fastSegments } from '../js/fasting.js';
 import { longTermIndex, weightTrend, longTermMessage } from '../js/longterm.js';
 import { HOURLY_MESSAGES } from '../js/messages.js';
 import { addDays, localDate } from '../js/points.js';
@@ -10,17 +10,46 @@ const H = 3600000;
 const t0 = new Date(2026, 10, 17, 20, 0).getTime();
 const meal = (h, kcal = 500, carb = 50, g = 'g' + h) => ({ id: 'm' + h, group: g, at: new Date(t0 - h * H).toISOString(), kcal, carb });
 
-test('距上一餐的時間；手動開始與結束', () => {
+test('斷食只看按鈕記錄：沒按「開始斷食」就一直是進食中', () => {
   const ms = [meal(10), meal(5)];
   let f = currentFast(ms, [], t0);
-  assert.equal(f.hours, 5);
-  assert.equal(f.manual, false);
+  assert.equal(f.fasting, false, '只有餐點：不會自己開始斷食');
+  assert.equal(f.start, t0 - 10 * H, '沒有斷食記錄：進食窗口從最近 24 小時的第一餐算');
+  assert.equal(f.lastMealAt, t0 - 5 * H);
   f = currentFast(ms, [{ start: new Date(t0 - 2 * H).toISOString(), end: null }], t0);
+  assert.equal(f.fasting, true);
   assert.equal(f.hours, 2);
-  assert.equal(f.manual, true);
-  f = currentFast(ms, [{ start: new Date(t0 - 4 * H).toISOString(), end: new Date(t0 - 1 * H).toISOString() }], t0);
-  assert.equal(f.hours, 1, '結束斷食後重新計算');
+  assert.equal(f.lastMeal[0].id, 'm5', '斷食前的最後一餐（大餐會挪階段）');
+  f = currentFast(ms, [{ start: new Date(t0 - 30 * H).toISOString(), end: new Date(t0 - 4 * H).toISOString() }], t0);
+  assert.equal(f.fasting, false, '按過結束斷食：進食中');
+  assert.equal(f.hours, 4, '進食窗口從結束斷食那一刻算');
+  assert.equal(f.lastEnd, t0 - 4 * H);
+  // 窗口裡吃了好幾餐：還是同一個窗口，不會切成很多段
+  f = currentFast([...ms, meal(3), meal(1)], [{ start: new Date(t0 - 30 * H).toISOString(), end: new Date(t0 - 4 * H).toISOString() }], t0);
+  assert.equal(f.fasting, false);
+  assert.equal(f.start, t0 - 4 * H);
   assert.equal(currentFast([], [], t0).start, null);
+});
+
+test('檢查斷食記錄：結束晚於開始、不能晚於現在、不能重疊', () => {
+  const iso = h => new Date(t0 - h * H).toISOString();
+  const fasts = [{ id: 'a', start: iso(30), end: iso(14) }];
+  assert.equal(checkFast(fasts, t0 - 12 * H, t0 - 2 * H, t0), '');
+  assert.match(checkFast(fasts, t0 - 2 * H, t0 - 3 * H, t0), /晚於開始/);
+  assert.match(checkFast(fasts, t0 - 2 * H, t0 + 3 * H, t0), /不能晚於現在/);
+  assert.match(checkFast(fasts, t0 - 20 * H, t0 - 2 * H, t0), /重疊/);
+  assert.equal(checkFast(fasts, t0 - 20 * H, t0 - 15 * H, t0, 'a'), '', '改自己那一筆不算重疊');
+  assert.match(checkFast([{ id: 'o', start: iso(3), end: null }], t0 - 1 * H, null, t0), /進行中/);
+  assert.deepEqual(fastSegments(fasts).map(x => x.hours), [16]);
+});
+
+test('以前的日子：用兩餐之間猜斷食，只列 8～48 小時、跟記錄不重疊的', () => {
+  const ms = [meal(60), meal(40), meal(37), meal(20), meal(2)];
+  const g = guessFasts(ms, []);
+  assert.deepEqual(g.map(x => x.hours), [18, 17, 20], '3 小時那段不列；新的在前');
+  const g2 = guessFasts(ms, [{ start: new Date(t0 - 19 * H).toISOString(), end: new Date(t0 - 3 * H).toISOString() }]);
+  assert.deepEqual(g2.map(x => x.hours), [17, 20], '已經有記錄的那段不再列');
+  assert.deepEqual(guessFasts([meal(100), meal(1)], []), [], '超過 48 小時多半是漏記');
 });
 
 test('大餐把階段往後挪', () => {
@@ -95,32 +124,6 @@ test('體重下降速度（14 天平均）', () => {
   assert.equal(weightTrend(es.slice(0, 3), today).weeklyPct, null);
 });
 
-test('手動修改的時間最優先，記下一餐就失效', async () => {
-  const { fastEnd, lastMealGroup } = await import('../js/fasting.js');
-  const ms = [meal(5, 500, 50, 'gA')];
-  assert.deepEqual(currentFast(ms, [], t0).source, { type: 'meal', group: 'gA' });
-  // 改早到上一餐之前也照改
-  let ov = { group: lastMealGroup(ms, t0), start: t0 - 9 * H };
-  let f = currentFast(ms, [], t0, ov);
-  assert.equal(f.hours, 9);
-  assert.equal(f.source.type, 'override');
-  // 結束斷食留下的時間點也被手動時間蓋過
-  f = currentFast(ms, [{ id: 'x', start: new Date(t0 - 4 * H).toISOString(), end: new Date(t0 - 1 * H).toISOString() }], t0, ov);
-  assert.equal(f.hours, 9);
-  // 記了新的一餐 → 失效
-  f = currentFast([...ms, meal(1, 500, 50, 'gB')], [], t0, ov);
-  assert.equal(f.hours, 1);
-  // 預計結束：只改開始 → 依目標往後推；改了結束 → 用結束
-  let e = fastEnd(t0 - 9 * H, 16, ov, t0);
-  assert.equal(e.left, 7);
-  assert.ok(Math.abs(e.pct - 56.25) < 1e-9);
-  e = fastEnd(t0 - 9 * H, 16, { end: t0 - 1 * H }, t0);
-  assert.equal(e.left, -1);
-  assert.equal(e.custom, true);
-  assert.ok(Math.abs(e.pct - 112.5) < 1e-9);
-  assert.equal(fastEnd(t0 - 2 * H, 16, { end: t0 - 3 * H }, t0).custom, false, '結束早於開始時不採用');
-});
-
 test('斷食通知：階段轉換＋達標，跳過勿擾時段', async () => {
   const { fastNotes, inQuiet } = await import('../js/fasting.js');
   const start = new Date(2026, 10, 17, 19, 0).getTime();       // 19:00 開始
@@ -136,30 +139,21 @@ test('斷食通知：階段轉換＋達標，跳過勿擾時段', async () => {
   assert.equal(new Date(hourly[0].at).getHours(), 20);
 });
 
-test('斷食中記一餐再刪掉：斷食接回來，手動改的時間也恢復', () => {
+test('選「現在吃，結束斷食」再刪掉那一餐：斷食接回來', () => {
   const iso = h => new Date(t0 - h * H).toISOString();
   const meals = [meal(10)];
   const fasts = [{ id: 'f1', start: iso(6), end: null }];
   assert.equal(currentFast(meals, fasts, t0).hours, 6);
-  const ov = { group: lastMealGroup(meals, t0), start: t0 - 8 * H };
-  assert.equal(currentFast(meals, fasts, t0, ov).hours, 8);
-
-  // 記一餐（測試拍照）：斷食結束
   const at = iso(0.5);
   meals.push({ id: 'mx', group: 'gx', at, kcal: 300, carb: 30 });
   closeFastsForMeal(fasts, at, 'gx');
   assert.equal(fasts[0].end, at);
   assert.equal(fasts[0].endedBy, 'gx');
-  assert.equal(currentFast(meals, fasts, t0, ov).hours, 0.5);
-  assert.equal(overrideValid(ov, lastMealGroup(meals, t0)), false);
-
-  // 刪掉這一餐：斷食接回來
+  assert.equal(currentFast(meals, fasts, t0).fasting, false);
   meals.pop();
   assert.equal(reopenFastsForMeal(fasts, 'gx'), 1);
   assert.equal(fasts[0].end, null);
-  assert.equal(fasts[0].endedBy, undefined);
   assert.equal(currentFast(meals, fasts, t0).hours, 6);
-  assert.equal(currentFast(meals, fasts, t0, ov).hours, 8);
 });
 
 test('刪掉一餐時，之後又開始了別的斷食就不接回舊的', () => {
@@ -171,29 +165,19 @@ test('刪掉一餐時，之後又開始了別的斷食就不接回舊的', () =>
   assert.equal(reopenFastsForMeal(fasts, 'gy'), 0);
 });
 
-test('存這一餐會不會結束斷食（要不要按兩次確認）', () => {
-  const fi = { fasting: true, start: t0 - 6 * H };
-  assert.equal(mealEndsFast(fi, t0), true);                         // 現在吃
-  assert.equal(mealEndsFast(fi, t0 - 6 * H), true);                 // 剛好在斷食開始時
-  assert.equal(mealEndsFast(fi, t0 - 7 * H), false);                // 補記斷食前的一餐
-  assert.equal(mealEndsFast({ fasting: false, start: t0 - 6 * H }, t0), false);   // 第 0 階段進食中
-  assert.equal(mealEndsFast({ fasting: false, reached: false }, t0), false);      // 沒有任何記錄
-});
-
-test('以前的斷食：最近 14 天每天一行，新的在前；手動結束進餐的時間優先', () => {
+test('以前的斷食：最近 14 天每天一行，新的在前，只看斷食記錄', () => {
   const D = 864e5, day0 = new Date(2026, 10, 18, 0, 0).getTime();
   const at = (d, hh) => new Date(day0 - d * D + hh * H).toISOString();
   const meals = [], fasts = [];
-  // 前 20 天：每天 12 點、19 點各一餐 → 每天結束一段 17 小時的斷食（19:00 → 隔天 12:00）
-  for (let d = 20; d >= 0; d--) { meals.push({ id: 'a' + d, group: 'a' + d, at: at(d, 12) }); meals.push({ id: 'b' + d, group: 'b' + d, at: at(d, 19) }); }
-  fasts.push({ id: 'f', start: at(1, 21), end: null });           // 昨天 21 點按了「結束進餐」
+  for (let d = 20; d >= 1; d--) fasts.push({ id: 'f' + d, start: at(d, 19), end: at(d - 1, 12) });   // 19:00 → 隔天 12:00
+  for (let d = 5; d >= 0; d--) meals.push({ id: 'a' + d, group: 'a' + d, at: at(d, 15) });          // 窗口裡多吃一餐，不會多一段
+  fasts.push({ id: 'o', start: at(0, 21), end: null });                                              // 進行中的不算
   const today = localDate(new Date(day0));
   const r = recentFasts(meals, fasts, today);
   assert.equal(r.length, 14);
   assert.equal(r[0].date, today);
   assert.ok(r[0].date > r[1].date);
-  assert.equal(r[0].hours, 15);                                   // 21:00 → 12:00
-  assert.equal(r[1].hours, 17);
+  assert.equal(r[0].hours, 17);
   assert.equal(recentFasts(meals, fasts, today, 3).length, 3);
   assert.deepEqual(recentFasts([], [], today), []);
 });
@@ -215,12 +199,13 @@ test('先存的餐點不會結束斷食：時間沒到、時間過了都一樣',
     { id: 'a', group: 'g1', at: new Date(t0).toISOString() },
     { id: 'b', group: 'g2', at: new Date(t0 + 16 * H).toISOString(), pending: true },
   ];
-  const before = currentFast(meals, [], t0 + 15 * H);
-  assert.equal(before.start, t0);
-  const after = currentFast(meals, [], t0 + 18 * H);   // 預計時間已過 2 小時
-  assert.equal(after.start, t0);
-  assert.equal(Math.round(after.hours), 18);
-  assert.equal(lastMealGroup(meals, t0 + 18 * H), 'g1');
+  const fasts = [{ id: 'f', start: new Date(t0 + H).toISOString(), end: null }];
+  const before = currentFast(meals, fasts, t0 + 15 * H);
+  assert.equal(before.fasting, true);
+  const after = currentFast(meals, fasts, t0 + 18 * H);   // 預計時間已過 2 小時
+  assert.equal(after.fasting, true);
+  assert.equal(Math.round(after.hours), 17);
+  assert.equal(after.lastMealAt, t0, '先存的不算最後一餐');
 });
 
 test('按結束斷食：先存的餐點改成按下的那一刻，拿掉 pending，並結束手動斷食', () => {
@@ -238,18 +223,21 @@ test('按結束斷食：先存的餐點改成按下的那一刻，拿掉 pending
   assert.equal(fasts[0].endedBy, 'g2');
   assert.equal(pendingMeals(meals).length, 0);
   const cf = currentFast(meals, fasts, t0 + 17 * H + 60000);
-  assert.equal(cf.start, Date.parse(press));
+  assert.equal(cf.fasting, false);
+  assert.equal(cf.start, Date.parse(press), '進食窗口從按下的那一刻開始');
 });
 
-test('圖表的斷食時數不算先存的餐點', () => {
+test('圖表的斷食時數只看斷食記錄，不看餐點', () => {
   const t0 = Date.parse('2026-11-18T20:00:00');
   const meals = [
     { id: 'a', group: 'g1', at: new Date(t0).toISOString() },
-    { id: 'b', group: 'g2', at: new Date(t0 + 16 * H).toISOString(), pending: true },
+    { id: 'b', group: 'g2', at: new Date(t0 + 16 * H).toISOString() },
   ];
-  assert.deepEqual(dailyFastDetail(meals, []), {});
-  delete meals[1].pending;
-  assert.equal(Object.values(dailyFastDetail(meals, []))[0].hours, 16);
+  assert.deepEqual(dailyFastDetail(meals, []), {}, '沒按按鈕就沒有斷食');
+  const d = dailyFastDetail(meals, [{ id: 'f', start: new Date(t0 + H).toISOString(), end: new Date(t0 + 18 * H).toISOString() }, { id: 'g', start: new Date(t0 + 19 * H).toISOString(), end: new Date(t0 + 21 * H).toISOString() }]);
+  const x = Object.values(d)[0];
+  assert.equal(x.hours, 17, '同一天結束兩段：取最長的');
+  assert.equal(x.count, 2);
 });
 
 test('先存的標記（pending）存檔、讀檔後還在', async () => {

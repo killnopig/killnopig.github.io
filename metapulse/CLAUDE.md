@@ -51,9 +51,10 @@ There is no build or lint step. Tests import the pure modules in `js/` directly.
   - BMR/TDEE; 7-day rolling pool `(TDEE×7 − weekly deficit)/40`; daily floor `BMR/40`; exercise refund.
 - `units.js`, `foods.js`: serving/gram/fist conversion and food-library search.
 - `fasting.js`: current fast, stages shifted by big meals, end/percent, hybrid-mode suggestion, eating window.
-  - Priority: manual override (`S.prefs.fastOverride`), then manual fast records (`S.fasts`), then last meal.
-  - The override stays valid until a new meal group is logged.
-  - Before 「結束進餐」 is pressed the UI shows stage 0 「進食中」 (no countdown). The fast starts automatically `S.prefs.fastAutoHours` hours after the last meal (default `FASTING.fastingFromHours` = 2; 0 = never), set in the settings tab.
+  - Fasting comes only from the user's own fast records (`S.fasts`): 「開始斷食」 adds an open record, 「結束斷食」 (or 「現在吃，結束斷食」 when saving a meal) closes it. Nothing starts or ends a fast automatically, and meals never create fast segments. The user dislikes being forced; keep it that way.
+  - Not fasting = 「進食中」; the eating window starts at the last fast's end (`currentFast`). Eating several meals in a window is still one window.
+  - Saving a new meal always asks 「現在吃」 or 「先存，等一下吃」 (`pending` meals don't count until eaten).
+  - Records are editable/addable in the today tab (`openFastEditor`, checked by `checkFast`). Charts, the weekly report and the AI summary use only these records (`dailyFastDetail`). Old days can be turned into records once via `guessFasts` (the user ticks which to keep; undo in settings).
 - `longterm.js`: EMA of daily kcal ÷ BMR. `messages.js` holds the hourly fasting texts.
 - `records.js`, `migrate.js`: dose/body/BP helpers and import from the old "dose-tracker-sync" app's backup.
   - Two records are the same only if they have the same `sid` and the same date.
@@ -63,7 +64,7 @@ There is no build or lint step. Tests import the pure modules in `js/` directly.
 - `summary.js`: builds the plain-text data summary for AI, including daily food stats and fasting hours (`dailyFast`).
 - `gemini.js`: Interactions API with a JSON schema, falling back to `generateContent`.
   - The API that worked is remembered in `L.geminiApiOk`. `FOOD_SCHEMA` is shared by photo and text input.
-- `ledger.js`: the points "passbook". Per day: budget = pool/7 + exercise refund, left = budget − eaten; the balance sums `left` over a window chosen in `S.prefs.weekStart` (rolling 7 days / from Sunday / from Monday). `allActivity(S)` combines Health Connect activity with manual `S.exercise` (kcal = MET × kg × hours, types in `config.js` `EXERCISES`).
+- `ledger.js`: the points "passbook". Per day: budget = pool/7 + exercise refund, left = budget − eaten; the balance sums `left` over a window chosen in `S.prefs.weekStart` (rolling 7 days / from Sunday / from Monday). Days with no records count for nothing (no budget, no savings); today always counts, and a day covered entirely by a fast record counts as logged with 0 eaten. The weekly line shows no numbers until 3 logged days. `allActivity(S)` combines Health Connect activity with manual `S.exercise` (kcal = MET × kg × hours, types in `config.js` `EXERCISES`).
 - `notify.js`: local notifications (native only). ID ranges: meds 7000+, dose day 7100, test 7199, fasting 7200–7239. Fasting reminders come from `fastNotes()` in `fasting.js` (frequency and quiet hours live in `L.notify`).
 - `widget.js`: builds the home-screen widget data (fast start/end, stages, `WIDGET_MESSAGES` / `WIDGET_EATING` from `messages.js`, terminal bar symbols) and hands it to the APK's `MapleWidget` plugin on every change and when the page is hidden.
 - `lines.js`: the widget/card fuel line and pep-talk lines. Each is a head × tail combination, one per 2 minutes, with no repeats within a fast (each segment needs heads × tails ≥ its minutes ÷ 2; `tests/lines.test.js` checks this). The order is shuffled per fast-start date. `widget.js` precomputes a `timeline` (2-minute slots up to hour 30) for the APK, which shows the next 16 slots in ViewFlippers.
