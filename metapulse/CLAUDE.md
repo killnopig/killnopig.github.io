@@ -58,10 +58,17 @@ There is no build or lint step. Tests import the pure modules in `js/` directly.
 - `longterm.js`: EMA of daily kcal ÷ BMR. `messages.js` holds the hourly fasting texts.
 - `records.js`, `migrate.js`: dose/body/BP helpers and import from the old "dose-tracker-sync" app's backup.
   - Two records are the same only if they have the same `sid` and the same date.
-- `sync.js`: merge two states by id (newer `ts` wins), with tombstones in `S.deleted` and `activity` merged by date. The merged collections are listed in `COLS` (entries, meals, foodLibrary, fasts, medLog, exercise); a new synced collection must be added there.
+- `sync.js`: merge two states by id (newer `ts` wins), with tombstones in `S.deleted` and `activity` merged by date. The merged collections are listed in `COLS` (entries, meals, foodLibrary, fasts, medLog, exercise, symptoms); a new synced collection must be added there.
 - `sync.js` also has `backupReminder` (today-tab "too long without backup" banner).
 - `omron.js`: parses Omron CSV files and builds an import plan via `planMeasurements`. Undo shares `metapulse-v1-undo` with Health Connect.
 - `summary.js`: builds the plain-text data summary for AI, including daily food stats and fasting hours (`dailyFast`).
+- `report.js`: `doctorReport`, the 4/8/12-week visit report for the doctor (charts tab 「回診報告」); with 「給 AI」 ticked it goes between the AI prompt and the full `buildSummary`.
+- `safety.js`: reminders only, never blocking (numbers in `config.js` `SAFETY`):
+  - `hypoAlert`: meds ticked 「這是降血糖藥」 (`m.glucose`) while fasting past the med time or 16 h; `m.fastOk` = asked the doctor about taking it fasting.
+  - `doseIncrease`: 14 days after a dose increase, 「依施打週期」 suggests 16:8 and marks 「加量」; a user-arranged week (`hybridDays`) is only marked.
+  - `fastLossAlert` + `WARNING_SIGNS` (body tab), `waterHint`, `omadWarn`, `lowProteinMeal`, `strengthCount` (`STRENGTH` types).
+  - Side effects: `S.symptoms`, one record per day with id `sx<date>` (0–3 per item), UI in `ui/symptoms.js`.
+- Protein target: `proteinGoal` in `points.js` multiplies the adjusted body weight (ideal weight at BMI 22 + 0.4 × excess) by `proteinPerKg`.
 - `gemini.js`: Interactions API with a JSON schema, falling back to `generateContent`.
   - The API that worked is remembered in `L.geminiApiOk`. `FOOD_SCHEMA` is shared by photo and text input.
 - `ledger.js`: the points "passbook". Per day: budget = pool/7 + exercise refund, left = budget − eaten; the balance sums `left` over a window chosen in `S.prefs.weekStart` (rolling 7 days / from Sunday / from Monday). Days with no records count for nothing (no budget, no savings); today always counts, and a day covered entirely by a fast record counts as logged with 0 eaten. The weekly line shows no numbers until 3 logged days. `allActivity(S)` combines Health Connect activity with manual `S.exercise` (kcal = MET × kg × hours, types in `config.js` `EXERCISES`).

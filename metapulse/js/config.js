@@ -17,7 +17,7 @@ export const BUDGET = {
   maxWeeklyLossPct: 1,       // 每週目標減重上限（佔體重 %）
   defaultWeeklyLossPct: 0.5, // 沒填「預計達成週數」時的預設每週減重（%），使用者可在設定改
   rollingDays: 7,            // 週點數池採 7 天滾動
-  proteinPerKgDefault: 1.2,
+  proteinPerKgDefault: 1.2,  // 乘的是「調整體重」（體重超過理想體重時），見 points.js proteinGoal
   activityDefault: 1.2,
   exerciseRefund: 0.75,     // 運動回補：消耗 kcal × 0.75 ÷ 40（手錶通常高估消耗）
 };
@@ -70,8 +70,24 @@ export const EXERCISES = [
   ['bball', '籃球（比賽、全場）', 8.0], ['bball2', '籃球（投籃、練習）', 4.5], ['softball', '壘球', 5.0],
   ['golf', '高爾夫（走路、揹或拉球具）', 4.8], ['golfcart', '高爾夫（坐球車）', 3.5], ['golfrange', '高爾夫（練習場）', 3.0],
   ['walk', '走路', 3.5], ['brisk', '快走', 4.5], ['run', '跑步', 8.0], ['bike', '騎腳踏車', 6.0],
-  ['swim', '游泳', 7.0], ['weights', '重量訓練', 5.0], ['yoga', '瑜伽、伸展', 2.5], ['other', '其他', 4.0],
+  ['swim', '游泳', 7.0], ['weights', '重量訓練', 5.0], ['band', '彈力帶訓練', 3.5], ['bodyweight', '徒手肌力（深蹲、伏地挺身）', 3.8],
+  ['yoga', '瑜伽、伸展', 2.5], ['other', '其他', 4.0],
 ];
+/** 算「肌力訓練」的運動種類 */
+export const STRENGTH = ['weights', 'band', 'bodyweight'];
+
+/** 安全提醒與保住肌肉（只提醒、不擋操作） */
+export const SAFETY = {
+  hypoHours: 16,            // 有降血糖藥、斷食超過幾小時就提醒留意低血糖
+  doseUpDays: 14,           // 加劑量後幾天內，依施打週期一律建議比較溫和的方案
+  fastLossPct: 1.5,         // 體重每週下降超過體重的幾 % → 顯示警訊說明
+  waterHours: 12,           // 斷食超過幾小時，提醒喝水、補一點鹽
+  omadDoseDays: 14,         // 近幾天有打針又選一天一餐 → 提醒
+  mealProteinLow: 20,       // 一餐蛋白質少於幾 g 標橘色
+  strengthGoal: 2,          // 每 7 天肌力訓練目標次數
+  ibwBmi: 22,               // 理想體重＝22 × 身高²
+  abwFactor: 0.4,           // 調整體重＝理想體重 + 0.4 ×（實際 − 理想）
+};
 
 export const LONGTERM = {
   alpha: 0.05,               // 長期指數 = 前一天 × (1 − α) + 當日比例 × α

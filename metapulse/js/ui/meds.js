@@ -160,7 +160,9 @@ export function medsSettings() {
       name.onchange = () => { m.name = name.value.trim() || '藥'; commit(); resched(); };
       const del = h('button.ghost', { type: 'button', style: { padding: '8px 12px', flex: '0 0 auto' } }, '刪除');
       del.onclick = () => { meds().splice(i, 1); commit(); draw(); resched(); };
-      list.append(h('div', { style: { marginTop: '8px' } }, name, h('div.row.between', { style: { marginTop: '6px', gap: '8px' } }, time, del)));
+      const box = (label, key, after) => { const cb = h('input', { type: 'checkbox', checked: !!m[key], style: { width: '20px', height: '20px' } }); cb.onchange = () => { m[key] = cb.checked || undefined; commit(); after && after(); }; return h('label.row.one', { style: { color: 'var(--tx)', fontSize: '14px', margin: 0, gap: '6px' } }, cb, label); };
+      list.append(h('div', { style: { marginTop: '8px' } }, name, h('div.row.between', { style: { marginTop: '6px', gap: '8px' } }, time, del),
+        h('div.row', { style: { marginTop: '6px', gap: '14px', flexWrap: 'wrap' } }, box('這是降血糖藥', 'glucose', draw), m.glucose ? box('空腹吃問過醫師了', 'fastOk') : null)));
     });
   };
   const add = h('button.ghost.full', { type: 'button' }, '＋ 新增藥物');
@@ -178,5 +180,5 @@ export function medsSettings() {
     h('label', '注射日提醒時間'), timePick(N.doseRemindAt || '09:00', v => { N.doseRemindAt = v; saveN(); }));
   draw(); drawSum(); drawStatus();
   return section('meds', '提醒與通知', sumEl, [list, add, msg, actions, notifyBox,
-    tip('到了吃藥時間，「飲食運動」頁最上面會出現服藥卡（往下捲也會貼在頂端），吃完按「已服用」。服藥卡下面的「服藥記錄」是月曆，每一天都可以點開修改。在 MetaPulse app 裡，時間到會跳手機通知（第一次會問你要不要允許通知）；網頁版不會通知，只會顯示卡片。斷食通知：在每個斷食階段開始和達標時通知（或每小時一次），「晚上不打擾」時段內不發。注射日當天在設定的時間提醒一次。這只是提醒，吃藥的方式請照醫師或藥師的指示。')]);
+    tip('勾「這是降血糖藥」：斷食中到了吃藥時間、或斷食超過 16 小時，斷食卡會提醒留意低血糖。還沒勾「空腹吃問過醫師了」時，會多提醒一句去問醫師或藥師。', h('br'), '到了吃藥時間，「飲食運動」頁最上面會出現服藥卡（往下捲也會貼在頂端），吃完按「已服用」。服藥卡下面的「服藥記錄」是月曆，每一天都可以點開修改。在 MetaPulse app 裡，時間到會跳手機通知（第一次會問你要不要允許通知）；網頁版不會通知，只會顯示卡片。斷食通知：在每個斷食階段開始和達標時通知（或每小時一次），「晚上不打擾」時段內不發。注射日當天在設定的時間提醒一次。這只是提醒，吃藥的方式請照醫師或藥師的指示。')]);
 }

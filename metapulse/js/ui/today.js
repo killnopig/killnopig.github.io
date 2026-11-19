@@ -3,7 +3,7 @@
 import { S, L, plan, commitLocal } from '../state.js';
 import { backupReminder } from '../sync.js';
 import { connect, linked } from '../drive.js';
-import { h, icon, hm, fmtPts, fold, startClosed } from './common.js';
+import { h, icon, hm, fmtPts, fold, startClosed, tip } from './common.js';
 import { localDate } from '../points.js';
 import { ledger, allActivity } from '../ledger.js';
 import { exerciseCard, openExercise } from './exercise.js';
@@ -14,6 +14,7 @@ import { openAddMeal } from './addMeal.js';
 import { latestAdviceCard } from './advice.js';
 import { fastingCard, longTermCard, fastInfo, openGuessSheet, openJournal } from './fasting.js';
 import { guessFasts } from '../fasting.js';
+import { lowProteinMeal } from '../safety.js';
 
 const r1 = x => Math.round(x * 10) / 10;
 
@@ -57,7 +58,9 @@ function mealRow(m) {
     m.thumb ? h('img.thumb', { src: m.thumb, alt: '' }) : null,
     h('div.grow',
       h('div', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, m.items.map(i => i.name).join('、')),
-      h('div.mu.tiny.num.one', (m.pending ? '預計 ' + hm(m.at) + ' 吃' : hm(m.at)) + '・' + Math.round(m.kcal) + ' 大卡・蛋白 ' + Math.round(m.protein) + 'g')),
+      h('div.mu.tiny.num.one', (m.pending ? '預計 ' + hm(m.at) + ' 吃' : hm(m.at)) + '・' + Math.round(m.kcal) + ' 大卡・',
+        // 一餐蛋白質少於 20 g 標橘色（用藥期間食量小，每餐吃夠比較能保住肌肉）
+        h('span', !m.pending && lowProteinMeal(m.protein) ? { style: { color: 'var(--warn)', fontWeight: 650 } } : null, '蛋白 ' + Math.round(m.protein) + 'g'))),
     h('span.pts.num', fmtPts(m.points), h('span.mu.tiny', ' 點')));
 }
 
@@ -137,6 +140,7 @@ export function renderToday(root) {
     const body = [];
     if (!showAllMeals && todays.length > LIMIT) body.push(h('button.link.small', { type: 'button', onclick: () => { showAllMeals = true; renderToday(root); } }, '顯示今天全部（還有 ' + (todays.length - LIMIT) + ' 餐）'));
     const l = h('div.list.meals'); shown.forEach(g => l.append(mealRow(g))); body.push(l);
+    if (todays.some(g => lowProteinMeal(g.protein))) body.push(tip('蛋白質少於 20 g 的那一餐標橘色。用藥期間食量小，每一餐吃到 20～30 g 蛋白質，比較能保住肌肉。'));
     startClosed('today-meals');
     tl.append(fold('today-meals', h('div.row.between.grow', h('b.small', '今天吃了'), h('span.mu.small.num.one', todays.length + ' 餐・' + fmtPts(todays.reduce((a, g) => a + g.points, 0)) + ' 點')), body));
   } else tl.append(h('div.row.between', h('b.small', '今天吃了'), h('span.mu.small.one', '還沒有記錄，拍了可以先存')));

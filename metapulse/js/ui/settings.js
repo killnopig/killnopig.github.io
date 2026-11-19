@@ -2,7 +2,7 @@
 import { S, L, commit, commitLocal, plan, currentWeight } from '../state.js';
 import { h, icon, toast, fold, pills, val, $, section, sumLine, kvTable, sectionBudget, tip, setFolds } from './common.js';
 import { ACTIVITY_LEVELS, BUDGET } from '../config.js';
-import { bmrMifflin, ageFrom } from '../points.js';
+import { bmrMifflin, ageFrom, proteinGoal } from '../points.js';
 import { libraryManager } from './library.js';
 import { itemCard } from './mealEditor.js';
 import { analyzeMeal, listModels, DEFAULT_MODELS } from '../gemini.js';
@@ -104,7 +104,7 @@ function profileCard() {
     fold('prof-adv', h('span.small.mu', '進階設定'), [
       field('基礎代謝（大卡）', bmrIn, bmrEst),
       h('div.grid2',
-        field('蛋白質 g／每公斤', bind(numIn(P.proteinPerKg, { placeholder: '1.2' }), 'proteinPerKg')),
+        field('蛋白質倍數（g／kg）', bind(numIn(P.proteinPerKg, { placeholder: '1.2' }), 'proteinPerKg'), '一般用 1.2；有腎臟病請先問醫師'),
         field('每日保底（點）', floorIn, '預設＝基礎代謝 ÷ 40。提醒今天別吃太少用。')),
       field('藥物半衰期（小時）', bind(numIn(P.halfLife, { placeholder: '120' }), 'halfLife'), '半衰期＝藥在身體裡減少一半要多久。Tirzepatide（猛健樂）約 120 小時，Semaglutide（胰妥讚、週纖達）約 160 小時。用來估算體內還剩多少藥。'),
     ]),
@@ -115,7 +115,7 @@ function profileCard() {
     const w = currentWeight();
     const est = bmrMifflin({ weight: w, height: +P.height, age: ageFrom(+P.birthYear), sex: P.sex });
     bmrEst.textContent = est ? '基礎代謝＝整天躺著不動也會用掉的熱量。留空時用身高、體重、年齡估算：' + est + ' 大卡（體重變了會跟著重算）' : '填好身高、體重、出生年後可自動估算';
-    const b = plan();
+    const b = plan(), pg = proteinGoal(w, +P.height, +P.proteinPerKg || 1.2);
     sum.textContent = '';
     if (!b.ok) { sumEl.textContent = '尚未填寫完成'; sum.append(h('div.notice', '還差身高、體重、出生年（或直接輸入基礎代謝），才能算出每天可以吃多少。')); return; }
     const r2 = x => Math.round(x * 100) / 100;
@@ -125,8 +125,9 @@ function profileCard() {
       ['每週目標減重', b.weeklyLossKg ? r2(b.weeklyLossKg) : '—', 2, b.weeklyLossKg ? 'kg' : '', b.weeklyLossKg ? '約體重的 ' + r2(b.weeklyLossPct) + '%，每週大約要少吃 ' + b.deficitKcal + ' 大卡' : '已達目標，不用少吃'],
       ['7 天點數額度', b.poolPoints, 1, '點', '平均每天 ' + b.dailyPoints + ' 點'],
       ['每日保底', b.floorPoints, 1, '點'],
-      ['每日蛋白質', b.proteinTarget, 0, 'g'],
+      ['每日蛋白質', b.proteinTarget, 0, 'g', pg.adjusted ? '依體重自動算：調整體重 ' + pg.basis + ' kg × ' + pg.perKg : '依體重自動算：' + pg.basis + ' kg × ' + pg.perKg],
     ]));
+    sum.append(tip('蛋白質目標會跟著最新體重自動變。體重超過理想體重（BMI 22，你是 ' + (pg.ibw || '–') + ' kg）時，不用實際體重乘，改用「調整體重」＝理想體重 + 0.4 ×（實際 − 理想），因為脂肪本身不太需要蛋白質；體重很重的人直接乘會高估很多。減重期間一般建議每公斤 1.2～1.5 g。有腎臟病的人，蛋白質要吃多少請先問醫師。'));
     if (b.capped) sum.append(h('div.notice.small', '你設定的速度大約每週減 ' + r2(b.wantedPct) + '%，超過安全上限（每週體重的 1%），已改用 1% 計算。'));
     sumEl.textContent = w + ' → ' + (+P.targetWeight || '–') + ' kg・每週 ' + b.poolPoints + ' 點';
   }

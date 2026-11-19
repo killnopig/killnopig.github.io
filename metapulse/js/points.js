@@ -1,5 +1,5 @@
 /* 點數、BMR／TDEE、週點數池（純函數，不碰畫面與儲存） */
-import { POINTS, BUDGET } from './config.js';
+import { POINTS, BUDGET, SAFETY } from './config.js';
 
 export const NUTRIENTS = ['kcal', 'protein', 'carb', 'fat', 'fiber'];
 
@@ -71,12 +71,24 @@ export function budget(p, now = new Date()) {
   const deficitKcal = Math.round(weeklyLossKg * BUDGET.kcalPerKgFat);
   const poolPoints = Math.max(0, roundTo((tdee * 7 - deficitKcal) / BUDGET.kcalPerPoint));
   const floorPoints = +p.floorPoints > 0 ? +p.floorPoints : roundTo(bmr / BUDGET.kcalPerPoint);
-  const proteinTarget = Math.round(weight * (+p.proteinPerKg || BUDGET.proteinPerKgDefault));
+  const proteinTarget = proteinGoal(weight, +p.height, +p.proteinPerKg || BUDGET.proteinPerKgDefault).target;
   return {
     ok: true, bmr, bmrSource, tdee, weeklyLossKg, weeklyLossPct: weight ? weeklyLossKg / weight * 100 : 0,
     wantedPct, capped, deficitKcal, poolPoints, floorPoints, proteinTarget,
     dailyPoints: roundTo(poolPoints / 7),
   };
+}
+
+/**
+ * 每天蛋白質目標：體重超過理想體重（BMI 22）時，用「調整體重」＝理想 + 0.4 ×（實際 − 理想）來乘，
+ * 不然體重很重的人會算出很誇張的量（脂肪組織本身不太需要蛋白質）。沒有身高就用實際體重。
+ */
+export function proteinGoal(weight, heightCm, perKg = BUDGET.proteinPerKgDefault, cfg = SAFETY) {
+  const w = +weight || 0, m = (+heightCm || 0) / 100;
+  const ibw = m > 0 ? cfg.ibwBmi * m * m : 0;
+  const adjusted = ibw > 0 && w > ibw;
+  const basis = adjusted ? ibw + cfg.abwFactor * (w - ibw) : w;
+  return { target: Math.round(basis * perKg), basis: Math.round(basis * 10) / 10, ibw: Math.round(ibw * 10) / 10, adjusted, perKg };
 }
 
 /** 本機日期字串 YYYY-MM-DD */

@@ -2,7 +2,8 @@
  * 依體重估算消耗（MET × 體重 × 小時），加回點數＝消耗 × 0.75 ÷ 40 */
 import { S, L, commit, commitLocal, uid, currentWeight } from '../state.js';
 import { h, toast, fold, tip, openSheet, closeSheet, fmtPts, timePick } from './common.js';
-import { EXERCISES, BUDGET } from '../config.js';
+import { EXERCISES, BUDGET, SAFETY } from '../config.js';
+import { strengthCount } from '../safety.js';
 import { localDate } from '../points.js';
 
 const MET = Object.fromEntries(EXERCISES.map(([id, , m]) => [id, m]));
@@ -26,8 +27,10 @@ export function exerciseCard(bare = false) {
     h('span.pts.num', { style: { color: 'var(--ac-tx)' } }, '+' + fmtPts(pts(x.kcal)), h('span.mu.tiny', ' 點'))));
   if (watch) list.append(h('div.mu.tiny.one', { style: { marginTop: '6px' } }, 'Health Connect（手錶）今天 ' + Math.round(watch) + ' 大卡，+' + fmtPts(pts(watch)) + ' 點'));
   if (!mine.length && !watch) list.append(h('div.empty', '打球、走路都可以記，消耗會換成可以多吃的點數'));
-  const head = h('div.row.between.grow', { style: { gap: '10px' } }, h('div.small.one', { style: { fontWeight: 600 } }, sum));
-  return h(bare ? 'div' : 'div.card', bare ? { style: { marginTop: '6px' } } : null, fold('ex-card', head, [list, tip('加回點數＝消耗熱量 × 0.75 ÷ 40（手錶和估算常常算多，所以打 75 折）。消耗用「運動強度（MET）× 體重 × 時間」估算，估得不準可以直接改大卡數。手錶已經記到的運動（Health Connect 會自動加入），不要再手動記一次，不然會算兩次。')]));
+  const sc = strengthCount(S.exercise, today), goal = SAFETY.strengthGoal;
+  const head = h('div.row.between.grow', { style: { gap: '10px' } }, h('div.small.one', { style: { fontWeight: 600 } }, sum),
+    h('span.tiny.num', { style: { flex: '0 0 auto', color: sc >= goal ? 'var(--ac-tx)' : 'var(--mu)', fontWeight: 600 } }, '肌力 ' + sc + '/' + goal));
+  return h(bare ? 'div' : 'div.card', bare ? { style: { marginTop: '6px' } } : null, fold('ex-card', head, [list, tip('「肌力 1/2」＝近 7 天做了幾次肌力訓練（重量訓練、彈力帶、徒手深蹲或伏地挺身），建議每週至少 2 次，減重時比較能保住肌肉。記運動時選這幾種就會算進去。', h('br'), '加回點數＝消耗熱量 × 0.75 ÷ 40（手錶和估算常常算多，所以打 75 折）。消耗用「運動強度（MET）× 體重 × 時間」估算，估得不準可以直接改大卡數。手錶已經記到的運動（Health Connect 會自動加入），不要再手動記一次，不然會算兩次。')]));
 }
 
 /** 記運動／修改運動 */

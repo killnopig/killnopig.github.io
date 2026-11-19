@@ -28,7 +28,7 @@ test('週點數池：依週數推算', () => {
   assert.equal(b.deficitKcal, 3080);
   assert.equal(b.poolPoints, roundTo((2039 * 7 - 3080) / 40));
   assert.equal(b.floorPoints, roundTo(1699 / 40));
-  assert.equal(b.proteinTarget, 96);
+  assert.equal(b.proteinTarget, 87);   // 80 kg、175 cm：調整體重 72.4 kg × 1.2
 });
 
 test('每週減重上限 1%', () => {

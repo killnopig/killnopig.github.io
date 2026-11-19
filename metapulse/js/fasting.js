@@ -218,7 +218,7 @@ export function hourlyMessage(hours, start, messages) {
 
 /**
  * 依施打週期建議（HYBRID_GUIDED）。只建議、不自動切換。
- * @param flags {fastLoss:boolean, lowIntake:boolean} 減重太快、長期指數有提示
+ * @param flags {fastLoss, lowIntake, doseUp:{day,until}|null, custom} 減重太快、長期指數有提示、剛加劑量（custom＝自己排過，不改只標記）
  */
 export function hybridSuggestion(entries, todayStr, flags = {}, cfg = FASTING) {
   const doses = entries.filter(e => e.dose > 0).map(e => e.date).sort();
@@ -226,7 +226,9 @@ export function hybridSuggestion(entries, todayStr, flags = {}, cfg = FASTING) {
   const hy = cfg.hybrid;
   if (!last) return { plan: hy.fallback, day: null, hasDose: false, reason: '還沒有施打記錄，先用 ' + hy.fallback + ' 當參考。' };
   const day = dnStr(todayStr) - dnStr(last) + 1;
-  if (flags.fastLoss || flags.lowIntake) {
+  const up = flags.doseUp && !flags.custom && dnStr(todayStr) <= dnStr(flags.doseUp.until);
+  if (flags.fastLoss || flags.lowIntake || up) {
+    if (up && !(flags.fastLoss || flags.lowIntake)) return { plan: hy.safer, day, hasDose: true, up: true, reason: '剛加劑量（第 ' + flags.doseUp.day + ' 天），建議用比較溫和的 ' + hy.safer + '。' };
     return { plan: hy.safer, day, hasDose: true, reason: (flags.fastLoss ? '最近體重下降偏快' : '最近一段時間熱量偏低') + '，建議用比較溫和的 ' + hy.safer + '。' };
   }
   const r = hy.rules.find(x => day >= x.fromDay && day <= x.toDay);
@@ -392,12 +394,14 @@ export function hybridWeek(entries, todayStr, flags = {}, cfg = FASTING) {
   if (!last) return [];
   const hy = cfg.hybrid, T = dnStr(todayStr), L0 = dnStr(last), out = [];
   const warn = !!(flags.fastLoss || flags.lowIntake);
+  const upTo = flags.doseUp ? dnStr(flags.doseUp.until) : -1;   // 剛加劑量：到這天為止標「剛加量」
   for (let n = L0; n <= Math.max(L0 + 6, T); n++) {
     const day = n - L0 + 1, r = hy.rules.find(x => day >= x.fromDay && day <= x.toDay);
     let plan = r ? r.plan : hy.fallback, safer = false;
-    if (warn && n >= T && plan !== hy.safer) { plan = hy.safer; safer = true; }
+    const up = n <= upTo;
+    if ((warn || (up && !flags.custom)) && n >= T && plan !== hy.safer) { plan = hy.safer; safer = true; }   // 自己排過的照你排的，只標記
     const d = new Date(n * 864e5), date = d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate());
-    out.push({ date, day, plan, today: n === T, dose: n === L0, safer });
+    out.push({ date, day, plan, today: n === T, dose: n === L0, safer, up });
   }
   return out;
 }

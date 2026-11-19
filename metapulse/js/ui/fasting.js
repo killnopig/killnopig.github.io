@@ -10,6 +10,7 @@ import { timeStop, gears } from './fx.js';
 import { longTermIndex, weightTrend, longTermMessage, leanTrend, leanSummary } from '../longterm.js';
 import { usage, localDate, roundTo } from '../points.js';
 import { onBoard, dn, md, wdOf } from '../records.js';
+import { hypoAlert, doseIncrease, waterHint, omadWarn } from '../safety.js';
 
 const MODES = [['PURE_DYNAMIC', '自由斷食'], ['HYBRID_GUIDED', '依施打週期'], ['STRICT_MANUAL', '自選固定']];
 const PLANS = ['16:8', '18:6', '20:4', '24H'];
@@ -22,6 +23,12 @@ export function longTermStatus() {
   const lt = longTermIndex(S.meals, b.ok ? b.bmr : 0, today);
   const wt = weightTrend(S.entries, today);
   return { lt, wt, msg: longTermMessage(lt, wt) };
+}
+
+/** 依施打週期用的安全旗標：體重掉太快、吃太少、剛加劑量、有沒有自己排過 */
+function hyFlags() {
+  const { lt, wt } = longTermStatus();
+  return { fastLoss: wt.fast, lowIntake: lt.ready && lt.level !== 'ok', doseUp: doseIncrease(S.entries, localDate(new Date())), custom: Array.isArray(S.prefs.hybridDays) };
 }
 
 /** 迷你殘留曲線：過去 14 天到未來 7 天 */
@@ -57,8 +64,7 @@ function targetOf(mode, f, now) {
     return { hours, label: (P.strictPlan || '16:8') + '・窗口 ' + (P.windowStart || '12:00'), win: w };
   }
   if (mode === 'HYBRID_GUIDED') {
-    const { lt, wt } = longTermStatus();
-    const sg = hybridSuggestion(S.entries, localDate(new Date()), { fastLoss: wt.fast, lowIntake: lt.ready && lt.level !== 'ok' }, hybridCfg(P));
+    const sg = hybridSuggestion(S.entries, localDate(new Date()), hyFlags(), hybridCfg(P));
     return { hours: FASTING.plans[sg.plan], label: '建議 ' + sg.plan, sg };
   }
   const t = +P.fastTarget || FASTING.freeTargetDefault;
@@ -161,6 +167,14 @@ export function fastingCard() {
     h('div.small.one', { style: { marginTop: '8px', fontWeight: 650 } }, '身體現在：' + shortStage),
     h('div.small.one.ln-fuel', { 'data-i': st.index, 'data-ss': f.start + stageStarts(shift)[st.index] * H, 'data-s': f.start, style: { fontWeight: 600 } }, fuelText(st.index, f.start + stageStarts(shift)[st.index] * H, now, f.start)),
     h('div.two.ln-soup', { 'data-s': f.start, style: { margin: '8px 0 2px', color: 'var(--ac-tx)', fontWeight: 650 } }, soupText(now, f.start)));   // 雞湯：每 30 秒換一句、整次不重複，最多兩行
+  const hy = hypoAlert(P.meds, { fasting: true, start: f.start, hours: f.hours }, now);
+  if (hy) card.append(h('div.notice', { style: { marginTop: '8px', padding: '6px 10px' } },
+    h('div.small.one', { style: { fontWeight: 650 } }, '留意低血糖：手抖、冒冷汗、心悸、頭暈'),
+    hy.ask.length ? h('div.small.one', hy.ask.join('、') + ' 斷食中要不要吃，記得問醫師或藥師') : null,
+    tip('你有勾「降血糖藥」，' + (hy.long ? '斷食已經超過 16 小時' : '斷食中到了吃藥時間') + '。有些降血糖藥（例如會刺激胰島素分泌的口服藥、胰島素）在沒吃東西時比較容易造成低血糖。',
+      h('br'), '如果出現手抖、冒冷汗、心悸、頭暈、很餓、想睡或講話不清楚，一般建議先吃點含糖的東西（例如果汁、方糖）、結束這次斷食，並告訴醫師。',
+      h('br'), '藥要不要空腹吃、斷食時要不要調整，請照醫師或藥師的指示；問過之後可以到「設定」→「提醒與通知」勾「問過了」。')));
+  if (waterHint(f.hours)) card.append(h('div.small.one.mu', { style: { marginTop: '6px' } }, '💧 斷食超過 12 小時，記得喝水、補充電解質'));
   if (mode === 'STRICT_MANUAL' && (P.strictPlan || '16:8') === '24H' && f.hours >= FASTING.plans['24H']) card.append(h('div.notice.ok', { style: { marginTop: '8px' } }, OMAD_DONE[0]));
   if (pend) card.append(pend);
   card.append(endFastBtn(f));
@@ -212,11 +226,12 @@ export function fastModeBody(redraw = () => {}) {   // 設定頁不會因為 com
     body.push(h('div', { style: { marginTop: '8px' } }, pills(PLANS.map(p => [p, p === '24H' ? '一天一餐' : p]), P.strictPlan || '16:8', v => { P.strictPlan = v; commit(); redraw(); })),
       h('div.row', { style: { marginTop: '8px' } }, h('span.small.mu', '進食窗口從'), timeIn, h('span.small.mu', '開始，' + win.eatHours + ' 小時')),
       h('div.small', { style: { marginTop: '6px' } }, win.inWindow ? '現在在進食窗口中，到 ' + hm(win.closesAt) + ' 結束' : '進食窗口 ' + dayLabel(win.opensAt) + ' 開始'));
+    if (omadWarn(P, S.entries, localDate(new Date()))) body.push(h('div.small.one', { style: { marginTop: '6px', color: 'var(--warn)', fontWeight: 600 } }, '⚠ 打針期間一天一餐容易吃不夠'),
+      tip('用藥期間食量本來就小，一天只吃一餐，蛋白質和熱量很容易不夠，也比較容易頭暈、低血糖。建議先和醫師討論；如果要做，那一餐先吃夠蛋白質。'));
   }
   if (mode === 'HYBRID_GUIDED') {
     const sg = tg.sg;
-    const { lt, wt } = longTermStatus();
-    const flags = { fastLoss: wt.fast, lowIntake: lt.ready && lt.level !== 'ok' };
+    const flags = hyFlags();
     const week = hybridWeek(S.entries, localDate(new Date()), flags, hybridCfg(P));
     body.push(h('div', { style: { marginTop: '10px', fontWeight: 700, fontSize: '17px' } }, '今天建議 ' + sg.plan));
     if (week.length) {
@@ -226,9 +241,11 @@ export function fastModeBody(redraw = () => {}) {   // 設定頁不會因為 com
         h('div.tiny.mu', '第' + x.day + '天'),
         h('div.tiny.num', { style: { color: 'var(--mu)' } }, md(x.date)),
         h('div.small.num', { style: { fontWeight: 700, color: x.plan === '18:6' ? 'var(--ac-tx)' : 'var(--tx)' } }, x.plan),
-        h('div.tiny', x.dose ? '💉' : x.safer ? '⚠' : x.today ? '今天' : '\u00a0')));
+        h('div.tiny', x.dose ? '💉' : x.up ? '加量' : x.safer ? '⚠' : x.today ? '今天' : '\u00a0')));
       body.push(grid);
-      if (week.some(x => x.safer)) body.push(h('div.small', { style: { marginTop: '6px', color: 'var(--warn)' } }, '⚠ ' + (flags.fastLoss ? '最近體重下降偏快' : '最近一段時間熱量偏低') + '，先用比較溫和的 16:8'));
+      const why = flags.fastLoss ? '最近體重下降偏快' : flags.lowIntake ? '最近一段時間熱量偏低' : '';
+      if (why && week.some(x => x.safer)) body.push(h('div.small.one', { style: { marginTop: '6px', color: 'var(--warn)' } }, '⚠ ' + why + '，先用比較溫和的 16:8'));
+      if (flags.doseUp) body.push(h('div.small.one', { style: { marginTop: '6px', color: 'var(--warn)' } }, '剛加劑量 ' + flags.doseUp.from + '→' + flags.doseUp.to + ' mg' + (flags.custom ? '，前兩週留意噁心、吃不夠' : '，到 ' + md(flags.doseUp.until) + ' 先用 16:8')));
     } else body.push(h('div.small.mu', { style: { marginTop: '4px' } }, '還沒有施打記錄，先用 16:8。記了注射後，第 1～3 天建議 18:6、第 4～7 天 16:8。'));
     // 自己排：第 1～7 天各用哪一種，點一下在 16:8／18:6 之間切換
     const days = hybridDaysOf(P), custom = Array.isArray(P.hybridDays);
@@ -242,6 +259,7 @@ export function fastModeBody(redraw = () => {}) {   // 設定頁不會因為 com
     const sp = residualSpark();
     body.push(tip('這是經驗法則，目前沒有研究直接證實「打針後第幾天適合斷多久」；斷食和用藥怎麼搭配，建議和醫師討論。',
       h('br'), '預設：打針那天算第 1 天，第 1～3 天血中藥量最高、通常比較不餓，建議 18:6；第 4～7 天建議 16:8。可以在「自己排每一天」照自己的感覺改。',
+      h('br'), '剛加劑量的前兩週，噁心、沒食慾最明顯，所以這 14 天先建議 16:8（格子標「加量」）；你自己排過的就照你排的，只多一行提醒。',
       h('br'), '體重掉太快或長期吃太少時，今天以後一律改成 16:8，最多只建議到 18:6，因為用藥期間本來就吃得少，再斷更久容易吃不夠蛋白質。只是建議；模式只用來算目標，不會自己開始或結束斷食。', ...(sp ? [sp] : [])));
   }
   if (mode !== 'HYBRID_GUIDED') body.push(tip('模式只用來算目標和進食窗口，不會自己開始或結束斷食；一定要你按「開始斷食」「結束斷食」。'));

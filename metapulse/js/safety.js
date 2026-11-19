@@ -1,0 +1,91 @@
+/* 安全提醒與保住肌肉（純函數）：低血糖、剛加劑量、體重掉太快、喝水、一天一餐、每餐蛋白質、肌力次數、副作用。
+ * 只產生提醒，不擋任何操作；不是醫療建議。 */
+import { SAFETY, STRENGTH } from './config.js';
+import { weightTrend } from './longterm.js';
+import { addDays } from './points.js';
+import { dn } from './records.js';
+
+const minOf = t => +t.slice(0, 2) * 60 + +t.slice(3, 5);
+
+/**
+ * 低血糖提醒：有勾「降血糖藥」、正在斷食，而且（斷食超過 16 小時，或今天這顆藥的時間已經到了、斷食在那之前就開始）
+ * @param fi {fasting, start, hours}
+ * @returns null | {meds:[藥名], ask:[還沒問過能不能空腹吃的藥名], long:boolean}
+ */
+export function hypoAlert(meds, fi, now = Date.now(), cfg = SAFETY) {
+  const gl = (meds || []).filter(m => m && m.name && m.glucose);
+  if (!gl.length || !fi || !fi.fasting || !fi.start) return null;
+  const d = new Date(now), nowMin = d.getHours() * 60 + d.getMinutes();
+  const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const due = gl.filter(m => /^\d{2}:\d{2}$/.test(m.time || '') && minOf(m.time) <= nowMin && fi.start <= dayStart + minOf(m.time) * 60000);
+  const long = fi.hours >= cfg.hypoHours;
+  if (!long && !due.length) return null;
+  const list = long ? gl : due;
+  return { meds: list.map(m => m.name), ask: list.filter(m => !m.fastOk).map(m => m.name), long };
+}
+
+/**
+ * 剛加劑量：最近一次注射比前一次高，且在 14 天內
+ * @returns null | {date, from, to, day（加量那天＝第 1 天）, until（最後一天）}
+ */
+export function doseIncrease(entries, todayStr, cfg = SAFETY) {
+  const ds = (entries || []).filter(e => e.dose > 0 && e.date <= todayStr).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  // 找最後一次「比前一次高」的注射
+  for (let i = ds.length - 1; i > 0; i--) {
+    if (ds[i].dose > ds[i - 1].dose) {
+      const day = dn(todayStr) - dn(ds[i].date) + 1;
+      if (day > cfg.doseUpDays) return null;
+      return { date: ds[i].date, from: ds[i - 1].dose, to: ds[i].dose, day, until: addDays(ds[i].date, cfg.doseUpDays - 1) };
+    }
+  }
+  return null;
+}
+
+/** 體重掉得比較快（每週超過體重 1.5%）→ 顯示警訊說明 */
+export function fastLossAlert(entries, todayStr, cfg = SAFETY) {
+  const wt = weightTrend(entries || [], todayStr);
+  return wt.weeklyPct !== null && wt.weeklyPct > cfg.fastLossPct ? { pct: Math.round(wt.weeklyPct * 10) / 10 } : null;
+}
+export const WARNING_SIGNS = ['持續或很嚴重的肚子痛（尤其痛到背後）', '一直吐、喝水也吐，或尿很少', '右上腹痛、發燒、皮膚或眼白變黃', '解黑便或吐出咖啡色的東西', '頭暈到站不穩、心跳很快、昏昏沉沉'];
+
+/** 斷食超過 12 小時：提醒喝水 */
+export const waterHint = (hours, cfg = SAFETY) => hours >= cfg.waterHours;
+
+/** 選了一天一餐、而且近 14 天有打針 */
+export function omadWarn(prefs, entries, todayStr, cfg = SAFETY) {
+  if ((prefs || {}).fastMode !== 'STRICT_MANUAL' || (prefs.strictPlan || '16:8') !== '24H') return false;
+  const from = addDays(todayStr, -(cfg.omadDoseDays - 1));
+  return (entries || []).some(e => e.dose > 0 && e.date >= from && e.date <= todayStr);
+}
+
+/** 一餐蛋白質偏少（還沒吃的不算） */
+export const lowProteinMeal = (protein, cfg = SAFETY) => (+protein || 0) < cfg.mealProteinLow;
+
+/** 近 7 天（含今天）肌力訓練次數 */
+export function strengthCount(exercise, todayStr) {
+  const from = addDays(todayStr, -6);
+  return (exercise || []).filter(x => STRENGTH.includes(x.type) && x.date >= from && x.date <= todayStr).length;
+}
+
+/* ---------- 副作用 ---------- */
+export const SYMPTOMS = [['nausea', '噁心'], ['constip', '便秘'], ['diarrhea', '腹瀉'], ['appetite', '沒食慾'], ['tired', '疲倦']];
+export const LEVELS = ['無', '輕', '中', '重'];
+/** 每天一筆，id 固定（同一天在兩支手機記也會合成一筆） */
+export const symptomId = date => 'sx' + date;
+export function normalizeSymptom(x) {
+  if (!x || !/^\d{4}-\d{2}-\d{2}$/.test(x.date)) return null;
+  const o = { id: symptomId(x.date), date: x.date };
+  for (const [k] of SYMPTOMS) o[k] = Math.max(0, Math.min(3, Math.round(+x[k] || 0)));
+  return o;
+}
+/** 期間內每項：記了幾天、平均、最高（和那天） */
+export function symptomStats(list, from, to) {
+  const rows = (list || []).filter(x => x.date >= from && x.date <= to);
+  return {
+    days: rows.length,
+    items: SYMPTOMS.map(([k, name]) => {
+      const v = rows.map(x => +x[k] || 0), max = Math.max(0, ...v), at = rows.find(x => (+x[k] || 0) === max && max > 0);
+      return { key: k, name, avg: v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0, max, maxDate: at ? at.date : '', hit: v.filter(x => x > 0).length };
+    }),
+  };
+}

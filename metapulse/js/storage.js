@@ -7,6 +7,15 @@ export const KEY = 'metapulse-v1';
 export const LOCAL_KEY = 'metapulse-local';
 export const SCHEMA = 1;
 
+/** 副作用（每天一筆，0～3）；和 safety.js 的 SYMPTOMS 同一組欄位 */
+const SX = ['nausea', 'constip', 'diarrhea', 'appetite', 'tired'];
+function normalizeSymptom(x) {
+  if (!x || !/^\d{4}-\d{2}-\d{2}$/.test(x.date)) return null;
+  const o = { id: 'sx' + x.date, date: x.date };
+  for (const k of SX) o[k] = Math.max(0, Math.min(3, Math.round(+x[k] || 0)));
+  return o;
+}
+
 export const SITES = ['左腹', '腹中', '右腹', '左大腿', '右大腿', '左上臂', '右上臂'];
 
 export function defaultProfile() {
@@ -21,7 +30,7 @@ export function defaultState() {
   return {
     schema: SCHEMA, ts: 0,
     profile: defaultProfile(),
-    entries: [], meals: [], foodLibrary: [], fasts: [], activity: [], medLog: [], exercise: [], deleted: {},
+    entries: [], meals: [], foodLibrary: [], fasts: [], activity: [], medLog: [], exercise: [], symptoms: [], deleted: {},
     prefs: { fastMode: 'PURE_DYNAMIC', strictPlan: '16:8', windowStart: '12:00', mealThresholds: { kcal: 800, carb: 100 }, longTermAlpha: 0.05, weekStart: 'roll', meds: [] },
   };
 }
@@ -102,6 +111,7 @@ export function normalizeState(p) {
     activity: (Array.isArray(p.activity) ? p.activity : []).filter(a => a && /^\d{4}-\d{2}-\d{2}$/.test(a.date)).map(a => ({ date: a.date, kcal: num(a.kcal), src: str(a.src) })),
     medLog: (Array.isArray(p.medLog) ? p.medLog : []).filter(x => x && x.id && x.med && /^\d{4}-\d{2}-\d{2}$/.test(x.date)).map(x => ({ id: str(x.id), med: str(x.med), date: x.date, at: str(x.at) })),
     exercise: (Array.isArray(p.exercise) ? p.exercise : []).filter(x => x && x.id && /^\d{4}-\d{2}-\d{2}$/.test(x.date)).map(x => ({ id: str(x.id), date: x.date, at: str(x.at), type: str(x.type), minutes: num(x.minutes), kcal: num(x.kcal) })),
+    symptoms: (Array.isArray(p.symptoms) ? p.symptoms : []).map(normalizeSymptom).filter(Boolean),
     prefs: Object.assign(d.prefs, p.prefs || {}),
     deleted: p.deleted && typeof p.deleted === 'object' ? { ...p.deleted } : {},
   };

@@ -2,6 +2,7 @@
  * Chart.js 4.4.1 在第一次開啟圖表頁時才從 cdnjs 載入。圖表卡片可收合，收起來的不畫。 */
 import { S, L, commitLocal, plan } from '../state.js';
 import { h, fold, pills, toast, tip } from './common.js';
+import { doctorReport } from '../report.js';
 import { buildSummary, dailyFood, dailyFastDetail, eatingWindows, macroSplit } from '../summary.js';
 import { capPlugin } from '../health.js';
 import { localDate } from '../points.js';
@@ -456,13 +457,14 @@ async function copyText(t, ta) {
 
 function aiCard(range, bpv) {
   const msg = h('div.mu.tiny', { style: { marginTop: '8px', lineHeight: 1.6 } });
-  const aiTip = tip('把所有圖表合成一張圖，或把數據整理成一段文字，貼給 AI（例如 ChatGPT、Gemini）幫你看趨勢、整理要問醫師的問題。數據摘要包含飲食點數、熱量、蛋白質和斷食時數。勾選「加上給 AI 的說明」會在開頭請 AI 分析、不要診斷。裡面有你的健康資料，傳給 AI 前請自己評估隱私。');
-  const withPrompt = h('input', { type: 'checkbox', checked: L.sumPrompt !== false });
-  withPrompt.onchange = () => { L.sumPrompt = withPrompt.checked; commitLocal(); };
+  const aiTip = tip('「複製回診報告」會把最近幾週的重點整理成一段文字：體重和淨體重、注射劑量、副作用、血壓、蛋白質、斷食、吃藥和肌力訓練，回診時可以給醫師看，或傳到 LINE 存著。勾「給 AI」會在前面加上請 AI 分析的說明、後面接完整數據，可以貼給 AI（例如 ChatGPT、Gemini）幫你整理要問醫師的問題。「圖表合成一張圖」可以一起給醫師或 AI 看。裡面有你的健康資料，傳出去前請自己評估隱私。');
+  const withPrompt = h('input', { type: 'checkbox', checked: !!L.reportAi });
+  withPrompt.onchange = () => { L.reportAi = withPrompt.checked; commitLocal(); };
+  const weeksPick = pills([[4, '4 週'], [8, '8 週'], [12, '12 週']], +L.reportWeeks || 8, v => { L.reportWeeks = v; commitLocal(); });
   const ta = h('textarea', { rows: 6, readOnly: true, style: { display: 'none', marginTop: '8px' } });
   const img = h('img', { alt: '圖表截圖', style: { width: '100%', borderRadius: '8px', marginTop: '10px', background: '#fff', display: 'none' } });
   const imgBtns = h('div.grid2', { style: { marginTop: '8px', display: 'none' } });
-  const shot = h('button.pri.full', { type: 'button' }, '產生圖表截圖');
+  const shot = h('button.ghost.full', { type: 'button', style: { marginTop: '8px' } }, '圖表合成一張圖');
   shot.onclick = async () => {
     shot.disabled = true; msg.textContent = '正在產生圖片…';
     try {
@@ -486,17 +488,19 @@ function aiCard(range, bpv) {
     catch (e) { toast('這裡不能複製圖片，請改用「分享或儲存」', true); }
   };
   imgBtns.append(share, copyImg);
-  const sum = h('button.ghost.full', { type: 'button', style: { marginTop: '8px' } }, '複製數據摘要');
+  const sum = h('button.pri.full', { type: 'button', style: { marginTop: '8px' } }, '複製回診報告');
   sum.onclick = async () => {
-    const t = buildSummary(S, plan(), localDate(new Date()), withPrompt.checked);
-    ta.value = t;
+    const today = localDate(new Date()), rep = doctorReport(S, plan(), today, +L.reportWeeks || 8);
+    let t = rep;
+    if (withPrompt.checked) { const full = buildSummary(S, plan(), today, true), i = full.indexOf('【MetaPulse 記錄'); t = full.slice(0, i) + rep + '\n\n' + full.slice(i); }
+    ta.value = t; ta.style.display = '';
     const ok = await copyText(t, ta);
-    msg.textContent = ok ? '已複製數據摘要（' + t.length + ' 字），可以直接貼到 AI 對話。裡面包含飲食點數、熱量、蛋白質和斷食時數。' : '沒辦法自動複製，請在下面的框裡全選後複製。';
+    msg.textContent = ok ? '已複製（' + t.length + ' 字），可以貼到 LINE 或' + (withPrompt.checked ? ' AI 對話' : '給醫師看') + '。下面是內容。' : '沒辦法自動複製，請在下面的框裡全選後複製。';
   };
-  return h('div.card', fold('chart-ai', h('h2', { style: { margin: 0 } }, '給 AI 分析'), [h('div', { style: { marginTop: '10px' } },
-    shot, sum,
-    h('label.row', { style: { color: 'var(--tx)', marginTop: '10px', fontSize: '15px' } }, withPrompt, '加上給 AI 的說明'),
-    aiTip, msg, ta, img, imgBtns)], { open: false }));
+  return h('div.card', fold('chart-ai', h('h2', { style: { margin: 0 } }, '回診報告'), [h('div', { style: { marginTop: '10px' } },
+    weeksPick, sum,
+    h('label.row.one', { style: { color: 'var(--tx)', marginTop: '10px', fontSize: '15px' } }, withPrompt, '給 AI：加說明和完整數據'),
+    shot, aiTip, msg, ta, img, imgBtns)], { open: false }));
 }
 
 let live = [];
