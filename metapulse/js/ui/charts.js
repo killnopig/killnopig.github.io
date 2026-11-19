@@ -1,7 +1,8 @@
 /* 圖表分頁：移植同步版的圖表（體重、劑量與殘留、血壓、BMI、體組成、身體年齡／基礎代謝）
  * Chart.js 4.4.1 在第一次開啟圖表頁時才從 cdnjs 載入。圖表卡片可收合，收起來的不畫。 */
 import { S, L, commitLocal, plan } from '../state.js';
-import { h, fold, pills, toast, tip } from './common.js';
+import { h, fold, pills, toast, tip, setFolds } from './common.js';
+import { aiName, copyText, shareToAi, openAi } from './aishare.js';
 import { doctorReport } from '../report.js';
 import { buildSummary, dailyFood, dailyFastDetail, eatingWindows, macroSplit } from '../summary.js';
 import { capPlugin } from '../health.js';
@@ -359,7 +360,7 @@ const LIGHT = { tx: '#14212b', mu: '#5d6b78', ln: '#d5dde4', wc: '#0f766e', dc: 
 /** 所有圖表合成一張高解析度圖片（淺色底，不受深色模式影響） */
 async function exportCharts(range, bpv) {
   await loadChart();
-  const specs = chartSpecs(LIGHT, range, bpv).filter(x => !x.screenOnly);
+  const specs = byOrder(chartSpecs(LIGHT, range, bpv).filter(x => !x.screenOnly));
   if (!specs.length) throw new Error('目前沒有可以畫的圖表。');
   const font = '"Noto Sans TC",system-ui,sans-serif';
   // 最後一格放文字摘要（長期攝取指數、淨體重、斷食），兩欄剛好排滿
@@ -450,30 +451,30 @@ async function shareImage(blob) {
   if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: 'MetaPulse 圖表' }); return; }
   download(blob);
 }
-async function copyText(t, ta) {
-  try { await navigator.clipboard.writeText(t); return true; }
-  catch (e) { ta.style.display = ''; ta.select(); try { return document.execCommand('copy'); } catch (e2) { return false; } }
-}
 
 function aiCard(range, bpv) {
   const msg = h('div.mu.tiny', { style: { marginTop: '8px', lineHeight: 1.6 } });
-  const aiTip = tip('「複製回診報告」會把最近幾週的重點整理成一段文字：體重和淨體重、注射劑量、副作用、血壓、蛋白質、斷食、吃藥和肌力訓練，回診時可以給醫師看，或傳到 LINE 存著。勾「給 AI」會在前面加上請 AI 分析的說明、後面接完整數據，可以貼給 AI（例如 ChatGPT、Gemini）幫你整理要問醫師的問題。「圖表合成一張圖」可以一起給醫師或 AI 看。裡面有你的健康資料，傳出去前請自己評估隱私。');
+  const aiTip = tip('「給醫生參考的報告」會把最近幾週的重點整理成一段文字並複製：體重和淨體重、注射劑量、副作用、血壓、蛋白質、斷食、吃藥和肌力訓練，回診時可以給醫師看，或傳到 LINE 存著。勾「給 AI」後按鈕變成「傳給 AI」：前面加上請 AI 分析的說明、後面接完整數據，再附上圖表圖片，一起送到你在「設定」→「AI 辨識食物」選的預設 AI，幫你整理要問醫師的問題（網頁沒辦法替你按送出，最後一步要自己按）。「圖表下載」把所有圖表合成一張圖。裡面有你的健康資料，傳出去前請自己評估隱私。');
   const withPrompt = h('input', { type: 'checkbox', checked: !!L.reportAi });
-  withPrompt.onchange = () => { L.reportAi = withPrompt.checked; commitLocal(); };
   const weeksPick = pills([[4, '4 週'], [8, '8 週'], [12, '12 週']], +L.reportWeeks || 8, v => { L.reportWeeks = v; commitLocal(); });
   const ta = h('textarea', { rows: 6, readOnly: true, style: { display: 'none', marginTop: '8px' } });
   const img = h('img', { alt: '圖表截圖', style: { width: '100%', borderRadius: '8px', marginTop: '10px', background: '#fff', display: 'none' } });
   const imgBtns = h('div.grid2', { style: { marginTop: '8px', display: 'none' } });
-  const shot = h('button.ghost.full', { type: 'button', style: { marginTop: '8px' } }, '圖表合成一張圖');
+  const makeImg = async () => {
+    const r = await exportCharts(range, bpv);
+    expBlob = r.blob;
+    try { if (expUrl) URL.revokeObjectURL(expUrl); } catch (e) { /* 略過 */ }
+    expUrl = URL.createObjectURL(r.blob);
+    img.src = expUrl; img.style.display = ''; imgBtns.style.display = '';
+    return r;
+  };
+  const shot = h('button.ghost.full', { type: 'button', style: { marginTop: '8px' } }, '圖表下載');
   shot.onclick = async () => {
     shot.disabled = true; msg.textContent = '正在產生圖片…';
     try {
-      const r = await exportCharts(range, bpv);
-      expBlob = r.blob;
-      try { if (expUrl) URL.revokeObjectURL(expUrl); } catch (e) { /* 略過 */ }
-      expUrl = URL.createObjectURL(r.blob);
-      img.src = expUrl; img.style.display = ''; imgBtns.style.display = '';
-      msg.textContent = '已產生 ' + r.W + ' × ' + r.H + ' 的圖片。可以分享給 AI，或存到手機。';
+      const r = await makeImg();
+      msg.textContent = '已產生 ' + r.W + ' × ' + r.H + ' 的圖片。';
+      try { await shareImage(expBlob); } catch (e) { if (!(e && (e.name === 'AbortError' || /cancel/i.test(e.message || '')))) download(expBlob); }
     } catch (e) { msg.textContent = '產生圖片失敗：' + (e.message || e); }
     shot.disabled = false;
   };
@@ -488,27 +489,58 @@ function aiCard(range, bpv) {
     catch (e) { toast('這裡不能複製圖片，請改用「分享或儲存」', true); }
   };
   imgBtns.append(share, copyImg);
-  const sum = h('button.pri.full', { type: 'button', style: { marginTop: '8px' } }, '複製回診報告');
-  sum.onclick = async () => {
+  const sum = h('button.pri.full', { type: 'button', style: { marginTop: '8px' } });
+  const label = () => { sum.textContent = withPrompt.checked ? '傳給 ' + aiName() : '給醫生參考的報告'; };
+  withPrompt.onchange = () => { L.reportAi = withPrompt.checked; commitLocal(); label(); };
+  label();
+  const reportText = () => {
     const today = localDate(new Date()), rep = doctorReport(S, plan(), today, +L.reportWeeks || 8);
-    let t = rep;
-    if (withPrompt.checked) { const full = buildSummary(S, plan(), today, true), i = full.indexOf('【MetaPulse 記錄'); t = full.slice(0, i) + rep + '\n\n' + full.slice(i); }
+    if (!withPrompt.checked) return rep;
+    const full = buildSummary(S, plan(), today, true), i = full.indexOf('【MetaPulse 記錄');
+    return full.slice(0, i) + rep + '\n\n' + full.slice(i);
+  };
+  sum.onclick = async () => {
+    const t = reportText();
     ta.value = t; ta.style.display = '';
-    const ok = await copyText(t, ta);
-    msg.textContent = ok ? '已複製（' + t.length + ' 字），可以貼到 LINE 或' + (withPrompt.checked ? ' AI 對話' : '給醫師看') + '。下面是內容。' : '沒辦法自動複製，請在下面的框裡全選後複製。';
+    const ok = await copyText(t, ta);           // 先複製（要在按下去的當下做，瀏覽器才允許）
+    if (!withPrompt.checked) {
+      msg.textContent = ok ? '已複製（' + t.length + ' 字），可以貼到 LINE 或給醫師看。下面是內容。' : '沒辦法自動複製，請在下面的框裡全選後複製。';
+      return;
+    }
+    const ai = aiName();
+    sum.disabled = true; msg.textContent = '正在產生圖表圖片…';
+    let blob = null;
+    try { blob = (await makeImg()).blob; } catch (e) { msg.textContent = '圖片沒做出來，只送文字。'; }
+    sum.disabled = false;
+    const r = await shareToAi(t, blob, fileName());
+    if (r === 'shared') { msg.textContent = '請在分享清單選 ' + ai + '。' + (ok ? '文字也已複製，萬一沒帶過去就貼上。' : ''); return; }
+    if (r === 'cancel') { msg.textContent = '已取消分享。' + (ok ? '文字已複製，可以自己貼到 ' + ai + '。' : ''); return; }
+    if (blob) download(blob);
+    const opened = openAi();
+    msg.textContent = (ok ? '文字已複製' : '請在下面的框裡全選後複製') + (blob ? '，圖片已下載' : '') + '。' + (opened ? '已打開 ' + ai + '，' : '到你的 AI ') + '貼上文字' + (blob ? '、附上圖片' : '') + '再送出。';
   };
   return h('div.card', fold('chart-ai', h('h2', { style: { margin: 0 } }, '回診報告'), [h('div', { style: { marginTop: '10px' } },
-    weeksPick, sum,
-    h('label.row.one', { style: { color: 'var(--tx)', marginTop: '10px', fontSize: '15px' } }, withPrompt, '給 AI：加說明和完整數據'),
-    shot, aiTip, msg, ta, img, imgBtns)], { open: false }));
+    weeksPick,
+    h('label.row.one', { style: { color: 'var(--tx)', marginTop: '10px', fontSize: '15px' } }, withPrompt, '給 AI：加說明、完整數據和圖表'),
+    sum, shot, aiTip, msg, ta, img, imgBtns)], { open: false }));
 }
+
+/** 圖表順序：身體變化 → 用藥 → 斷食與飲食 → 血壓（飲食・運動・用藥、長期攝取指數另外排在斷食後面） */
+const ORDER = ['w', 'bmi', 'lean', 'bc', 'bm', 'd', 'fast', 'food', 'bp'];
+const byOrder = list => list.map((x, i) => [x, i]).sort((a, b) => {
+  const ia = ORDER.indexOf(a[0].id), ib = ORDER.indexOf(b[0].id);
+  return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a[1] - b[1];
+}).map(x => x[0]);
 
 let live = [];
 const OPEN_DEFAULT = { w: true };
 
 /** keep = 按選項重畫：畫面停在原來的位置（重畫時頁面會暫時變短，瀏覽器會捲回最上面） */
 export async function renderCharts(root, keep = false) {
-  if (!keep) return drawCharts(root);
+  if (!keep) {   // 每次進圖表頁回到預設：只開體重，其他收起（不記上次）
+    for (const k of Object.keys(L.collapsed || {})) if (k.startsWith('chart-')) delete L.collapsed[k];
+    return drawCharts(root);
+  }
   const y = window.scrollY;
   root.style.minHeight = root.offsetHeight + 'px';
   try { await drawCharts(root); }
@@ -528,8 +560,11 @@ async function drawCharts(root) {
     return root.append(ltCard(chartSpecs(palette(), 'all').find(x => x.id === 'lt')));
   }
   const range = L.chartRange || 'all', bpv = L.chartBp || 'all';
+  const charts = () => [...root.querySelectorAll('details')].filter(d => d.dataset.chart);
+  const bulk = open => () => { if (!setFolds(charts(), open)) toast(open ? '已經全部打開' : '已經全部收起'); };
   root.append(h('div.card', h('div.row.between', h('b.small', '範圍'), pills([['30', '近 30 天'], ['90', '近 90 天'], ['all', '全部']], range, v => { L.chartRange = v; commitLocal(); renderCharts(root, true); })),
-    ));
+    h('div.row.between', { style: { marginTop: '8px' } }, h('b.small', '圖表'), h('div.row', { style: { gap: '14px' } },
+      h('button.link.small', { type: 'button', onclick: bulk(true) }, '全開'), h('button.link.small', { type: 'button', onclick: bulk(false) }, '全收')))));
   const wait = h('div.card', h('div.row.small.mu', h('span.spin'), '正在準備圖表…'));
   root.append(wait);
   try { await loadChart(); } catch (e) {
@@ -540,11 +575,14 @@ async function drawCharts(root) {
   const pal = chartDefaults();
   let ltSp = null;
   const more = [], moreDraw = [], moreD = fold('chart-more', h('div.grow', h('h2', { style: { margin: 0 } }, '飲食・運動・用藥'), h('div.mu.small.one', { style: { marginTop: '2px' } }, '點數存摺、進食時間、營養素、運動、用藥記錄')), more);
-  for (const sp of chartSpecs(pal, range, bpv)) {
+  moreD.dataset.chart = 1;
+  const late = [];   // 血壓放最後
+  for (const sp of byOrder(chartSpecs(pal, range, bpv))) {
     if (sp.exportOnly) continue;
     if (sp.id === 'lt') { ltSp = sp; continue; }
     if (sp.textRows) {   // 只有文字、沒有圖
       const d = fold('chart-' + sp.id, h('b', sp.title), [h('div', { style: { marginTop: '6px' } }, ...sp.textRows.map(t => h('div.small.num.one', { style: { padding: '3px 0' } }, t)), tip(sp.note))]);
+      d.dataset.chart = 1;
       more.push(h('div', { style: { borderTop: '1px solid var(--ln)', marginTop: '10px', paddingTop: '10px' } }, d));
       continue;
     }
@@ -565,6 +603,7 @@ async function drawCharts(root) {
     if (sp.id === 'lean') { const lp = leanParts(); head = h('div.grow', head, lp.sum); body.push(h('div', { style: { marginTop: '10px' } }, lp.body)); }
     else if (sp.sub) head = h('div.grow', head, h('div.mu.small.one', { style: { marginTop: '2px' } }, sp.sub));
     const d = fold('chart-' + sp.id, head, body, { open: !!OPEN_DEFAULT[sp.id] });
+    d.dataset.chart = 1;
     let chart = null;
     const draw = () => {
       if (chart || !d.open || (inner && !moreD.open)) return;
@@ -573,11 +612,13 @@ async function drawCharts(root) {
     };
     d.addEventListener('toggle', draw);
     if (inner) { moreD.addEventListener('toggle', draw); moreDraw.push(draw); more.push(h('div', { style: { borderTop: '1px solid var(--ln)', marginTop: '10px', paddingTop: '10px' } }, d)); continue; }
+    if (sp.id === 'bp') { late.push([h('div.card', d), draw]); continue; }
     root.append(h('div.card', d));
     draw();
   }
   if (more.length) { moreD.append(...more); root.append(h('div.card', moreD)); moreDraw.forEach(f => f()); }
   root.append(ltCard(ltSp));
+  for (const [c, draw] of late) { root.append(c); draw(); }
 }
 
 function chartDefaults() {
@@ -594,6 +635,7 @@ function ltCard(sp) {
   const cv = h('canvas', { style: { touchAction: 'pan-y' } });
   const card = longTermStatusCard([h('div', { style: { position: 'relative', height: '250px', marginTop: '10px' } }, cv)], '圖：' + sp.note);
   const d = card.querySelector('details');
+  d.dataset.chart = 1;
   let chart = null;
   const draw = () => { if (chart || !d.open) return; try { chart = new Chart(cv, sp.cfg); live.push(chart); } catch (e) { cv.after(h('div.notice', '圖表產生失敗：' + (e.message || e))); } };
   d.addEventListener('toggle', draw);

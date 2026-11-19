@@ -1,6 +1,7 @@
 /* 設定分頁：個人資料與預算、AI 辨識、常用食物庫、外觀、資料、免責聲明 */
 import { S, L, commit, commitLocal, plan, currentWeight } from '../state.js';
 import { h, icon, toast, fold, pills, val, $, section, sumLine, kvTable, sectionBudget, tip, setFolds } from './common.js';
+import { aiSelect, aiName, askAiForKey } from './aishare.js';
 import { ACTIVITY_LEVELS, BUDGET } from '../config.js';
 import { bmrMifflin, ageFrom, proteinGoal } from '../points.js';
 import { libraryManager } from './library.js';
@@ -191,6 +192,7 @@ function aiCard() {
     } catch (e) { out.textContent = ''; out.append(h('div.notice', '✗ ' + (e.message || e))); }
     test.disabled = false;
   };
+  const teach = h('button.ghost.one', { type: 'button', onclick: askAiForKey }, '讓 ' + aiName() + ' 教我');
   drawSumAI();
   return section('ai', 'AI 辨識食物', sumEl, [
     h('label', { style: { marginTop: 0 } }, 'API 金鑰'), h('div.row', h('div.grow', key), eye),
@@ -199,8 +201,10 @@ function aiCard() {
     h('label.row', { style: { color: 'var(--tx)', marginTop: '8px', fontSize: '15px' } }, adv, '記錄後給飲食建議'),
     fold('ai-adv', h('span.small.mu', '進階設定'), [h('label', '連線方式（通常不用改）'), api]),
     test, out,
-    h('a.small.one', { href: 'apikey.html', style: { display: 'block', marginTop: '12px', color: 'var(--ac-tx)', fontWeight: 600 } }, '怎麼申請 API 金鑰（免費）›'),
-    tip('API 金鑰是使用 Google AI 的通行碼，像密碼一樣不要給別人。它只存在這支手機，不會放進存檔。照片和文字會直接從你的手機送到 Google 辨識。金鑰可以到 Google AI Studio 免費申請。測試連線會請 AI 估算「一顆水煮蛋」。「速度優先」會讓 AI 少想一點，照片也縮小成 512 像素再送出，回得比較快。')], !L.geminiKey);
+    h('label', '預設 AI（回診報告、教學用）'), aiSelect(() => { teach.textContent = '讓 ' + aiName() + ' 教我'; }),
+    h('div.grid2', { style: { marginTop: '10px' } },
+      h('button.ghost.one', { type: 'button', onclick: () => { location.href = 'apikey.html'; } }, '申請說明頁'), teach),
+    tip('API 金鑰是使用 Google AI 的通行碼，像密碼一樣不要給別人。它只存在這支手機，不會放進存檔。照片和文字會直接從你的手機送到 Google 辨識。金鑰可以到 Google AI Studio 免費申請。測試連線會請 AI 估算「一顆水煮蛋」。「讓 AI 教我」會複製一段提示詞並打開你選的預設 AI，貼上送出後它會一步一步教你。預設 AI 也是圖表頁「傳給 AI」要送去的地方。「速度優先」會讓 AI 少想一點，照片也縮小成 512 像素再送出，回得比較快。')], !L.geminiKey);
 }
 
 /* ---------- 外觀與資料 ---------- */
