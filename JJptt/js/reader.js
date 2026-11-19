@@ -649,6 +649,7 @@ PttReader.prototype.bgNext = function() {
     doc.jjFromTerm = true;
     var article = self.articleFromDoc(doc, r.url);
     job.entry.done = true;
+    job.entry.doneAt = Date.now();
     job.resolve(article);
     self.bgArrived(job);
     console.log('JJptt 背景預讀好了：' + job.board + ' 第 ' + job.num + ' 篇「' + (article.meta['標題'] || '') + '」' + (Date.now() - t0) + 'ms');
@@ -758,8 +759,11 @@ PttReader.prototype.takePrefetch = function(h) {
     return article;
   });
   p.catch(function() {});  // not waited for when the article's address is known
+  // read ahead on the BBS a while ago: its pushes are read again once shown
+  p.stale = !!(hit.bg && Date.now() - (hit.doneAt || hit.at) > PttReader.STALE_MS);
   return p;
 };
+PttReader.STALE_MS = 20000;
 
 PttReader.articleUrl = function(url) {
   return String(url || '').replace(/[?#].*$/, '');
@@ -843,7 +847,34 @@ PttReader.prototype.canReadTerminal = function(err) {
   return PttReader.webDown(err) && !lib.isApp() && typeof JJPtt !== 'undefined' &&
     !!(this.app.conn && this.app.buf && this.app.buf.pageState == 3);
 };
-PttReader.TERM_RENDER_MS = 1500;  // re-draw the growing article at most this often
+PttReader.TERM_RENDER_MS = 1500;
+
+// A copy read ahead a while ago is showing: the terminal (on the same
+// article, first page) is paged through quietly, and the article drawn again
+// in place when it has more pushes; then reading ahead goes on.
+PttReader.prototype.refreshFromTerminal = function(key, old) {
+  var self = this;
+  if (this.termReading || typeof JJPtt === 'undefined' || !this.app.conn || this.app.buf.pageState != 3) return false;
+  var t = new JJPtt(this.app);
+  var gone = function() { return self.currentKey !== key || self.article !== old; };
+  var h = this.renderedHeader || this.lastHeader;
+  this.termReading = true;
+  return t.readPages(function() { if (gone()) return false; }).then(function(lines) {
+    self.termReading = false;
+    if (lines.stopped || gone()) return;
+    var doc = new DOMParser().parseFromString(JJPtt.articleHtml(lines), 'text/html');
+    doc.jjFromTerm = true;
+    var fresh = self.articleFromDoc(doc, old.url || self.lastUrl || '', false);
+    var prev = t.screen();
+    t.send('\x1b[1~');  // back to the first page, where the header is
+    if (fresh.pushes.length > old.pushes.length) {
+      self.article = fresh;
+      self.rerender();
+    }
+    if (h) self.prefetchNeighbours(h);
+    return t.settle(prev, 1500);
+  }, function() { self.termReading = false; });
+};  // re-draw the growing article at most this often
 PttReader.prototype.terminalArticle = function(url, key, h) {
   var self = this;
   var t = new JJPtt(this.app);
@@ -1303,7 +1334,8 @@ PttReader.prototype.openFor = function(h, key, manual) {
     self.render(article, h);
     self.show();
     self.restorePosition();
-    self.prefetchNeighbours(h);
+    if (how === 'prefetch' && pre.stale) self.refreshFromTerminal(key, article);
+    else self.prefetchNeighbours(h);
     PttReader.lastTiming.renderMs = Date.now() - tFetched;
     console.log('JJptt 閱讀模式載入：' + (how === 'url' ? '直接用文章網址' : how === 'prefetch' ? '列表預先載入' : '搜尋網址＋下載') +
       ' ' + PttReader.lastTiming.fetchMs + 'ms，排版 ' + PttReader.lastTiming.renderMs + 'ms');

@@ -289,6 +289,7 @@ JJMobile.prototype.getArticle = function(url, onPartial, bg) {
     }
   });
   entry.promise = p;
+  p.then(function() { entry.at = Date.now(); }, function() {});  // how old its pushes are
   this.articles[url] = entry;
   p.catch(function() { if (self.articles[url] === entry) delete self.articles[url]; });
   var keys = Object.keys(this.articles);

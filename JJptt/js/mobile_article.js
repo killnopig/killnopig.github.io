@@ -27,7 +27,8 @@ JJMobile.prototype.renderArticle = function(screen) {
     shown = true;
     draw(article, 'PTT 網頁版現在故障，從 BBS 連線讀取中… ' + i + '／' + n + ' 頁');
   };
-  this.getArticle(screen.url, partial).then(function(article) {
+  var key = screen.url;
+  this.getArticle(key, partial).then(function(article) {
     if (!v.isConnected) return;
     wait.remove();
     // opened from a list read on the BBS: its www.ptt.cc address (Q) is
@@ -35,12 +36,39 @@ JJMobile.prototype.renderArticle = function(screen) {
     if (JJPtt.isTermUrl(screen.url) && article.url && !JJPtt.isTermUrl(article.url)) screen.url = article.url;
     if (shown) draw(article);
     else self.fillArticle(screen, article);
-    if (screen.list) self.prefetchList(screen.list, screen.index + 1);
+    if (!self.freshen(screen, article, key) && screen.list) self.prefetchList(screen.list, screen.index + 1);
   }).catch(function(err) {
     wait.remove();
     self.failed(v, err, function() { self.reload(screen); });
   });
   this.swipeArticles(screen);
+};
+
+// An article read ahead a while ago (pushes keep coming): read again and
+// drawn again, the place kept, once it has more pushes. True when it does
+// (reading ahead goes on after it).
+JJMobile.STALE_MS = 20000;
+JJMobile.prototype.freshen = function(screen, article, key) {
+  var self = this;
+  var c = this.articles[key];
+  if (!c || Date.now() - c.at < JJMobile.STALE_MS) return false;
+  delete this.articles[key];
+  var url = article.fromTerm || JJPtt.isTermUrl(key) ? key : key + (key.indexOf('?') < 0 ? '?' : '&') + '_=' + Date.now();
+  var p = this.getArticle(url);
+  if (url !== key) this.articles[key] = this.articles[url];
+  p.then(function(fresh) {
+    if (!fresh.url || JJPtt.isTermUrl(fresh.url)) fresh.url = article.url;
+    var v = screen.view;
+    if (!v.isConnected || screen.article !== article) return;
+    if ((fresh.pushes || []).length <= (article.pushes || []).length) return;
+    var top = v.scrollTop;
+    v.innerHTML = '';
+    self.fillArticle(screen, fresh);
+    v.scrollTop = top;
+  }, function() {}).then(function() {
+    if (screen.list && screen.view.isConnected) self.prefetchList(screen.list, screen.index + 1);
+  });
+  return true;
 };
 
 JJMobile.prototype.fillArticle = function(screen, article) {
