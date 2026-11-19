@@ -449,7 +449,11 @@ JJPtt.prototype.ensureIn = function() {
 
 // ---- getting to an article --------------------------------------------------------------
 
-JJPtt.prototype.toArticle = function(url) {
+// The cursor is then checked (Q: the 文章網址 of the article under it): a
+// list still in a search (a filtered list read on the BBS before) has the
+// AID land on another article nearby, which was opened -- and pushed to --
+// instead. Then out of the search (←) and once more; never the wrong one.
+JJPtt.prototype.toArticle = function(url, again) {
   var self = this;
   var board = JJPtt.boardFromUrl(url);
   var aid = JJPtt.aidFromUrl(url);
@@ -466,7 +470,39 @@ JJPtt.prototype.toArticle = function(url) {
     return self.settle(prev, 1500);
   }).then(function() {
     if (/找不到這個文章代碼|找不到|沒有這篇/.test(self.screen())) throw new Error('在 PTT 上找不到這篇文章');
+    return self.urlHere();
+  }).then(function(here) {
+    if (JJPtt.sameArticle(here, url)) return;
+    console.log('JJptt BBS 文章代碼跳到別篇', url, here);
+    if (again) throw new Error('PTT 跳到別篇文章了，請再試一次');
+    var prev = self.screen();
+    self.send('\x1b[D');  // out of a search (or out of the board: toBoard goes back in)
+    self.listQuery = '';
+    return self.settle(prev, 2000).then(function() { return self.toArticle(url, true); });
   });
+};
+
+// The 文章網址 of the article under the list's cursor (Q, then any key
+// closes the box).
+JJPtt.prototype.urlHere = function() {
+  var self = this, here = '';
+  var prev = this.screen();
+  this.send('Q');
+  return this.wait({ url: JJPtt.URL_IN_BOX }, 5000, prev, '找文章網址').then(function() {
+    here = JJPtt.URL_IN_BOX.exec(self.screen())[0].replace(/^http:/, 'https:');
+    var p2 = self.screen();
+    self.send(' ');
+    return self.settle(p2, 1500);
+  }).then(function() { return here; });
+};
+
+// Two www.ptt.cc addresses of the same article (http / https, ?query aside).
+JJPtt.sameArticle = function(a, b) {
+  var key = function(u) {
+    var m = /\/bbs\/([\w\-]+)\/([MG]\.\d+\.A\.[0-9A-Fa-f]+)\.html/.exec(u || '');
+    return m ? (m[1] + '/' + m[2]).toLowerCase() : '';
+  };
+  return !!key(a) && key(a) === key(b);
 };
 
 // A question PTT left open on the bottom line (a push's text or its
@@ -1298,16 +1334,10 @@ JJPtt.prototype.termArticle = function(url, want, opts) {
         return self.toList(decodeURIComponent(m[1]), m[3] ? decodeURIComponent(m[3]) : '').then(function() {
           return self.cursorTo(+m[2], want, byAuthor);
         }).then(function() {
-          // Q: the article's 文章網址 (for pushing and replying), any key closes it
-          var prev = self.screen();
-          self.send('Q');
-          return self.wait({ url: JJPtt.URL_IN_BOX }, 5000, prev, '找文章網址');
-        }).then(function() {
-          real = JJPtt.URL_IN_BOX.exec(self.screen())[0].replace(/^http:/, 'https:');
-          var prev = self.screen();
-          self.send(' ');
-          return self.settle(prev, 1500);
-        }).then(function() {
+          // the article's 文章網址 (for pushing and replying)
+          return self.urlHere();
+        }).then(function(here) {
+          real = here;
           return self.readHere(onPage);
         }).then(function(lines) {
           // the list said one article, PTT opened another (its list changed
