@@ -1,6 +1,6 @@
 /* 一餐回饋：加入或修改一餐後在背景產生，存在該餐第一個品項的 advice 欄位 */
 import { S, L, commit, commitLocal, plan } from '../state.js';
-import { h, fold, hm } from './common.js';
+import { h, fold, hm, startClosed } from './common.js';
 import { usage, localDate } from '../points.js';
 import { adviceContext, fallbackAdvice } from '../advice.js';
 import { mealAdvice } from '../gemini.js';
@@ -61,8 +61,14 @@ export function latestAdviceCard(bare = false) {
   const sig = g + '|' + (a.cheer || '');
   const seen = L.adviceSeen !== sig;
   if (seen) { L.adviceSeen = sig; commitLocal(); }
+  if (bare) {   // 今日頁：收成一行，點了才看全文（每次打開 app 都先收起來）
+    startClosed('advice');
+    card.append(fold('advice', h('div.grow.one', { style: { color: 'var(--ac-tx)', fontWeight: 600 } }, h('span.mu.small', { style: { fontWeight: 400 } }, hm(last.at) + '・'), a.cheer || '這一餐記好了。'),
+      [h('div.mu.tiny', { style: { marginTop: '6px' } }, names), ...body], { open: false }));
+    return card;
+  }
   card.append(fold('advice', h('div.grow',
     h('div.mu.tiny', hm(last.at) + ' · ' + names),
-    h(bare ? 'div.one' : 'div', { style: { color: 'var(--ac-tx)', fontWeight: 600, marginTop: '2px' } }, a.cheer || '這一餐記好了。')), body, { open: false, force: seen && !bare }));
+    h('div', { style: { color: 'var(--ac-tx)', fontWeight: 600, marginTop: '2px' } }, a.cheer || '這一餐記好了。')), body, { open: false, force: seen }));
   return card;
 }

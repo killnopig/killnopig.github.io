@@ -109,7 +109,7 @@ async function checkUpdate() {
     const r = await fetch(u.href + '?t=' + Date.now(), { cache: 'no-store' });
     if (!r.ok) return;
     const m = (await r.text()).match(/APP_VERSION\s*=\s*'(\d+\.\d+\.\d+)'/);
-    if (m && m[1] !== APP_VERSION) { updShown = true; $('nv').textContent = m[1]; $('upd').style.display = 'block'; }
+    if (m && m[1] !== APP_VERSION) { updShown = true; $('nv').textContent = 'v' + m[1]; $('upd').style.display = 'inline-block'; }
   } catch (e) { /* 離線時略過 */ }
 }
 $('upd').onclick = () => location.replace(location.pathname + '?v=' + Date.now());

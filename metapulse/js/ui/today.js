@@ -57,7 +57,7 @@ function mealRow(m) {
     m.thumb ? h('img.thumb', { src: m.thumb, alt: '' }) : null,
     h('div.grow',
       h('div', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, m.items.map(i => i.name).join('、')),
-      h('div.mu.tiny.num', (m.pending ? '預計 ' + hm(m.at) + ' 吃' : hm(m.at)) + ' · ' + Math.round(m.kcal) + ' 大卡 · 蛋白質 ' + r1(m.protein) + ' g')),
+      h('div.mu.tiny.num.one', (m.pending ? '預計 ' + hm(m.at) + ' 吃' : hm(m.at)) + '・' + Math.round(m.kcal) + ' 大卡・蛋白質 ' + Math.round(m.protein) + ' g')),
     h('span.pts.num', fmtPts(m.points), h('span.mu.tiny', ' 點')));
 }
 

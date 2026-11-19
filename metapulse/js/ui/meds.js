@@ -23,12 +23,12 @@ export function medCard() {
   const list = medStatus();
   if (!list.length) return null;
   const urgent = list.some(x => x.due);
-  const card = h('div.card', urgent ? { style: { borderColor: 'var(--warn)', borderWidth: '2px', position: 'sticky', top: document.documentElement.classList.contains('native') ? '36px' : '6px', zIndex: 6, boxShadow: '0 4px 14px rgba(0,0,0,.12)' } } : null);
-  card.append(h('h2', { style: { margin: '0 0 6px' } }, urgent ? '該吃藥了' : '今天的藥'));
+  const card = h('div.card.med', urgent ? { style: { borderColor: 'var(--warn)', borderWidth: '2px', position: 'sticky', top: document.documentElement.classList.contains('native') ? '36px' : '6px', zIndex: 6, boxShadow: '0 4px 14px rgba(0,0,0,.12)' } } : null);
+  card.append(h('h2', { style: { margin: '0 0 4px' } }, urgent ? '該吃藥了' : '今天的藥'));
   for (const x of list) {
     const m = x.med;
     if (x.log) {
-      const row = h('div.row.between.small', { style: { padding: '6px 0', color: 'var(--ac-tx)', fontWeight: 600 } }, h('span.one', '✓ ' + m.time + ' ' + m.name + '・' + hm(x.log.at) + ' 已服用'));
+      const row = h('div.row.between.small', { style: { padding: '4px 0', color: 'var(--ac-tx)', fontWeight: 600 } }, h('span.one', '✓ ' + m.time + ' ' + m.name + '・' + hm(x.log.at) + ' 已服用'));
       const undo = h('button.link.small', { type: 'button' }, '取消');
       undo.onclick = () => {
         if (!undo.dataset.c) { undo.dataset.c = 1; undo.textContent = '再按一次'; setTimeout(() => { undo.dataset.c = ''; undo.textContent = '取消'; }, 3000); return; }
@@ -36,13 +36,13 @@ export function medCard() {
       };
       row.append(undo); card.append(row);
     } else {
-      const take = h('button' + (x.due ? '.pri' : '.ghost'), { type: 'button', style: { padding: '8px 14px', flex: '0 0 auto', ...(x.late ? { background: 'var(--warn)', color: 'var(--on-warn)' } : {}) } }, '已服用');
+      const take = h('button' + (x.due ? '.pri' : '.ghost'), { type: 'button', style: { padding: '5px 12px', flex: '0 0 auto', ...(x.late ? { background: 'var(--warn)', color: 'var(--on-warn)' } : {}) } }, '已服用');
       take.onclick = () => {
         S.medLog = S.medLog || [];
         S.medLog.push({ id: uid('k'), med: m.id, date: localDate(new Date()), at: new Date().toISOString() });
         commit(); toast('✓ 已記錄：' + m.name);
       };
-      card.append(h('div.row.between', { style: { padding: '4px 0', gap: '10px' } },
+      card.append(h('div.row.between', { style: { padding: '3px 0', gap: '10px' } },
         h('span.one', { style: { fontWeight: x.due ? 650 : 400, color: x.late ? 'var(--warn)' : '' } }, m.time + ' ' + m.name + (x.late ? '・還沒吃' : '')), take));
     }
   }
