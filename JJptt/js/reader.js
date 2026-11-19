@@ -292,7 +292,8 @@ PttReader.prototype.fetchDoc = function(url, opts) {
   // so it is used again once it is back; what the BBS can't do still
   // goes to the web site
   var ptt = this.termSource();
-  if (PttReader.webRecentlyDown(PttReader.webKind(url)) && ptt && ptt.user) {
+  // (still logging in: termDoc waits for it)
+  if (PttReader.webRecentlyDown(PttReader.webKind(url)) && ptt && (ptt.user || ptt.loggingIn)) {
     this.probeWeb(url);
     return this.termDoc(url, { webStatus: PttReader.webDownStatus }, opts).catch(function(err) {
       if (!err || !err.termCant) throw err;
@@ -304,14 +305,18 @@ PttReader.prototype.fetchDoc = function(url, opts) {
 
 // www.ptt.cc not answering at all counts as down after this long.
 PttReader.WEB_TIMEOUT_MS = 10000;
+// Other kinds of pages failing a moment ago (app): this one is given less.
+PttReader.WEB_TIMEOUT_SHORT_MS = 800;
 PttReader.prototype.webDocTimed = function(url) {
   var self = this;
+  var ms = PttReader.WEB_TIMEOUT_MS;
+  if (lib.isApp() && PttReader.webRecentlyDown()) ms = PttReader.WEB_TIMEOUT_SHORT_MS;
   return new Promise(function(resolve, reject) {
     var timer = setTimeout(function() {
       var e = new Error('PTT 網頁版沒有回應');
       e.webTimeout = true;
       reject(e);
-    }, PttReader.WEB_TIMEOUT_MS);
+    }, ms);
     self.webDoc(url).then(function(d) { clearTimeout(timer); resolve(d); },
                           function(e) { clearTimeout(timer); reject(e); });
   });
@@ -360,12 +365,32 @@ PttReader.webDownBy = {};
 PttReader.markWebDown = function(url) {
   PttReader.webDownAt = Date.now();
   PttReader.webDownBy[PttReader.webKind(url)] = PttReader.webDownAt;
+  PttReader.saveWebDown();
 };
 PttReader.markWebUp = function(url) {
   delete PttReader.webDownBy[PttReader.webKind(url)];
   var last = 0;
   for (var k in PttReader.webDownBy) last = Math.max(last, PttReader.webDownBy[k]);
   PttReader.webDownAt = last;
+  PttReader.saveWebDown();
+};
+// Kept over a restart of the app, so its first pages don't wait for the
+// web site to fail again.
+PttReader.WEB_DOWN_KEY = 'jjWebDown';
+PttReader.saveWebDown = function() {
+  if (!lib.isApp()) return;
+  try { localStorage.setItem(PttReader.WEB_DOWN_KEY, JSON.stringify(PttReader.webDownBy)); } catch (e) {}
+};
+PttReader.loadWebDown = function() {
+  if (!lib.isApp()) return;
+  try {
+    var by = JSON.parse(localStorage.getItem(PttReader.WEB_DOWN_KEY) || '{}') || {};
+    for (var k in by) {
+      if (typeof by[k] !== 'number') continue;
+      PttReader.webDownBy[k] = by[k];
+      PttReader.webDownAt = Math.max(PttReader.webDownAt, by[k]);
+    }
+  } catch (e) {}
 };
 
 // The app's background PTT connection (JJPtt), when there is one.

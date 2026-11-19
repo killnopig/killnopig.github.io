@@ -185,6 +185,7 @@ JJMobile.prototype.setup = function() {
 };
 
 JJMobile.prototype.start = function() {
+  PttReader.loadWebDown();  // www.ptt.cc down before the app was closed
   this.open({ type: 'home' });
   this.autoLogin();
   this.checkUpdate(false);

@@ -71,6 +71,14 @@ JJMobile.prototype.freshen = function(screen, article, key) {
   return true;
 };
 
+// 推文 N, then how many 推 / 噓 / →: the list's number is 推 minus 噓
+// (→ not counted), so it rarely equals N.
+JJMobile.pushTally = function(pushes) {
+  var n = { '推': 0, '噓': 0, '→': 0 };
+  pushes.forEach(function(p) { if (p.tag in n) n[p.tag]++; });
+  return '推文 ' + pushes.length + (pushes.length ? '　推 ' + n['推'] + '・噓 ' + n['噓'] + '・→ ' + n['→'] : '');
+};
+
 JJMobile.prototype.fillArticle = function(screen, article) {
   var self = this;
   var el = JJMobile.el;
@@ -119,8 +127,7 @@ JJMobile.prototype.fillArticle = function(screen, article) {
           v.appendChild(body);
           v.appendChild(rep);
         }
-        var count = (article.pushes || []).length;
-        var title = el('div', 'jjm-section', '推文 ' + count);
+        var title = el('div', 'jjm-section', JJMobile.pushTally(article.pushes || []));
         if (!rep) v.appendChild(body);
         v.appendChild(title);
         pushList = el('div', 'jjm-pushes');
