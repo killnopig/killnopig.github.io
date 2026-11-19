@@ -120,6 +120,30 @@ JJPtt.prototype.steady = function(ms) {
 // Resolves once nothing has come from PTT for `ms` (at most `max`): a page
 // arrives in several pieces, more slowly on a phone's network, and one read
 // half drawn mixes rows of two pages. Without lastDataAt: steady().
+// Keys that may leave the screen as it is (End at the newest, a number
+// already under the cursor): PTT sends nothing back then, and settle()
+// waited its whole time (2 s). A Ctrl-L after them makes PTT redraw: once
+// that comes in and stops, the keys are done. Without lastDataAt (tests):
+// settle().
+JJPtt.prototype.sendSync = function(keys, ms) {
+  var app = this.app, self = this;
+  if (typeof app.lastDataAt !== 'number') {
+    var prev = this.screen();
+    this.send(keys);
+    return this.settle(prev, ms);
+  }
+  var d0 = app.lastDataAt, until = Date.now() + (ms || 2000);
+  this.send(keys + '\x0c');
+  return new Promise(function(resolve) {
+    var tick = function() {
+      if (Date.now() > until || !self.connected()) return resolve();
+      if (app.lastDataAt > d0 && Date.now() - app.lastDataAt >= 60) return resolve();
+      setTimeout(tick, 20);
+    };
+    setTimeout(tick, 20);
+  });
+};
+
 JJPtt.prototype.quiet = function(ms, max) {
   var app = this.app, self = this;
   if (typeof app.lastDataAt !== 'number') return this.steady(ms);
@@ -322,7 +346,7 @@ JJPtt.prototype.doLogin = function(user, pass) {
 
 // After the password: answer what PTT asks until the main menu.
 // Where a login can end besides the main menu (an account's own setting).
-JJPtt.LANDED = /【\s*(分類看板|看板列表|我\s*的\s*最愛|熱門看板)\s*】|看板《[^》]+》|文章選讀/;
+JJPtt.LANDED = /【\s*(分類看板|看板列表|我\s*的\s*最愛|熱門看板)\s*】|(?:看板|系列)《[^》]+》|文章選讀|文章列表|系列文章/;
 
 JJPtt.prototype.pastLogin = function(before, mark, accepted) {
   var self = this;
@@ -526,13 +550,20 @@ JJPtt.prototype.toBoard = function(board) {
   // already in its article list (e.g. back from the last article read)
   // -- inside a search there, ← goes back to the whole list (pttbbs
   // read_cmd_quit: all conditions at once)
+  // The list's footer tells which: 「文章列表」 the whole list, 「系列文章」
+  // a search (what this.listQuery says can be out of date: a job stopped
+  // half way, an error) -- and s into the same board keeps the search, so
+  // the next search was added to it (找不到符合條件的文章) and an AID
+  // landed on an article nearby. depth: ← at most a few times.
+  var depth = arguments[1] || 0;
   if (this.inList(board)) {
-    if (!this.listQuery) return Promise.resolve();
+    var foot = this.listFoot();
+    if (foot !== 'search' && (foot === 'list' || !this.listQuery)) { this.listQuery = ''; return Promise.resolve(); }
     var prev0 = this.screen();
     this.send('\x1b[D');
     this.listQuery = '';
     return this.settle(prev0, 2000).then(function() {
-      if (!self.inList(board)) return self.toBoard(board);
+      if (depth < 3) return self.toBoard(board, depth + 1);
     });
   }
   this.listQuery = '';
@@ -541,8 +572,10 @@ JJPtt.prototype.toBoard = function(board) {
   return this.clearPrompt().then(function() {
     // an article (a board list's footer says (y)回應 too: stay there)
     var now = self.screen();
-    if (/瀏覽 第/.test(now) || (/\(y\)回應/.test(now) && !/文章選讀/.test(now))) self.send('q');
-    return JJPtt.sleep(200);
+    if (/瀏覽 第/.test(now) || (/\(y\)回應/.test(now) && !/文章選讀|文章列表|系列文章/.test(now))) {
+      self.send('q');
+      return self.settle(now, 1000);
+    }
   }).then(function() {
     if (/【\s*主功能表\s*】|主功能表/.test(self.screen())) return self.enterFavorites();
   }).then(function() {
@@ -555,7 +588,7 @@ JJPtt.prototype.toBoard = function(board) {
   }).then(function() {
     self.type(board + '\r');
     var name = board.replace(/[^\w-]/g, '');
-    var boardRe = new RegExp('看板《' + name + '》', 'i');
+    var boardRe = new RegExp('(?:看板|系列)《' + name + '》', 'i');
     // in 我的最愛 / 看板列表, s only moves the cursor onto the board: → goes in
     var cursorRe = new RegExp('^\\s*>\\s*\\d+\\s+[ˇ∨\\s]?\\s*' + name + '\\s', 'mi');
     var until = Date.now() + 15000, moved = 0;
@@ -566,7 +599,7 @@ JJPtt.prototype.toBoard = function(board) {
         hurdle: /按任意鍵|請按任意鍵|按任一鍵/,
         // the board's own article list (its header names the 板主); a
         // board list's header can name the board under the cursor too
-        inboard: /【\s*板主|文章選讀/,
+        inboard: /【\s*板主|文章選讀|文章列表|系列文章/,
         cursor: cursorRe
       }, 10000, undefined, '進 ' + board + ' 板').then(function(k) {
         if (k === 'none') throw new Error('沒有 ' + board + ' 這個看板');
@@ -588,6 +621,9 @@ JJPtt.prototype.toBoard = function(board) {
       });
     };
     return step();
+  }).then(function() {
+    // in, but still in the search it was in before (s keeps it)
+    if (self.listFoot() === 'search' && depth < 3) return self.toBoard(board, depth + 1);
   });
 };
 
@@ -637,7 +673,7 @@ JJPtt.prototype.typeAndSave = function(lines, endWithNewline) {
       done: /順利貼出|貼出佈告|文章已發表/,
       sign: /請選擇簽名檔/,
       hurdle: /按任意鍵|請按任意鍵/,
-      list: /文章選讀|看板《/
+      list: /文章選讀|文章列表|系列文章|看板《/
     }, function(k) {
       if (k === 'no') throw new Error('這個板不能發文');
       if (k === 'done' || k === 'list') {
@@ -684,7 +720,7 @@ JJPtt.prototype.push = function(url, kind, text) {
       self.type(text + '\r');
       // the list header says 看板《…》 all along: only its footer coming
       // back (文章選讀) or the 確定 question is PTT's answer
-      return self.wait({ confirm: /確定.*\[y\/n\]|確定要/i, done: /文章選讀/ }, 8000, before, '送出推文');
+      return self.wait({ confirm: /確定.*\[y\/n\]|確定要/i, done: /文章選讀|文章列表|系列文章/ }, 8000, before, '送出推文');
     }).then(function(k) {
       if (k !== 'confirm') return;
       return self.confirmPush();
@@ -718,7 +754,7 @@ JJPtt.prototype.confirmPush = function() {
   return this.wait({
     no: bottom(/太快|間隔|禁止|無法|不能|失敗|權限/),
     hurdle: bottom(/按任意鍵|請按任意鍵|按任一鍵/),
-    done: /文章選讀|瀏覽 第/,
+    done: /文章選讀|文章列表|系列文章|瀏覽 第/,
     gone: { test: function() { return self.screen() !== before && !JJPtt.CONFIRM.test(self.lastLine()); } }
   }, 8000, before, '確定推文').then(function(k) {
     if (k === 'no') throw new Error('PTT 沒讓這則推文出去：' + self.lastLine().replace(/\s+/g, ' ').slice(0, 40));
@@ -1171,10 +1207,8 @@ JJPtt.prototype.boardPage = function(board, before, query) {
         throw e;
       });
     }).then(function() {
-      var prev = self.screen();
       // a number then Enter jumps there; End: the newest article
-      self.send(before > 1 ? String(before - 1) + '\r' : '\x1b[4~');
-      return self.settle(prev, 2000);
+      return self.sendSync(before > 1 ? String(before - 1) + '\r' : '\x1b[4~', 2000);
     }).then(function() {
       var buf = self.app.buf, rows = [], low = 0;
       for (var r = 1; r < (buf.rows || 24) - 1; ++r) {
@@ -1201,7 +1235,7 @@ JJPtt.prototype.toList = function(board, query) {
   var self = this;
   var cmd = JJPtt.searchCmd(query);
   query = cmd ? String(query).trim() : '';
-  if (query && this.listQuery === query && this.inList(board)) return Promise.resolve();
+  if (query && this.listQuery === query && this.inList(board) && this.listFoot() !== 'list') return Promise.resolve();
   return this.toBoard(board).then(function() {
     if (!cmd) return;
     var prev = self.screen();
@@ -1209,7 +1243,7 @@ JJPtt.prototype.toList = function(board, query) {
     return self.wait({ ask: cmd.ask }, 5000, prev, '搜尋').then(function() {
       var p2 = self.screen();
       self.type(cmd.text + '\r');
-      return self.settle(p2, 3000);
+      return self.searched(p2);
     }).then(function() {
       // nothing found, or not searched (pttbbs select_read): a message to
       // close, and the whole list still there -- not the search's
@@ -1228,10 +1262,31 @@ JJPtt.prototype.toList = function(board, query) {
 };
 JJPtt.SEARCH_FAIL = /找不到符合條件的文章|搜尋服務異常[^\n]*|已達搜尋條件上限|未搜尋/;
 
+// After a search's words and Enter: done once the list's footer is back at
+// the bottom (or PTT says it found nothing) -- not when the screen first
+// changes, which is only the echo of the words typed (「…的文章: 10」):
+// the search itself takes PTT a moment more, and the keys sent meanwhile
+// went into the question or were lost (searches piled up, 找不到, another
+// article opened).
+JJPtt.prototype.searched = function(prev) {
+  var self = this;
+  return this.wait({ done: /文章選讀|文章列表|系列文章/, fail: JJPtt.SEARCH_FAIL }, 10000, prev, '搜尋').then(function() {
+    return self.quiet(60, 500);
+  });
+};
+
+// The list's footer: 'list' (文章列表, the whole list), 'search' (系列文章),
+// or '' (another footer, e.g. 文章選讀, or none).
+JJPtt.prototype.listFoot = function() {
+  var lines = this.screen().split('\n').filter(function(l) { return l.trim(); });
+  var last = lines[lines.length - 1] || '';
+  return /系列文章/.test(last) ? 'search' : /文章列表/.test(last) ? 'list' : '';
+};
+
 // In `board`'s article list (a search in it too), nothing asked at the bottom.
 JJPtt.prototype.inList = function(board) {
   var here = this.screen(), lines = here.split('\n').filter(function(l) { return l.trim(); });
-  return new RegExp('看板《' + board + '》', 'i').test(here) && /文章選讀/.test(here) && !/瀏覽 第/.test(here) &&
+  return new RegExp('(?:看板|系列)《' + board + '》', 'i').test(here) && /文章選讀|文章列表|系列文章/.test(here) && !/瀏覽 第/.test(here) &&
     !JJPtt.PROMPT.test(lines[lines.length - 1] || '');
 };
 
@@ -1272,8 +1327,13 @@ JJPtt.prototype.readPages = function(onPage) {
   var lastStart = 0, tries = 0;
   var page = function() {
     // PTT draws in pieces: read once nothing more comes and the screen
-    // holds still -- and only a new page (its status line moved on)
-    return self.quiet(150, 2000).then(function() { return self.steady(300); }).then(function() {
+    // holds still -- and only a new page (its status line moved on). The
+    // status line comes last (pmore draws the page, then its footer), so a
+    // new one there means the page is all in: read at once (each page
+    // waited 150 ms more, about a second for an article of five pages)
+    var st0 = status();
+    var whole = st0 && st0.rowIndexStart !== lastStart;
+    return (whole ? Promise.resolve() : self.quiet(150, 2000).then(function() { return self.steady(300); })).then(function() {
       var st = status();
       if (st && lastStart && st.rowIndexStart === lastStart && st.pagePercent < 100 && ++tries < 20) {
         return JJPtt.sleep(100).then(page);
@@ -1406,9 +1466,10 @@ JJPtt.isWanted = function(row, want) {
 JJPtt.prototype.cursorTo = function(num, want, byAuthor) {
   var self = this;
   var jump = function(n) {
-    var prev = self.screen();
-    self.send(n + '\r');
-    return self.settle(prev, 2000);
+    // already there (the newest, just searched): nothing to wait for
+    var here = self.cursorRow();
+    if (here && here.num === n && JJPtt.isWanted(here, want)) return Promise.resolve();
+    return self.sendSync(n + '\r', 2000);
   };
   return (byAuthor ? Promise.resolve() : jump(num)).then(function() {
     if (!byAuthor && JJPtt.isWanted(self.cursorRow(), want)) return;
@@ -1420,7 +1481,7 @@ JJPtt.prototype.cursorTo = function(num, want, byAuthor) {
       self.type(want.author + '\r');
       // the list is in a search now (on top of any before): toList / toBoard leave it
       self.listQuery = (self.listQuery ? self.listQuery + ' ' : '') + 'author:' + want.author;
-      return self.settle(prev, 3000);
+      return self.searched(prev);
     }).then(function() {
       var pages = 0;
       var look = function() {

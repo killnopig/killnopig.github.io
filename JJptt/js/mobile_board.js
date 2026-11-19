@@ -311,14 +311,18 @@ JJMobile.prototype.aheadCount = function() {
 JJMobile.prototype.prefetchList = function(screen, from) {
   var self = this;
   // www.ptt.cc down: each is read on the BBS, one at a time, and gives way
-  // as soon as the user opens something else; a few only. Still logging
+  // as soon as the user opens something else. Still logging
   // in (the app just opened): queued now, read once it is in (termDoc waits)
-  var down = PttReader.webRecentlyDown('article');
+  // A list read on the BBS (jjterm: links) is read there too, though the
+  // web site's articles were never marked down (they were not even tried):
+  // nothing was read ahead from such a list
+  var down = PttReader.webRecentlyDown('article') ||
+    screen.entries.some(function(e) { return JJPtt.isTermUrl(e.url); });
   var ptt = this.app.reader && this.app.reader.termSource();
   if (down && !(ptt && (ptt.user || ptt.loggingIn))) return;
-  var n = down ? Math.min(3, this.aheadCount()) : this.aheadCount() * 2;
+  var n = down ? this.aheadCount() : this.aheadCount() * 2;
   var todo = screen.entries.slice(from).filter(function(e) {
-    return e.url && !e.pinned && (down || !JJPtt.isTermUrl(e.url));
+    return e.url && !e.pinned;
   }).slice(0, n);
   var token = this.prefetchToken = {};
   var next = function() {
