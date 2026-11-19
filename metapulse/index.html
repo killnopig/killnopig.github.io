@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>MetaPulse</title>
 <meta name="description" content="MetaPulse — 飲食、斷食與用藥記錄">
-<meta name="theme-color" content="#0f7b5f">
+<meta name="theme-color" content="#c2410c">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <script>
 /* 版本號：發布新版時改這裡。版本檢查會比對線上 index.html 的這一行。 */
-window.APP_VERSION = '0.9.32';
+window.APP_VERSION = '0.9.33';
 /* 載入失敗時不要只剩空白：記下錯誤，8 秒後程式還沒啟動就顯示原因與「重新載入」 */
 (function(){var errs=[];
 addEventListener('error',function(e){var t=e.target;if(t&&t!==window&&(t.src||t.href))errs.push('載入失敗：'+(t.src||t.href).split('/').slice(-2).join('/'));else errs.push((e.message||'程式檔載入失敗（網路或舊快取）')+(e.filename?'（'+e.filename.split('/').pop().split('?')[0]+':'+e.lineno+'）':''))},true);
@@ -25,7 +25,7 @@ b.onclick=function(){location.replace(location.pathname+'?r='+Date.now())};d.app
 /* 在 MetaPulse app（APK）裡：Android 會讓畫面延伸到狀態列底下，上方要留空間 */
 try{if(window.Capacitor&&(window.Capacitor.isNativePlatform?window.Capacitor.isNativePlatform():window.Capacitor.getPlatform&&window.Capacitor.getPlatform()!=='web'))document.documentElement.classList.add('native')}catch(e){}
 /* 主題先套用，避免閃一下 */
-try{var _l=JSON.parse(localStorage.getItem('metapulse-local')||'{}');var _t=_l.theme==='auto'&&!_l.themeChosen?'light':(_l.theme||'light');if(_t==='light'||_t==='dark')document.documentElement.setAttribute('data-theme',_t);if(+_l.fontScale>0&&+_l.fontScale!==1)document.documentElement.style.zoom=_l.fontScale}catch(e){}
+try{var _l=JSON.parse(localStorage.getItem('metapulse-local')||'{}');var _t=_l.theme==='auto'&&!_l.themeChosen?'light':(_l.theme||'light');if(_t==='light'||_t==='dark')document.documentElement.setAttribute('data-theme',_t);document.documentElement.setAttribute('data-pal',_l.palette||'warm');if(+_l.fontScale>0&&+_l.fontScale!==1)document.documentElement.style.zoom=_l.fontScale}catch(e){}
 /* 每個模組加上 ?v=版本，更新後不會吃到舊的快取 */
 (function(){var f=['app','config','points','units','foods','storage','gemini','state','advice','ui/advice','records','migrate','drive','ui/log','ui/charts','ui/backup','health','ui/health','fasting','longterm','messages','ui/fasting','ui/fx','sync','omron','summary','ui/omron','ui/reset','ledger','notify','ui/meds','ui/weekly','ui/exercise','widget','lines','sounds','ui/sounds','ui/common','ui/today','ui/addMeal','ui/mealEditor','ui/settings','ui/library'],m={};
 f.forEach(function(n){m['./js/'+n+'.js']='./js/'+n+'.js?v='+window.APP_VERSION});
@@ -33,16 +33,33 @@ var s=document.createElement('script');s.type='importmap';s.textContent=JSON.str
 </script>
 <style>
 :root{
-  --bg:#f6f7f6;--card:#fff;--tx:#17201c;--mu:#66726c;--ln:#e3e7e4;--soft:#eef2ef;
-  --ac:#0f7b5f;--ac-soft:#e2f1eb;--act:#fff;--warn:#b45309;--warn-soft:#fdf1e3;--bad:#b42318;
-  --r:16px;color-scheme:light;--c1:#3b6fd8;--c3:#7c3aed;--c4:#0e7490;
+  --bg:#faf6f1;--card:#fff;--tx:#23180f;--mu:#75675a;--ln:#ece3d9;--soft:#f5ede4;
+  --ac:#c2410c;--ac-soft:#fbe8df;--act:#fff;--warn:#be123c;--warn-soft:#fde7ec;--bad:#b42318;
+  --r:16px;color-scheme:light;--c1:#2f6fd0;--c3:#7c3aed;--c4:#0e7490;
 }
+/* 色系（data-pal）：暖色系是預設；冷色系、賽博朋克另外蓋上去。淺色／深色（data-theme）照舊 */
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#0f1311;--card:#171c19;--tx:#e7ece9;--mu:#91a097;--ln:#26302b;--soft:#1e2522;
-  --ac:#3ccf9a;--ac-soft:#173328;--act:#07140f;--warn:#f0a14a;--warn-soft:#33240f;--bad:#f2766b;color-scheme:dark;--c1:#7aa2ff;--c3:#b69cff;--c4:#4fd1e8}}
+  --bg:#15100c;--card:#1f1813;--tx:#f2e9e1;--mu:#a8988a;--ln:#33281f;--soft:#271e17;
+  --ac:#ff8a5c;--ac-soft:#3a2216;--act:#1a0d06;--warn:#ff6b8a;--warn-soft:#3a1520;--bad:#ff7b72;color-scheme:dark;--c1:#7aa2ff;--c3:#b69cff;--c4:#4fd1e8}}
 :root[data-theme="dark"]{
-  --bg:#0f1311;--card:#171c19;--tx:#e7ece9;--mu:#91a097;--ln:#26302b;--soft:#1e2522;
-  --ac:#3ccf9a;--ac-soft:#173328;--act:#07140f;--warn:#f0a14a;--warn-soft:#33240f;--bad:#f2766b;color-scheme:dark;--c1:#7aa2ff;--c3:#b69cff;--c4:#4fd1e8}
+  --bg:#15100c;--card:#1f1813;--tx:#f2e9e1;--mu:#a8988a;--ln:#33281f;--soft:#271e17;
+  --ac:#ff8a5c;--ac-soft:#3a2216;--act:#1a0d06;--warn:#ff6b8a;--warn-soft:#3a1520;--bad:#ff7b72;color-scheme:dark;--c1:#7aa2ff;--c3:#b69cff;--c4:#4fd1e8}
+:root[data-pal="cool"]{
+  --bg:#f4f7fb;--card:#fff;--tx:#142033;--mu:#5f6b7d;--ln:#dfe5ee;--soft:#eaf0f7;
+  --ac:#1f5fbf;--ac-soft:#e1ecfb;--act:#fff;--warn:#b45309;--warn-soft:#fdf1e3;--bad:#b42318;--c1:#0d9488;--c3:#7c3aed;--c4:#0e7490}
+@media (prefers-color-scheme:dark){:root[data-pal="cool"]:not([data-theme="light"]){
+  --bg:#0d121a;--card:#151c27;--tx:#e6ecf5;--mu:#8f9bb0;--ln:#243044;--soft:#1b2433;
+  --ac:#6aa8ff;--ac-soft:#172a45;--act:#06101f;--warn:#f0a14a;--warn-soft:#33240f;--bad:#f2766b;--c1:#2dd4bf;--c3:#b69cff;--c4:#4fd1e8}}
+:root[data-pal="cool"][data-theme="dark"]{
+  --bg:#0d121a;--card:#151c27;--tx:#e6ecf5;--mu:#8f9bb0;--ln:#243044;--soft:#1b2433;
+  --ac:#6aa8ff;--ac-soft:#172a45;--act:#06101f;--warn:#f0a14a;--warn-soft:#33240f;--bad:#f2766b;--c1:#2dd4bf;--c3:#b69cff;--c4:#4fd1e8}
+/* 賽博朋克：固定深色底、霓虹粉紅＋青藍 */
+:root[data-pal="cyber"]{
+  --bg:#0b0716;--card:#150e26;--tx:#f1eaff;--mu:#9b8fbf;--ln:#2d2150;--soft:#1d1433;
+  --ac:#ff2bd6;--ac-soft:#3a1240;--act:#12001a;--warn:#ffd400;--warn-soft:#332b00;--bad:#ff4d6d;color-scheme:dark;--c1:#00e5ff;--c3:#b388ff;--c4:#7cff6b}
+[data-pal="cyber"] button.pri{box-shadow:0 0 14px rgba(255,43,214,.45)}
+[data-pal="cyber"] .card{border-color:#3a2a66;box-shadow:0 0 0 1px rgba(0,229,255,.06)}
+[data-pal="cyber"] .ring .c b,[data-pal="cyber"] h1{text-shadow:0 0 10px rgba(0,229,255,.55)}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.55 system-ui,-apple-system,"Segoe UI","Noto Sans TC","PingFang TC",sans-serif;

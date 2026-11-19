@@ -59,6 +59,9 @@ export function applyTheme() {
   const de = document.documentElement;
   const t = L.theme === 'auto' && !L.themeChosen ? 'light' : (L.theme || 'light');   // 預設淺色；自己選過「跟隨系統」才跟隨
   if (t === 'light' || t === 'dark') de.setAttribute('data-theme', t); else de.removeAttribute('data-theme');
+  de.setAttribute('data-pal', L.palette || 'warm');   // 色系：預設暖色系
+  const m = document.querySelector('meta[name="theme-color"]');
+  if (m) m.setAttribute('content', getComputedStyle(de).getPropertyValue('--bg').trim() || '#c2410c');
 }
 
 function field(label, input, hint) {
@@ -203,10 +206,16 @@ function aiCard() {
 function prefsCard() {
   const sumEl = sumLine();
   const TN = { auto: '跟隨系統', light: '淺色', dark: '深色' };
-  const drawSumP = () => { sumEl.textContent = TN[L.theme === 'auto' && !L.themeChosen ? 'light' : (L.theme || 'light')] + '・字體' + ({ 0.9: '小', 1: '預設', 1.15: '大', 1.3: '特大' }[+L.fontScale || 1] || '預設') + '・' + (L.keepThumbs ? '存小照片' : '不存照片'); };
+  const PN = { warm: '暖色系', cool: '冷色系', cyber: '賽博朋克' };
+  const drawSumP = () => { sumEl.textContent = PN[L.palette || 'warm'] + '・' + (L.palette === 'cyber' ? '深色' : TN[L.theme === 'auto' && !L.themeChosen ? 'light' : (L.theme || 'light')]) + '・字體' + ({ 0.9: '小', 1: '預設', 1.15: '大', 1.3: '特大' }[+L.fontScale || 1] || '預設') + '・' + (L.keepThumbs ? '存小照片' : '不存照片'); };
   const card = h('div');
   const theme = h('select', h('option', { value: 'auto' }, '跟隨系統'), h('option', { value: 'light' }, '淺色'), h('option', { value: 'dark' }, '深色'));
   theme.value = L.theme === 'auto' && !L.themeChosen ? 'light' : L.theme; theme.onchange = () => { L.theme = theme.value; L.themeChosen = true; commitLocal(); applyTheme(); drawSumP(); };
+  const pal = h('select', ...Object.entries(PN).map(([v, t]) => h('option', { value: v }, t)));
+  pal.value = L.palette || 'warm';
+  const syncTheme = () => { theme.disabled = pal.value === 'cyber'; };   // 賽博朋克固定深色
+  pal.onchange = () => { L.palette = pal.value; commitLocal(); applyTheme(); syncTheme(); drawSumP(); };
+  syncTheme();
   const FS = [['0.9', '小'], ['1', '預設'], ['1.15', '大'], ['1.3', '特大']];
   const fs = pills(FS, String(+L.fontScale || 1), v => { L.fontScale = +v; commitLocal(); document.documentElement.style.zoom = +v === 1 ? '' : v; drawSumP(); });
   const tog = (key, label, hint) => {
@@ -228,7 +237,8 @@ function prefsCard() {
   ask.onchange = () => { L.askBackup = ask.checked; commitLocal(); };
   const th = h('input', { type: 'checkbox', checked: !!L.keepThumbs });
   th.onchange = () => { L.keepThumbs = th.checked; commitLocal(); drawSumP(); };
-  card.append(h('label', { style: { marginTop: 0 } }, '外觀顏色'), theme,
+  card.append(h('label', { style: { marginTop: 0 } }, '色系'), pal,
+    h('label', '淺色／深色'), theme, tip('賽博朋克固定是深色底，選了它，「淺色／深色」就不能改。'),
     h('label', '字體大小'), fs,
     h('label', '斷食按鈕'), fxBox, soundSettings(),
     h('label.row', { style: { color: 'var(--tx)', marginTop: '14px', fontSize: '15px' } }, th, '保存餐點小照片'),
