@@ -136,7 +136,7 @@ export function fastingCard() {
     }
     card.append(h('div.row.between', h('h2', { style: { margin: 0 } }, '進食中'), f.lastMealAt ? h('span.mu.small.num', '上一餐 ' + hm(f.lastMealAt)) : null),
       h('div.small.num.one', { style: { marginTop: '2px' } }, line));
-    if (f.start) card.append(h('div.small.one', { style: { marginTop: '8px', color: 'var(--ac-tx)', fontWeight: 600 } }, eatingText(now, f.start)));
+    if (f.start) card.append(h('div.small.two', { style: { marginTop: '8px', color: 'var(--ac-tx)', fontWeight: 600 } }, eatingText(now, f.start)));
     if (pend) card.append(pend);
     card.append(startBtn(),
       h('div.row.between', { style: { marginTop: '2px' } },
@@ -160,7 +160,7 @@ export function fastingCard() {
   card.append(h('div.mu.small.num', { style: { textAlign: 'center', marginTop: '6px' } }, hm(f.start) + ' 開始 → ' + hm(e.end) + ' 預計' + (e.custom ? '（自己設的）' : '')),
     h('div.small.one', { style: { marginTop: '8px', fontWeight: 650 } }, '身體現在：' + shortStage),
     h('div.small.one', { style: { fontWeight: 600 } }, fuelText(st.index, f.start + stageStarts(shift)[st.index] * H, now, f.start)),
-    h('div.one', { style: { margin: '8px 0 2px', color: 'var(--ac-tx)', fontWeight: 650 } }, hourlyMessage(f.hours, f.start, HOURLY_MESSAGES)));
+    h('div.two', { style: { margin: '8px 0 2px', color: 'var(--ac-tx)', fontWeight: 650 } }, hourlyMessage(f.hours, f.start, HOURLY_MESSAGES)));   // 雞湯：最多兩行，整句看得到
   if (mode === 'STRICT_MANUAL' && (P.strictPlan || '16:8') === '24H' && f.hours >= FASTING.plans['24H']) card.append(h('div.notice.ok', { style: { marginTop: '8px' } }, OMAD_DONE[0]));
   if (pend) card.append(pend);
   card.append(endFastBtn(f));
