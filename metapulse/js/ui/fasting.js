@@ -2,9 +2,9 @@
 import { S, L, commit, commitLocal, plan, uid } from '../state.js';
 import { h, fold, pills, toast, tip, info3, timePick, openSheet, closeSheet } from './common.js';
 import { FASTING } from '../config.js';
-import { HOURLY_MESSAGES, OMAD_DONE } from '../messages.js';
-import { fuelText, eatingText } from '../lines.js';
-import { currentFast, openFast, checkFast, periods, mergeFasts, mergeTwoFasts, fastsBetween, targetHours, fastEnd, eatPending, pendingMeals, mealShift, stageAt, stageStarts, hourlyMessage, hybridSuggestion, eatingWindow, hm, dur } from '../fasting.js';
+import { OMAD_DONE } from '../messages.js';
+import { fuelText, eatingText, soupText } from '../lines.js';
+import { currentFast, openFast, checkFast, periods, mergeFasts, mergeTwoFasts, fastsBetween, targetHours, fastEnd, eatPending, pendingMeals, mealShift, stageAt, stageStarts, hybridSuggestion, eatingWindow, hm, dur } from '../fasting.js';
 import { openAddMeal } from './addMeal.js';
 import { timeStop, gears } from './fx.js';
 import { longTermIndex, weightTrend, longTermMessage, leanTrend, leanSummary } from '../longterm.js';
@@ -136,7 +136,7 @@ export function fastingCard() {
     }
     card.append(h('div.row.between', h('h2', { style: { margin: 0 } }, '進食中'), f.lastMealAt ? h('span.mu.small.num', '上一餐 ' + hm(f.lastMealAt)) : null),
       h('div.small.num.one', { style: { marginTop: '2px' } }, line));
-    if (f.start) card.append(h('div.small.two', { style: { marginTop: '8px', color: 'var(--ac-tx)', fontWeight: 600 } }, eatingText(now, f.start)));
+    if (f.start) card.append(h('div.small.two.ln-eat', { 'data-s': f.start, style: { marginTop: '8px', color: 'var(--ac-tx)', fontWeight: 600 } }, eatingText(now, f.start)));
     if (pend) card.append(pend);
     card.append(startBtn(),
       h('div.row.between', { style: { marginTop: '2px' } },
@@ -159,8 +159,8 @@ export function fastingCard() {
     h('span.mu.tiny', { style: { marginTop: '4px' } }, '已斷食 ' + clock(f.hours))]));
   card.append(h('div.mu.small.num', { style: { textAlign: 'center', marginTop: '6px' } }, hm(f.start) + ' 開始 → ' + hm(e.end) + ' 預計' + (e.custom ? '（自己設的）' : '')),
     h('div.small.one', { style: { marginTop: '8px', fontWeight: 650 } }, '身體現在：' + shortStage),
-    h('div.small.one', { style: { fontWeight: 600 } }, fuelText(st.index, f.start + stageStarts(shift)[st.index] * H, now, f.start)),
-    h('div.two', { style: { margin: '8px 0 2px', color: 'var(--ac-tx)', fontWeight: 650 } }, hourlyMessage(f.hours, f.start, HOURLY_MESSAGES)));   // 雞湯：最多兩行，整句看得到
+    h('div.small.one.ln-fuel', { 'data-i': st.index, 'data-ss': f.start + stageStarts(shift)[st.index] * H, 'data-s': f.start, style: { fontWeight: 600 } }, fuelText(st.index, f.start + stageStarts(shift)[st.index] * H, now, f.start)),
+    h('div.two.ln-soup', { 'data-s': f.start, style: { margin: '8px 0 2px', color: 'var(--ac-tx)', fontWeight: 650 } }, soupText(now, f.start)));   // 雞湯：每 30 秒換一句、整次不重複，最多兩行
   if (mode === 'STRICT_MANUAL' && (P.strictPlan || '16:8') === '24H' && f.hours >= FASTING.plans['24H']) card.append(h('div.notice.ok', { style: { marginTop: '8px' } }, OMAD_DONE[0]));
   if (pend) card.append(pend);
   card.append(endFastBtn(f));
@@ -568,4 +568,11 @@ function dragMerge(scroller, wrapEl, items, onDrop) {
   wrapEl.addEventListener('touchend', end); wrapEl.addEventListener('touchcancel', end);
   wrapEl.addEventListener('mousemove', e => move(e.clientY));
   wrapEl.addEventListener('mouseup', end); wrapEl.addEventListener('mouseleave', end);
+}
+
+/** 每 30 秒換句子：只改文字，不重畫整頁（app.js 計時呼叫） */
+export function tickLines(now = Date.now()) {
+  for (const el of document.querySelectorAll('.ln-soup')) el.textContent = soupText(now, +el.dataset.s);
+  for (const el of document.querySelectorAll('.ln-eat')) el.textContent = eatingText(now, +el.dataset.s);
+  for (const el of document.querySelectorAll('.ln-fuel')) el.textContent = fuelText(+el.dataset.i, +el.dataset.ss, now, +el.dataset.s);
 }

@@ -6,7 +6,11 @@ import { fastInfo } from './ui/fasting.js';
 import { FASTING } from './config.js';
 import { stageStarts } from './fasting.js';
 import { WIDGET_MESSAGES, WIDGET_EATING } from './messages.js';
-import { STEP, fuelText, soupText, eatingText } from './lines.js';
+import { fuelText, soupText, eatingText } from './lines.js';
+
+/* 小工具目前的 APK 每 2 分鐘翻一格（版面寫死 120000）：先維持 2 分鐘一格，取樣 30 秒句庫裡的句子（一樣不重複）。
+ * 等 APK 改成 30 秒翻一格時，再把這裡改成 lines.js 的 STEP */
+const STEP = 2 * 60000;
 
 const H = 3600000;
 export function widgetData(now = Date.now()) {

@@ -2,6 +2,7 @@
 import { onChange } from './state.js';
 import { $, closeSheet, sheetOpen, backLayer } from './ui/common.js';
 import { renderToday } from './ui/today.js';
+import { tickLines } from './ui/fasting.js';
 import { onAdviceState } from './ui/advice.js';
 import { renderSettings, showDisclaimerOnce, applyTheme } from './ui/settings.js';
 import { renderLog } from './ui/log.js';
@@ -137,4 +138,5 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) updat
 
 /* 斷食計時：今日頁每分鐘更新一次 */
 setInterval(() => { if (tab === 'today' && !sheetOpen() && !document.hidden) renderToday($('p-today')); }, 60000);
+setInterval(() => { if (tab === 'today' && !document.hidden) tickLines(); }, 30000);   // 句子每 30 秒換一句
 showDisclaimerOnce();
