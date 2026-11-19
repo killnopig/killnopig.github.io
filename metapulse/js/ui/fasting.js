@@ -341,7 +341,7 @@ export function longTermCard() {
 
 /** 長期攝取指數的說明：現況／建議／說明 */
 function ltBody(lt, wt, msg, chartNote = '') {
-  const ABOUT = [...(chartNote ? [chartNote, h('br')] : []), '每天算一次：當天吃進的熱量 ÷ 基礎代謝，再慢慢平均成長期指數（1.0＝平均每天剛好吃到基礎代謝）。', h('br'),
+  const ABOUT = ['這不是每天要達到的目標，是「長期吃太少」的警報：斷食的日子低於 1.0 很正常，平均起來一直偏低才會提醒。', h('br'), ...(chartNote ? [chartNote, h('br')] : []), '每天算一次：當天吃進的熱量 ÷ 基礎代謝，再慢慢平均成長期指數（1.0＝平均每天剛好吃到基礎代謝）。', h('br'),
     '沒有記錄的日子會跳過；當天記錄的熱量不到基礎代謝的 30%，視為「沒記完整」也跳過。今天還沒過完，不列入。', h('br'),
     '至少要 21 個有效記錄日，而且最近 28 天有 70% 以上的日子有記錄，才會開始提醒。低於 1.0：最近熱量偏低；低於 0.8：熱量持續明顯偏低。這只是提醒，不是診斷。'];
   const wtLine = wt.weeklyPct !== null ? '體重（14 天平均）最近每週變化約 ' + (-wt.weeklyPct).toFixed(1) + '%' : null;
@@ -358,9 +358,9 @@ function ltBody(lt, wt, msg, chartNote = '') {
 export function longTermStatusCard(pre = [], chartNote = '') {
   const { lt, wt, msg } = longTermStatus();
   const sum = !lt.ready
-    ? '資料累積中（有效記錄 ' + lt.validDays + '／21 天，最近 28 天 ' + lt.recentValid + ' 天）'
-    : '指數 ' + lt.index.toFixed(2) + '・' + (msg ? '有提醒' : '正常範圍');
-  return h('div.card', fold('lt-status', h('div.grow', h('h2', { style: { margin: 0 } }, '長期攝取指數'), h('div.mu.small.one', { style: { marginTop: '2px' } }, sum)), [...pre, ltBody(lt, wt, msg, chartNote)]));
+    ? '資料累積中 ' + lt.validDays + '/21 天'
+    : (msg ? '有提醒・指數 ' : '正常・指數 ') + lt.index.toFixed(2);
+  return h('div.card', fold('lt-status', h('div.grow', h('h2', { style: { margin: 0 } }, '吃太少警報'), h('div.mu.small.one', { style: { marginTop: '2px' } }, sum)), [...pre, ltBody(lt, wt, msg, chartNote)]));
 }
 
 /* ---------- 淨體重趨勢 ---------- */

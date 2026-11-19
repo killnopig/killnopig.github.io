@@ -74,6 +74,10 @@ document.addEventListener('DOMContentLoaded', () => { $('sheet-bg').onclick = ()
 if (document.readyState !== 'loading') $('sheet-bg').onclick = () => closeSheet();
 
 /** 可記住開合狀態的收合區塊；force=true 時強制展開一次 */
+/** 每次打開 app 時先收起來的區塊（這次開著的期間，使用者打開了就照他的） */
+const closedOnce = new Set();
+export function startClosed(key) { if (!closedOnce.has(key)) { closedOnce.add(key); L.collapsed[key] = 0; } }
+
 export function fold(key, summary, body, { open = false, force = false, cls = '' } = {}) {
   const st = L.collapsed[key];
   const d = h('details' + (cls ? '.' + cls : ''));

@@ -305,18 +305,17 @@ export function chartSpecs(pal, range = 'all', bpv = 'all') {
   const medFirst = [...(S.medLog || []).map(x => x.date), ...dsAll.map(e => e.date), ...(P2.meds || []).map(m => m && m.since).filter(Boolean)].sort()[0];
   const wks = medFirst ? medAdherence(P2.meds, S.medLog, S.entries, cut && cut > medFirst ? cut : medFirst, yday, P2.weekStart === 'sun' ? 'sun' : 'mon') : [];
   if (wks.length) {
-    const hasMed = wks.some(w => w.need), hasDose = wks.some(w => w.doses.length);
-    const pct = (a, b) => (b ? Math.round(a / b * 100) : null);
-    const ds5 = [];
-    if (hasMed) ds5.push({ type: 'bar', label: '吃藥', data: wks.map(w => pct(w.taken, w.need)), backgroundColor: fade(wc, 0.55), order: 3 },
-      { type: 'line', label: '準時（±1 小時）', data: wks.map(w => pct(w.onTime, w.need)), borderColor: c3, backgroundColor: c3, pointRadius: 3, spanGaps: true, clip: false, order: 1 });
-    if (hasDose) ds5.push({ type: 'line', label: '打針準時', data: wks.map(w => { const d = w.doses.filter(x => x.ok !== null); return d.length ? pct(d.filter(x => x.ok).length, d.length) : null; }), borderColor: rc, backgroundColor: rc, showLine: false, pointRadius: 5, pointStyle: 'rectRot', clip: false, order: 0 });
+    // 圖太難看懂：改成每週一行文字，新的在上面，最多 8 週
+    const lines = wks.slice(-8).reverse().map(w => {
+      const parts = [md(w.start) + ' 週'];
+      if (w.need) parts.push('藥 ' + w.taken + '/' + w.need + ' 次（準時 ' + w.onTime + '）');
+      for (const d of w.doses) parts.push('打針 ' + md(d.date) + (d.ok === true ? ' ✓' : d.gap ? '・隔 ' + d.gap + ' 天' : ''));
+      if (parts.length === 1) parts.push('沒有要吃的藥');
+      return parts.join('・');
+    });
     sp.push({
-      id: 'meds', group: 'more', screenOnly: true, title: '用藥準時率', dates: wks.map(w => w.start),
-      note: '每週一格（從週' + (P2.weekStart === 'sun' ? '日' : '一') + '開始）。長條：該吃的藥有記錄吃了幾成；線：在設定時間前後 1 小時內記錄的比例。打針：和上一針隔 6～8 天算準時。這是記錄的統計，漏按也會算成沒吃。',
-      label: it => it.dataset.label + ' ' + it.raw + '%',
-      extra: i => { const w = wks[i], x = []; if (w.need) x.push('吃了 ' + w.taken + '／' + w.need + ' 次，準時 ' + w.onTime + ' 次'); for (const d of w.doses) x.push('打針 ' + md(d.date) + (d.gap ? '，隔 ' + d.gap + ' 天' : '')); return x; },
-      cfg: { data: { labels: wks.map(w => md(w.start) + ' 週'), datasets: ds5 }, options: sopt({ min: 0, max: 100, ticks: { stepSize: 25, callback: v => v + '%' } }) },
+      id: 'meds', group: 'more', screenOnly: true, title: '用藥記錄', dates: wks.map(w => w.start), textRows: lines,
+      note: '每週一行（從週' + (P2.weekStart === 'sun' ? '日' : '一') + '開始）。「藥 12/14 次」＝該吃 14 次、按了「已服用」12 次；準時＝在設定時間前後 1 小時內按的。打針 ✓＝跟上一針隔 6～8 天。漏按也會算成沒吃。',
     });
   }
   // 長期攝取指數（只在畫面上，截圖已有文字）：淡點是每天比例，粗線是長期指數
@@ -334,7 +333,7 @@ export function chartSpecs(pal, range = 'all', bpv = 'all') {
       },
     });
   }
-  for (const x of sp) { x.cfg.plugins = [refPlugin(x)]; for (const pt of x.parts || []) pt.cfg.plugins = []; }
+  for (const x of sp) { if (x.cfg) x.cfg.plugins = [refPlugin(x)]; for (const pt of x.parts || []) pt.cfg.plugins = []; }
   return sp;
 }
 
@@ -536,10 +535,15 @@ async function drawCharts(root) {
   root.append(aiCard(range, bpv));
   const pal = chartDefaults();
   let ltSp = null;
-  const more = [], moreDraw = [], moreD = fold('chart-more', h('div.grow', h('h2', { style: { margin: 0 } }, '飲食・運動・用藥'), h('div.mu.small.one', { style: { marginTop: '2px' } }, '點數存摺、進食時間、營養素、運動、用藥')), more);
+  const more = [], moreDraw = [], moreD = fold('chart-more', h('div.grow', h('h2', { style: { margin: 0 } }, '飲食・運動・用藥'), h('div.mu.small.one', { style: { marginTop: '2px' } }, '點數存摺、進食時間、營養素、運動、用藥記錄')), more);
   for (const sp of chartSpecs(pal, range, bpv)) {
     if (sp.exportOnly) continue;
     if (sp.id === 'lt') { ltSp = sp; continue; }
+    if (sp.textRows) {   // 只有文字、沒有圖
+      const d = fold('chart-' + sp.id, h('b', sp.title), [h('div', { style: { marginTop: '6px' } }, ...sp.textRows.map(t => h('div.small.num.one', { style: { padding: '3px 0' } }, t)), tip(sp.note))]);
+      more.push(h('div', { style: { borderTop: '1px solid var(--ln)', marginTop: '10px', paddingTop: '10px' } }, d));
+      continue;
+    }
     addHover(sp, pal);
     const cv = h('canvas', { style: { touchAction: 'pan-y' } });
     const body = [];

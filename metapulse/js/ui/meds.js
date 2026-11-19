@@ -1,6 +1,6 @@
 /* 提醒與通知：設定裡新增藥物與時間、斷食與注射通知；飲食頁顯示今天的服藥狀態與服藥月曆 */
 import { S, L, commit, commitLocal, uid } from '../state.js';
-import { h, toast, section, sumLine, tip, timePick, fold, openSheet, closeSheet } from './common.js';
+import { h, toast, section, sumLine, tip, timePick, fold, openSheet, closeSheet, startClosed } from './common.js';
 import { localDate, addDays } from '../points.js';
 import { canNotify, schedule, notifyStatus, openExactSetting, testNotify } from '../notify.js';
 
@@ -46,7 +46,7 @@ export function medCard() {
         h('span.one', { style: { fontWeight: x.due ? 650 : 400, color: x.late ? 'var(--warn)' : '' } }, m.time + ' ' + m.name + (x.late ? '・還沒吃' : '')), take));
     }
   }
-  L.collapsed['med-cal'] = 0;   // 服藥日曆每次都先收起來，要看再點開
+  startClosed('med-cal');   // 服藥日曆每次打開 app 都先收起來，要看再點開
   card.append(fold('med-cal', h('span.small', { style: { color: 'var(--ac-tx)', fontWeight: 650 } }, '服藥記錄'), [calendar()], { cls: 'daygrp' }));
   return { card, urgent };
 }

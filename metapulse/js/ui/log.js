@@ -1,6 +1,6 @@
 /* 記錄分頁：體重計／血壓計／注射三張儀器卡（輸入與顯示一致）＋記錄列表 */
 import { S, L, commit, commitLocal, uid } from '../state.js';
-import { h, icon, toast, fold, pills, openSheet, closeSheet, val, tip } from './common.js';
+import { h, icon, toast, fold, pills, openSheet, closeSheet, val, tip, startClosed } from './common.js';
 import { localDate, addDays } from '../points.js';
 import { leanSummary } from '../longterm.js';
 import { leanStatus, leanCard } from './fasting.js';
@@ -183,6 +183,8 @@ let showAllRecent = false;
 
 function listCard(all) {
   const card = h('div.card');
+  const inner = [];   // 整張「記錄列表」收成一行標題，點開才看（每次打開 app 都先收起來）
+  startClosed('log-list'); startClosed('log-recent');
   const sort = L.logSort || 'desc', type = L.logType || 'all';
   const rows = all.filter(e => type === 'all' || TYPES[type](e));
   const from7 = addDays(localDate(new Date()), -6);
@@ -191,13 +193,13 @@ function listCard(all) {
   for (const e of rows.filter(e => e.date < from7)) { const k = e.date.slice(0, 7); if (!byMon.has(k)) byMon.set(k, []); byMon.get(k).push(e); }
   const months = [...byMon.keys()].sort().reverse();
   const jump = h('select', { 'aria-label': '跳到月份' }, h('option', { value: '' }, '跳到月份…'), ...months.map(k => h('option', { value: k }, k.slice(0, 4) + ' 年 ' + +k.slice(5) + ' 月')));
-  card.append(h('h2', '記錄列表'));
-  if (!all.length) { card.append(h('div.empty', '還沒有記錄。可以按上面卡片的「＋記錄」新增，或到「設定」→「備份與匯入」把同步版的記錄搬過來。')); return card; }
-  card.append(fold('log-filter', h('span.small.mu', TYPE_NAMES[type] + '・' + (sort === 'desc' ? '新到舊' : '舊到新') + '・符合 ' + rows.length + ' 筆'), [h('div', { style: { marginTop: '8px' } },
+  if (!all.length) { card.append(h('h2', '記錄列表'), h('div.empty', '還沒有記錄。可以按上面卡片的「＋記錄」新增，或到「設定」→「備份與匯入」把同步版的記錄搬過來。')); return card; }
+  inner.push(fold('log-filter', h('span.small.mu', TYPE_NAMES[type] + '・' + (sort === 'desc' ? '新到舊' : '舊到新') + '・符合 ' + rows.length + ' 筆'), [h('div', { style: { marginTop: '8px' } },
     pills([['all', '全部'], ['dose', '注射'], ['wt', '體重'], ['bp', '血壓'], ['bc', '身體組成']], type, v => { L.logType = v; commitLocal(); rerender(); }),
     h('div.row', { style: { marginTop: '8px' } }, pills([['desc', '新到舊'], ['asc', '舊到新']], sort, v => { L.logSort = v; commitLocal(); rerender(); }), h('div.grow'),
       months.length ? h('div', { style: { width: '140px' } }, jump) : null))]));
-  if (!rows.length) { card.append(h('div.empty', '沒有符合條件的記錄。')); return card; }
+  const wrap = () => { card.append(fold('log-list', h('div.grow', h('h2', { style: { margin: 0 } }, '記錄列表'), h('div.mu.small.one', { style: { marginTop: '2px' } }, all.length + ' 筆・點開看')), inner)); return card; };
+  if (!rows.length) { inner.push(h('div.empty', '沒有符合條件的記錄。')); return wrap(); }
   const blocks = [];
   if (recent.length) {
     const ordered = sort === 'desc' ? recent.slice().reverse() : recent;
@@ -211,6 +213,7 @@ function listCard(all) {
     const es = byMon.get(k), ws = es.filter(e => e.wt > 0);
     const sum = +k.slice(5) + ' 月' + (k.slice(0, 4) !== localDate(new Date()).slice(0, 4) ? '（' + k.slice(0, 4) + '）' : '') + '・' + es.length + ' 筆' + (ws.length ? '・平均 ' + r1(ws.reduce((a, e) => a + e.wt, 0) / ws.length) + ' kg' : '');
     const l = h('div.list');
+    startClosed('log-' + k);
     const d = fold('log-' + k, h('span.small.num', sum), [l], { cls: 'daygrp' });
     const fill = () => { if (!l.childNodes.length) (sort === 'desc' ? es.slice().reverse() : es).forEach(e => l.append(row(e))); };
     if (d.open) fill();
@@ -219,7 +222,8 @@ function listCard(all) {
     blocks.push(d);
   }
   if (sort === 'asc') blocks.reverse();
-  card.append(...blocks);
+  inner.push(...blocks);
+  wrap();
   jump.onchange = () => { const d = monEls[jump.value]; if (d) { d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' }); } jump.value = ''; };
   return card;
 }
