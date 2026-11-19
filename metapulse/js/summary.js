@@ -61,7 +61,7 @@ export function buildSummary(S, P, today, withPrompt = true) {
   const win = (a, from, to) => a.filter(x => x.n >= T - from && x.n <= T - to);
   const ds = es.filter(e => e.dose > 0), bs = es.filter(e => e.sys > 0 && e.dia > 0);
   const food = dailyFood(S.meals), fast = dailyFast(S.meals, S.fasts);
-  const act = {}; [...(S.activity || []), ...(S.exercise || [])].forEach(a => { if (a.kcal > 0) act[a.date] = (act[a.date] || 0) + a.kcal; });   // 手錶＋手動記的運動
+  const act = {}; [...(S.activity || []), ...(S.exercise || [])].forEach(a => { if (a.kcal > 0) act[a.date] = (act[a.date] || 0) + a.kcal; });   // 自動匯入＋手動記的運動
 
   if (withPrompt) {
     L.push('請根據以下數據（以及我另外附上的圖表圖片，如果有），協助分析：');
@@ -182,7 +182,7 @@ export function buildSummary(S, P, today, withPrompt = true) {
   }
 
   const ak = Object.keys(act).filter(d => dn(d) >= T - 30 && d < today);
-  if (ak.length) { L.push(''); L.push('■ 運動消耗（手錶＋手動記錄）'); L.push('- 近 30 天：' + ak.length + ' 天有資料，平均每天 ' + f(avg(ak.map(d => act[d])), 0) + ' 大卡（手錶通常會高估）。'); }
+  if (ak.length) { L.push(''); L.push('■ 運動消耗（自動匯入＋手動記錄）'); L.push('- 近 30 天：' + ak.length + ' 天有資料，平均每天 ' + f(avg(ak.map(d => act[d])), 0) + ' 大卡（手機 App 和估算通常會高估）。'); }
 
   // 每週摘要（最近 12 週，週一起算）
   const dow = n => (new Date(n * 864e5).getUTCDay() + 6) % 7, mon = n => n - dow(n), startWk = mon(T) - 11 * 7, wk = {};

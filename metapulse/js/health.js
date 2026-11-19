@@ -87,7 +87,7 @@ export function planHealth(built, S) {
   return { ...m, act };
 }
 
-/** 手錶（Health Connect）某一天的運動消耗：改大卡數、kcal＝0 當作不算；hc 留著手錶原本的數字 */
+/** Health Connect 自動匯入某一天的運動消耗：改大卡數、kcal＝0 當作不算；hc 留著原本的數字 */
 export function editActivity(S, date, kcal) {
   S.activity = S.activity || [];
   const a = S.activity.find(x => x.date === date);
@@ -97,7 +97,7 @@ export function editActivity(S, date, kcal) {
   a.edited = true;
   return a;
 }
-/** 恢復手錶原本的數字，之後同步也會照手錶更新 */
+/** 恢復原本的數字，之後同步也會照 Health Connect 更新 */
 export function restoreActivity(S, date) {
   const a = (S.activity || []).find(x => x.date === date);
   if (!a || !a.edited) return a || null;

@@ -49,7 +49,7 @@ test('重複同步：不重複新增，運動消耗依日期更新', () => {
   assert.equal(p3.act.update.length, 1);
   applyHealth(S, p3, uid);
   assert.equal(S.activity.find(a => a.date === '2026-11-17').kcal, 180);
-  // 使用者改過的那天，再同步不會被蓋回去；恢復後才照手錶
+  // 使用者改過的那天，再同步不會被蓋回去；恢復後才照 Health Connect
   editActivity(S, '2026-11-17', 50);
   const raw3 = { ...raw2, calories: [...raw2.calories, { sourceName: 'Watch', startDate: at('2026-11-17', '21:00'), value: 30 }] };
   const p4 = planHealth(buildRecords(raw3), S);
