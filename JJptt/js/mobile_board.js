@@ -64,7 +64,11 @@ JJMobile.prototype.renderBoard = function(screen) {
     screen.loadingMore = true;
     more.textContent = '載入中…';
     var first = !screen.entries.length;
-    self.app.reader.fetchDoc(screen.older).then(function(doc) {
+    var fresh = first && screen.fresh;
+    screen.fresh = false;
+    var c0 = !fresh && self.listDocs && self.listDocs[screen.older];
+    var ahead = !!(c0 && Date.now() - c0.at < JJMobile.LIST_CACHE_MS);
+    self.listDoc(screen.older, fresh).then(function(doc) {
       // board index pages run oldest -> newest; search results come newest first
       var page = JJMobile.parseIndex(doc, !screen.query);
       if (page.board && first && !screen.query) {
@@ -82,10 +86,11 @@ JJMobile.prototype.renderBoard = function(screen) {
         page.pinned.forEach(function(e) { self.appendEntry(screen, e); });
       }
       page.entries.forEach(function(e) { self.appendEntry(screen, e); });
-      if (first) self.loaded(screen, doc.jjFromTerm ? 'BBS' : '網頁');
+      if (first) self.loaded(screen, doc.jjFromTerm ? 'BBS' : ahead ? '預讀' : '網頁');
       more.textContent = screen.older ? '' : (screen.entries.length ? '沒有更早的文章了' : '沒有文章');
       screen.loadingMore = false;
       if (first) self.prefetchList(screen, 0);
+      if (first && !screen.query && !doc.jjFromTerm) self.prefetchSearches(screen.board);
       // a short first page: keep going until the screen is full
       if (screen.older && v.scrollHeight <= v.clientHeight + 200) loadMore();
     }).catch(function(err) {
@@ -100,6 +105,50 @@ JJMobile.prototype.renderBoard = function(screen) {
     if (v.scrollTop + v.clientHeight > v.scrollHeight - 600) loadMore();
   });
   loadMore();
+};
+
+// List pages (a board's, a search's, 熱門看板) asked for in the last
+// minute: the same one again -- back and into the board again, a search
+// read ahead (prefetchSearches) -- comes at once. fresh: read again
+// (reload).
+JJMobile.LIST_CACHE_MS = 60 * 1000;
+JJMobile.prototype.listDoc = function(url, fresh) {
+  var self = this;
+  var cache = this.listDocs = this.listDocs || {};
+  var c = cache[url];
+  if (c && !fresh && Date.now() - c.at < JJMobile.LIST_CACHE_MS) return c.promise;
+  var entry = { at: Date.now() };
+  entry.promise = this.app.reader.fetchDoc(url);
+  cache[url] = entry;
+  entry.promise.then(function(doc) {
+    entry.at = Date.now();
+    if (doc && doc.jjFromTerm) entry.at = 0;  // read on the BBS: once only
+  }, function() {
+    if (cache[url] === entry) delete cache[url];
+  });
+  var keys = Object.keys(cache);
+  if (keys.length > 40) delete cache[keys[0]];
+  return entry.promise;
+};
+
+// The one-tap 推文數 searches of a board (爆文 / 止爆 / 噓爆...), asked
+// for while its list is read: www.ptt.cc takes seconds over a search the
+// first time (2-4 s for 噓爆), then answers it at once. One at a time,
+// web site only (on the BBS each would take the connection for seconds).
+JJMobile.prototype.prefetchSearches = function(board) {
+  var self = this;
+  if (PttReader.webRecentlyDown('search')) return;
+  var todo = JJMobile.QUICK_PUSH.map(function(qk) {
+    return JJMobile.WEB + '/bbs/' + encodeURIComponent(board) + '/search?q=' + encodeURIComponent('recommend:' + qk[0]);
+  });
+  var next = function() {
+    var url = todo.shift();
+    if (!url || PttReader.webRecentlyDown('search')) return;
+    var c = self.listDocs && self.listDocs[url];
+    var p = c && Date.now() - c.at < JJMobile.LIST_CACHE_MS ? c.promise : self.listDoc(url);
+    p.then(next, function() {});
+  };
+  next();
 };
 
 JJMobile.prototype.hiddenEntry = function(e) {

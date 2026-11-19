@@ -3,3 +3,4 @@ node_modules
 *.pem
 *.crx
 dist
+.DS_Store
