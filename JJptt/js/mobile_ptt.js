@@ -474,9 +474,18 @@ JJPtt.prototype.toBoard = function(board) {
   var self = this;
   if (!/^[A-Za-z0-9_\-]{1,20}$/.test(board || '')) return Promise.reject(new Error('看板名稱不對'));
   // already in its article list (e.g. back from the last article read)
-  var here = this.screen(), lines = here.split('\n').filter(function(l) { return l.trim(); });
-  if (new RegExp('看板《' + board + '》', 'i').test(here) && /文章選讀/.test(here) && !/瀏覽 第/.test(here) &&
-      !JJPtt.PROMPT.test(lines[lines.length - 1] || '')) return Promise.resolve();
+  // -- inside a search there, ← goes back to the whole list (pttbbs
+  // read_cmd_quit: all conditions at once)
+  if (this.inList(board)) {
+    if (!this.listQuery) return Promise.resolve();
+    var prev0 = this.screen();
+    this.send('\x1b[D');
+    this.listQuery = '';
+    return this.settle(prev0, 2000).then(function() {
+      if (!self.inList(board)) return self.toBoard(board);
+    });
+  }
+  this.listQuery = '';
   // out of an article, then "s" (select board) -- which only works in a
   // list, not in the main menu: from there, 我的最愛 first
   return this.clearPrompt().then(function() {
@@ -942,6 +951,9 @@ JJPtt.prototype.favorites = function() {
 // app is unchanged (PttReader.termDoc). Addresses used instead of web pages:
 //   jjterm:list/<board>/<before>   the articles numbered below <before> (0: the newest)
 //   jjterm:art/<board>/<number>    article <number> of the board
+//   jjterm:search/<board>/<before>/<query>   PTT's own search (JJPtt.searchCmd);
+//     numbers in it are the search list's own, so its articles are
+//   jjterm:art/<board>/<number>/<query>      opened from inside that search
 
 JJPtt.TERM = 'jjterm:';
 JJPtt.isTermUrl = function(url) {
@@ -949,17 +961,22 @@ JJPtt.isTermUrl = function(url) {
 };
 
 // One row of a board's article list:
-// "  12345 + 10 11/19 someone      □ [問卦] title" ->
+// "  12345 + 311/19 someone      □ [問卦] title" ->
 // { num, nrec, date, author, title, deleted }; 置底 (★) rows give num 0.
+// PTT's columns have fixed widths (pttbbs bbs_coldefs): number 6, then
+// " " + mark + 推文數 in exactly 2 columns (" 3", "10", 爆, XX, X1, --),
+// then the date with no space before it -- "+ 311/19" is 3 pushes on
+// 11/19, not 31 on 1/19.
 JJPtt.parseArticleRow = function(row) {
-  var m = /^[>●\s]?\s*(\d+|★)\s([+mMsSD*!=~ ])\s?(爆|X[X\d]|\d{1,2})?\s*(\d{1,2}\/\d{2}) (\S+) +(□|轉|R:?)\s?(.*)$/.exec(String(row || ''));
+  var m = /^[>●\s]?\s*(\d+|★)\s([+mMsSD*!=~ ])(爆|XX|X\d|\d\d| \d|--|  )?\s*(\d{1,2}\/\d{2}) (\S+) +(□|轉|R:?)\s?(.*)$/.exec(String(row || ''));
   if (!m) return null;
   var title = m[7].replace(/\s+$/, '');
   if (m[6] === '轉') title = 'Fw: ' + title;
   else if (m[6] !== '□') title = 'Re: ' + title;
+  var nrec = (m[3] || '').trim();
   return {
     num: m[1] === '★' ? 0 : +m[1],
-    nrec: m[3] || '',
+    nrec: nrec === '--' ? '' : nrec,
     date: m[4],
     author: m[5] === '-' ? '-' : m[5],
     title: title,
@@ -971,14 +988,28 @@ JJPtt.esc = function(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 };
 
-// A board index page like www.ptt.cc's (what JJMobile.parseIndex reads).
-JJPtt.indexHtml = function(board, rows, older) {
+// www.ptt.cc's search?q= ("author:x", "recommend:n" -- n < 0: 噓 --, or
+// words of the title) as PTT's own search in a board's list: the key, the
+// prompt it answers to (「搜尋作者: 」, or 「增加條件 作者: 」 inside a
+// search) and what to type.
+JJPtt.searchCmd = function(q) {
+  q = String(q || '').trim();
+  var m;
+  if ((m = /^author:\s*(\S+)$/.exec(q))) return { key: 'a', ask: /(搜尋|增加條件) ?作者/, text: m[1] };
+  if ((m = /^recommend:\s*(-?\d+)$/.exec(q))) return +m[1] ? { key: 'Z', ask: /搜尋推文數|增加條件 ?推文數/, text: String(+m[1]) } : null;
+  return q ? { key: '/', ask: /(搜尋|增加條件) ?標題/, text: q } : null;
+};
+
+// A board index page like www.ptt.cc's (what JJMobile.parseIndex reads);
+// query: rows from that search (their links open the article inside it).
+JJPtt.indexHtml = function(board, rows, older, query) {
   var esc = JJPtt.esc;
   var h = ['<div id="topbar"><a class="board">看板 ' + esc(board) + '</a></div><div class="btn-group-paging">'];
   if (older) h.push('<a class="btn" href="' + esc(older) + '">‹ 上頁</a>');
   h.push('</div><div class="r-list-container">');
+  var tail = query ? '/' + encodeURIComponent(query) : '';
   rows.forEach(function(r) {
-    var t = r.deleted ? esc(r.title) : '<a href="' + esc(JJPtt.TERM + 'art/' + encodeURIComponent(board) + '/' + r.num) + '">' + esc(r.title) + '</a>';
+    var t = r.deleted ? esc(r.title) : '<a href="' + esc(JJPtt.TERM + 'art/' + encodeURIComponent(board) + '/' + r.num + tail) + '">' + esc(r.title) + '</a>';
     h.push('<div class="r-ent"><div class="nrec">' + esc(r.nrec) + '</div><div class="title">' + t +
       '</div><div class="meta"><div class="author">' + esc(r.author) + '</div><div class="date">' + esc(r.date) + '</div></div></div>');
   });
@@ -1020,19 +1051,59 @@ JJPtt.articleHtml = function(lines) {
         '</span><span class="push-content">: ' + link(p[3].trim()) + '</span><span class="push-ipdatetime"> ' +
         (p[4] ? p[4] + ' ' : '') + p[5] + '\n</span></div>');
     } else {
-      body.push(link(line) + '\n');
+      body.push((lines.html && lines.html[i] != null ? lines.html[i] : link(line)) + '\n');
     }
   }
   return '<div id="main-content">' + meta.join('') + body.join('') + '</div>';
 };
 
-// A board's article list, one screen: the newest, or those below `before`.
-// Resolves with an index page's HTML (JJPtt.indexHtml).
-JJPtt.prototype.boardPage = function(board, before) {
+// One screen row with its colours, as www.ptt.cc marks them (span class
+// "f3 hl b4"; default white on black stays plain), URLs as links. A
+// double-byte character takes its lead byte's colours; trailing blanks on
+// black are dropped like the plain text's.
+JJPtt.rowHtml = function(buf, row) {
+  var line = buf.lines && buf.lines[row];
+  if (!line) return undefined;  // no colours known: the plain text is used
+  var cols = Math.min(buf.cols || line.length, line.length);
+  var segs = [], cur = null;
+  for (var c = 0; c < cols; ++c) {
+    var ch = line[c];
+    var w = ch.isLeadByte && c + 1 < cols ? 2 : 1;
+    var text = w === 2 ? buf.getRowText(row, c, c + 2) : (ch.ch || ' ');
+    var fg = ch.invert ? ch.bg : ch.fg, bg = ch.invert ? ch.fg : ch.bg;
+    var key = (fg === 7 && bg === 0 && !ch.bright) ? '' : 'f' + fg + (ch.bright ? ' hl' : '') + ' b' + bg;
+    if (!cur || cur.key !== key) segs.push(cur = { key: key, text: '' });
+    cur.text += text;
+    c += w - 1;
+  }
+  while (segs.length) {
+    var last = segs[segs.length - 1];
+    if (/ b[1-7]$/.test(last.key)) break;
+    last.text = last.text.replace(/\s+$/, '');
+    if (last.text) break;
+    segs.pop();
+  }
+  var link = function(s) {
+    return JJPtt.esc(s).replace(/https?:\/\/[^\s<>"&]+/g, function(u) { return '<a href="' + u + '">' + u + '</a>'; });
+  };
+  return segs.map(function(s) {
+    return s.key ? '<span class="' + s.key + '">' + link(s.text) + '</span>' : link(s.text);
+  }).join('');
+};
+
+// A board's article list, one screen: the newest, or those below `before`;
+// with query, that search's (JJPtt.searchCmd), newest first like
+// www.ptt.cc's search pages. Resolves with an index page's HTML
+// (JJPtt.indexHtml).
+JJPtt.prototype.boardPage = function(board, before, query) {
   var self = this;
+  var none = {};
   return this.run(function() {
     return self.ensureIn().then(function() {
-      return self.toBoard(board);
+      return self.toList(board, query).catch(function(e) {
+        if (e && e.searchEmpty) throw none;  // an empty list, not an error
+        throw e;
+      });
     }).then(function() {
       var prev = self.screen();
       // a number then Enter jumps there; End: the newest article
@@ -1046,10 +1117,56 @@ JJPtt.prototype.boardPage = function(board, before) {
         rows.push(a);
         if (!low || a.num < low) low = a.num;
       }
-      var older = low > 1 ? JJPtt.TERM + 'list/' + encodeURIComponent(board) + '/' + low : '';
-      return JJPtt.indexHtml(board, rows, older);
+      var older = low > 1 ? JJPtt.TERM + (query ? 'search/' : 'list/') + encodeURIComponent(board) + '/' + low +
+        (query ? '/' + encodeURIComponent(query) : '') : '';
+      if (query) rows.reverse();
+      return JJPtt.indexHtml(board, rows, older, query);
+    }).catch(function(e) {
+      if (e === none) return JJPtt.indexHtml(board, [], '', query);
+      throw e;
     });
   });
+};
+
+// Into a board's article list as toBoard does, then PTT's own search
+// `query` (JJPtt.searchCmd) -- or out of any search when there is none.
+// this.listQuery: the search the list is in now ('' none).
+JJPtt.prototype.toList = function(board, query) {
+  var self = this;
+  var cmd = JJPtt.searchCmd(query);
+  query = cmd ? String(query).trim() : '';
+  if (query && this.listQuery === query && this.inList(board)) return Promise.resolve();
+  return this.toBoard(board).then(function() {
+    if (!cmd) return;
+    var prev = self.screen();
+    self.send(cmd.key);
+    return self.wait({ ask: cmd.ask }, 5000, prev, '搜尋').then(function() {
+      var p2 = self.screen();
+      self.type(cmd.text + '\r');
+      return self.settle(p2, 3000);
+    }).then(function() {
+      // nothing found, or not searched (pttbbs select_read): a message to
+      // close, and the whole list still there -- not the search's
+      var said = JJPtt.SEARCH_FAIL.exec(self.screen());
+      if (!said) { self.listQuery = query; return; }
+      var p3 = self.screen();
+      self.send(' ');
+      return self.settle(p3, 1500).then(function() {
+        var e = new Error(/找不到/.test(said[0]) ? '找不到符合條件的文章' :
+          /未搜尋/.test(said[0]) ? 'PTT 暫時不讓搜尋（太頻繁），請過一陣子再試' : 'PTT ' + said[0].replace(/[。\s]+$/, ''));
+        e.searchEmpty = /找不到/.test(said[0]);
+        throw e;
+      });
+    });
+  });
+};
+JJPtt.SEARCH_FAIL = /找不到符合條件的文章|搜尋服務異常[^\n]*|已達搜尋條件上限|未搜尋/;
+
+// In `board`'s article list (a search in it too), nothing asked at the bottom.
+JJPtt.prototype.inList = function(board) {
+  var here = this.screen(), lines = here.split('\n').filter(function(l) { return l.trim(); });
+  return new RegExp('看板《' + board + '》', 'i').test(here) && /文章選讀/.test(here) && !/瀏覽 第/.test(here) &&
+    !JJPtt.PROMPT.test(lines[lines.length - 1] || '');
 };
 
 // The article under the cursor in the list, every page of it, as lines;
@@ -1075,12 +1192,14 @@ JJPtt.prototype.readHere = function(onPage) {
 JJPtt.prototype.readPages = function(onPage) {
   var self = this;
   var lines = [], pages = 0;
+  lines.html = [];  // the same lines with their colours (JJPtt.rowHtml)
   var read = function() {
     var buf = self.app.buf, n = buf.rows || 24;
     var st = buf.getRowText(n - 1, 0, buf.cols).parseStatusRow();
     if (!st) return null;
     for (var r = 0; r < n - 1 && st.rowIndexStart + r <= st.rowIndexEnd; ++r) {
       lines[st.rowIndexStart - 1 + r] = buf.getRowText(r, 0, buf.cols).replace(/\s+$/, '');
+      lines.html[st.rowIndexStart - 1 + r] = JJPtt.rowHtml(buf, r);
     }
     return st;
   };
@@ -1141,9 +1260,9 @@ JJPtt.prototype.termArticle = function(url, want, opts) {
   return this.run(function() {
     if (opts.bg && self.fgWaiting > 0) { var e0 = new Error('讓給前面的工作'); e0.yielded = true; throw e0; }
     return self.ensureIn().then(function() {
-      var m = /^jjterm:art\/([^\/]+)\/(\d+)$/.exec(url);
+      var m = /^jjterm:art\/([^\/]+)\/(\d+)(?:\/([^\/]+))?$/.exec(url);
       if (!m) return self.toArticle(url);
-      return self.toBoard(decodeURIComponent(m[1])).then(function() {
+      return self.toList(decodeURIComponent(m[1]), m[3] ? decodeURIComponent(m[3]) : '').then(function() {
         return self.cursorTo(+m[2], want);
       }).then(function() {
         // Q: the article's 文章網址 (for pushing and replying), any key closes it
@@ -1208,6 +1327,8 @@ JJPtt.prototype.cursorTo = function(num, want) {
     return self.wait({ ask: /作者/ }, 5000, prev, '搜尋作者').then(function() {
       prev = self.screen();
       self.type(want.author + '\r');
+      // the list is in a search now (on top of any before): toList / toBoard leave it
+      self.listQuery = (self.listQuery ? self.listQuery + ' ' : '') + 'author:' + want.author;
       return self.settle(prev, 3000);
     }).then(function() {
       var pages = 0;

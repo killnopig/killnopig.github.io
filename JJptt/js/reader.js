@@ -279,18 +279,65 @@ PttReader.prototype.ensureOver18 = function() {
 PttReader.prototype.fetchDoc = function(url, opts) {
   var self = this;
   if (typeof JJPtt !== 'undefined' && JJPtt.isTermUrl(url)) return this.termDoc(url, null, opts);
-  return this.webDoc(url).catch(function(err) {
-    // www.ptt.cc down (HTTP 5xx, no answer): the app reads it on the BBS
+  var web = function() {
+    return self.webDocTimed(url).catch(function(err) {
+      // www.ptt.cc down (HTTP 5xx, no answer): the app reads it on the BBS
+      if (PttReader.webDown(err)) PttReader.webDownAt = Date.now();
+      if (!PttReader.webDown(err) || !self.termSource()) throw err;
+      return self.termDoc(url, err, opts);
+    });
+  };
+  // down a moment ago: straight to the BBS (no waiting for the web site to
+  // fail again on every page), with a look at the web site now and then
+  // so it is used again once it is back; what the BBS can't do still
+  // goes to the web site
+  var ptt = this.termSource();
+  if (PttReader.webRecentlyDown() && ptt && ptt.user) {
+    this.probeWeb(url);
+    return this.termDoc(url, { webStatus: PttReader.webDownStatus }, opts).catch(function(err) {
+      if (!err || !err.termCant) throw err;
+      return web();
+    });
+  }
+  return web();
+};
+
+// www.ptt.cc not answering at all counts as down after this long.
+PttReader.WEB_TIMEOUT_MS = 10000;
+PttReader.prototype.webDocTimed = function(url) {
+  var self = this;
+  return new Promise(function(resolve, reject) {
+    var timer = setTimeout(function() {
+      var e = new Error('PTT 網頁版沒有回應');
+      e.webTimeout = true;
+      reject(e);
+    }, PttReader.WEB_TIMEOUT_MS);
+    self.webDoc(url).then(function(d) { clearTimeout(timer); resolve(d); },
+                          function(e) { clearTimeout(timer); reject(e); });
+  });
+};
+
+// While the BBS stands in, one look at the web site a minute: answering
+// again ends PttReader.webRecentlyDown.
+PttReader.PROBE_MS = 60 * 1000;
+PttReader.probeAt = 0;
+PttReader.prototype.probeWeb = function(url) {
+  if (Date.now() - PttReader.probeAt < PttReader.PROBE_MS) return;
+  PttReader.probeAt = Date.now();
+  this.webDocTimed(url).then(function() {
+    PttReader.webDownAt = 0;
+  }, function(err) {
     if (PttReader.webDown(err)) PttReader.webDownAt = Date.now();
-    if (!PttReader.webDown(err) || !self.termSource()) throw err;
-    return self.termDoc(url, err, opts);
   });
 };
 
 // The web site is failing, not the page missing or the over18 question.
 PttReader.webDown = function(err) {
-  return !!err && (err.webStatus >= 500 || err instanceof TypeError);
+  var down = !!err && (err.webStatus >= 500 || err instanceof TypeError || !!err.webTimeout);
+  if (down && err.webStatus) PttReader.webDownStatus = err.webStatus;
+  return down;
 };
+PttReader.webDownStatus = 0;
 
 // www.ptt.cc failed in the last few minutes.
 PttReader.webDownAt = 0;
@@ -314,13 +361,18 @@ PttReader.prototype.termDoc = function(url, webErr, opts) {
   opts = opts || {};
   var ptt = this.termSource();
   var down = 'PTT 網頁版現在故障' + (webErr && webErr.webStatus ? '（HTTP ' + webErr.webStatus + '）' : '');
-  if (!ptt) return Promise.reject(new Error(down));
+  // what the BBS can't open (err.termCant): the web site may still
+  var cant = function(msg) { var e = new Error(msg); e.termCant = true; return Promise.reject(e); };
+  if (!ptt) return cant(down);
   var plain = PttReader.articleUrl(url);
-  var m, job;
-  if ((m = /^jjterm:list\/([^\/]+)\/(\d+)$/.exec(plain)) ||
+  var m, job, sq = PttReader.termSearch(url);
+  if (sq) {
+    if (sq.page > 1) return cant(down + '，搜尋結果請重新搜尋一次');
+    job = function() { return ptt.boardPage(sq.board, sq.before, sq.query); };
+  } else if ((m = /^jjterm:list\/([^\/]+)\/(\d+)$/.exec(plain)) ||
       (m = /^https?:\/\/www\.ptt\.cc\/bbs\/([\w\-]+)\/index\.html$/.exec(plain))) {
     job = function() { return ptt.boardPage(decodeURIComponent(m[1]), m[2] ? +m[2] : 0); };
-  } else if (/^jjterm:art\/[^\/]+\/\d+$/.test(plain) || /^https?:\/\/www\.ptt\.cc\/bbs\/[\w\-]+\/M\.\d+\.A\.\w+\.html$/.test(plain)) {
+  } else if (/^jjterm:art\/[^\/]+\/\d+(?:\/[^\/]+)?$/.test(plain) || /^https?:\/\/www\.ptt\.cc\/bbs\/[\w\-]+\/M\.\d+\.A\.\w+\.html$/.test(plain)) {
     var onPage = opts.onPartial && function(i, n, lines, real) {
       try {
         var d = PttReader.htmlDoc(JJPtt.articleHtml(lines), real);
@@ -329,12 +381,32 @@ PttReader.prototype.termDoc = function(url, webErr, opts) {
     };
     job = function() { return ptt.termArticle(plain, null, { bg: opts.bg, onPage: onPage }); };
   } else {
-    return Promise.reject(new Error(down + '，這裡暫時不能用（看板文章可以改用 BBS 連線看）'));
+    return cant(down + '，這裡暫時不能用（看板文章可以改用 BBS 連線看）');
   }
-  if (!ptt.user) return Promise.reject(new Error(down + '。登入 PTT 帳號後，就能改用 BBS 連線看看板和文章'));
+  if (!ptt.user) return cant(down + '。登入 PTT 帳號後，就能改用 BBS 連線看看板和文章');
   return job().then(function(r) {
     return PttReader.htmlDoc(typeof r === 'string' ? r : r.html, r && r.url);
   });
+};
+
+// A board search to do on the BBS: www.ptt.cc's /bbs/<board>/search?q=
+// (&page=), or jjterm:search/<board>/<before>/<query> (its older pages).
+// -> { board, query, before, page } or null.
+PttReader.termSearch = function(url) {
+  url = String(url || '');
+  var m = /^jjterm:search\/([^\/]+)\/(\d+)\/([^\/?#]+)$/.exec(url);
+  if (m) return { board: decodeURIComponent(m[1]), before: +m[2], query: decodeURIComponent(m[3]), page: 1 };
+  m = /^https?:\/\/www\.ptt\.cc\/bbs\/([\w\-]+)\/search\?([^#]*)$/.exec(url);
+  if (!m) return null;
+  var args = {};
+  m[2].split('&').forEach(function(kv) {
+    var i = kv.indexOf('=');
+    if (i > 0) {
+      try { args[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1).replace(/\+/g, ' ')); } catch (e) {}
+    }
+  });
+  if (!args.q) return null;
+  return { board: m[1], query: args.q, before: 0, page: +args.page || 1 };
 };
 
 // A page made from the BBS screen, as a document (jjFromTerm; jjUrl: the

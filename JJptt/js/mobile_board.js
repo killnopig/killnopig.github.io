@@ -74,7 +74,7 @@ JJMobile.prototype.renderBoard = function(screen) {
       }
       screen.older = page.older;
       if (first && doc.jjFromTerm) {
-        v.insertBefore(el('div', 'jjm-hint jjm-term-note', 'PTT 網頁版現在故障，改用 BBS 連線讀取（比較慢，不能搜尋，沒有顏色）'), screen.listNode);
+        v.insertBefore(el('div', 'jjm-hint jjm-term-note', 'PTT 網頁版現在故障，改用 BBS 連線讀取'), screen.listNode);
       }
       // 置底公告, unless hidden (設定 → 一般; the extension's hidePinned)
       var pv2 = (self.app.pref && self.app.pref.values) || {};
