@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <script>
 /* 版本號：發布新版時改這裡。版本檢查會比對線上 index.html 的這一行。 */
-window.APP_VERSION = '0.9.31';
+window.APP_VERSION = '0.9.32';
 /* 載入失敗時不要只剩空白：記下錯誤，8 秒後程式還沒啟動就顯示原因與「重新載入」 */
 (function(){var errs=[];
 addEventListener('error',function(e){var t=e.target;if(t&&t!==window&&(t.src||t.href))errs.push('載入失敗：'+(t.src||t.href).split('/').slice(-2).join('/'));else errs.push((e.message||'程式檔載入失敗（網路或舊快取）')+(e.filename?'（'+e.filename.split('/').pop().split('?')[0]+':'+e.lineno+'）':''))},true);
@@ -99,6 +99,8 @@ svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stro
 .metric .row{font-size:14px}
 .cta{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:16px;padding:15px;font-size:17px;border-radius:14px}
 .cta svg.i{width:22px;height:22px}
+.cta-row{display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-top:16px}.cta-row .cta{margin-top:0;white-space:nowrap;min-width:0}.cta-row .ghost.cta{padding:15px 8px;border:1.5px solid var(--ac);color:var(--ac)}
+.cta-row.sm{margin-top:10px}.cta-row.sm .cta{padding:10px 8px;font-size:15px}
 .list .it{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--ln);cursor:pointer}
 .list .it:first-child{border-top:0}
 .list .pts{font-weight:700;font-size:17px;white-space:nowrap}

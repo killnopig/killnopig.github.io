@@ -5,7 +5,7 @@ import { connect, linked } from '../drive.js';
 import { h, icon, fold, hm, WD, fmtPts } from './common.js';
 import { usage, localDate, addDays } from '../points.js';
 import { ledger, allActivity } from '../ledger.js';
-import { exerciseCard } from './exercise.js';
+import { exerciseCard, openExercise } from './exercise.js';
 import { nextDose } from '../records.js';
 import { medCard } from './meds.js';
 import { weeklyCard } from './weekly.js';
@@ -96,10 +96,12 @@ export function renderToday(root) {
     const td = lg.today, bal = lg.balance, total = lg.total;
     const label = mode === 'roll' ? '7 天存摺' : '本週存摺';
     if (fastFirst) {
-      top = h('div.card', h('div.row', { style: { gap: '10px' } },
-        h('div.grow', h('div.small.num.one', { style: { fontWeight: 650 } }, '今日剩餘 ' + fmtPts(td.left) + ' 點・' + label + ' ' + fmtPts(bal)),
-          h('div.mu.tiny.num.one', '今日 ' + Math.round(td.kcal) + ' 大卡・蛋白質 ' + Math.round(td.protein) + '／' + b.proteinTarget + ' g')),
-        h('button.pri', { type: 'button', style: { flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: '6px' }, onclick: () => openAddMeal() }, icon('camera'), '記一餐')));
+      top = h('div.card',
+        h('div.small.num.one', { style: { fontWeight: 650 } }, '今日剩餘 ' + fmtPts(td.left) + ' 點・' + label + ' ' + fmtPts(bal)),
+        h('div.mu.tiny.num.one', '今日 ' + Math.round(td.kcal) + ' 大卡・蛋白質 ' + Math.round(td.protein) + '／' + b.proteinTarget + ' g'),
+        h('div.cta-row.sm',
+          h('button.pri.cta', { type: 'button', onclick: () => openAddMeal() }, icon('camera'), '記一餐'),
+          h('button.ghost.cta', { type: 'button', onclick: () => openExercise() }, icon('run'), '記運動')));
     } else {
       const over = td.left < 0;
       top = h('div.card');
@@ -116,7 +118,10 @@ export function renderToday(root) {
       top.append(h('div.mu.tiny.num.one', { style: { marginTop: '10px', color: low ? 'var(--warn)' : '' } },
         low ? '今天只吃 ' + fmtPts(td.eaten) + ' 點，少於基本需要的 ' + b.floorPoints + ' 點，記得吃夠'
           : '今日 ' + Math.round(td.kcal) + ' 大卡' + (td.refund ? '・運動 +' + fmtPts(td.refund) : '') + '・' + (over ? '超出的用存摺補' : '存摺越多，熱量赤字越大')));
-      top.append(h('button.pri.cta', { type: 'button', onclick: () => openAddMeal() }, icon('camera'), '記一餐'));
+      // 記一餐（寬）＋記運動（窄）同一列
+      top.append(h('div.cta-row',
+        h('button.pri.cta', { type: 'button', onclick: () => openAddMeal() }, icon('camera'), '記一餐'),
+        h('button.ghost.cta', { type: 'button', onclick: () => openExercise() }, icon('run'), '記運動')));
     }
   }
 

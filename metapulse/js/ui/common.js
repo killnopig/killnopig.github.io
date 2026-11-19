@@ -32,6 +32,7 @@ const ICONS = {
   search: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>',
   trash: '<path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/>',
   edit: '<path d="M5 19h4L19 9l-4-4L5 15z"/>',
+  run: '<circle cx="14.5" cy="4.5" r="1.8"/><path d="M8 21l3-6 3 2.5V21M6 10.5l3.5-2.5h4l2.5 3.5 3 1M11 15l1.5-6.5"/>',
   eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>',
 };
 export function icon(name, cls = 'i') {

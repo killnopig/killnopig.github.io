@@ -1,4 +1,4 @@
-/* 飲食運動頁的「運動」卡：今天的運動（手錶＋手動），按「記運動」選種類與分鐘數，
+/* 飲食運動頁的「運動」卡：今天的運動（手錶＋手動）；「記運動」按鈕在上方記一餐旁邊，選種類與分鐘數，
  * 依體重估算消耗（MET × 體重 × 小時），加回點數＝消耗 × 0.75 ÷ 40 */
 import { S, L, commit, commitLocal, uid, currentWeight } from '../state.js';
 import { h, toast, fold, tip, openSheet, closeSheet, fmtPts, timePick } from './common.js';
@@ -20,14 +20,13 @@ export function exerciseCard() {
   if (watch) parts.push('手錶 ' + Math.round(watch) + ' 大卡');
   if (mine.length) parts.push(mine.length === 1 ? (NAME[mine[0].type] || '運動').replace(/（.*）/, '') + ' ' + mine[0].minutes + ' 分' : '手動 ' + mine.length + ' 筆');
   const sum = kcal ? '今日運動 +' + fmtPts(pts(kcal)) + ' 點（' + parts.join('＋') + '）' : '今天還沒有運動記錄';
-  const add = h('button.pri', { type: 'button', style: { flex: '0 0 auto', padding: '8px 14px' }, onclick: e => { e.preventDefault(); e.stopPropagation(); openExercise(); } }, '記運動');
   const list = h('div.list', { style: { marginTop: '6px' } });
   for (const x of mine) list.append(h('div.it', { onclick: () => openExercise(x) },
     h('div.grow', h('div.one', NAME[x.type] || '運動'), h('div.mu.tiny.num', hm(x.at) + ' · ' + x.minutes + ' 分鐘 · ' + x.kcal + ' 大卡')),
     h('span.pts.num', { style: { color: 'var(--ac)' } }, '+' + fmtPts(pts(x.kcal)), h('span.mu.tiny', ' 點'))));
   if (watch) list.append(h('div.mu.tiny.one', { style: { marginTop: '6px' } }, 'Health Connect（手錶）今天 ' + Math.round(watch) + ' 大卡，+' + fmtPts(pts(watch)) + ' 點'));
   if (!mine.length && !watch) list.append(h('div.empty', '打球、走路都可以記，消耗會換成可以多吃的點數'));
-  const head = h('div.row.between.grow', { style: { gap: '10px' } }, h('div.small.one', { style: { fontWeight: 600 } }, sum), add);
+  const head = h('div.row.between.grow', { style: { gap: '10px' } }, h('div.small.one', { style: { fontWeight: 600 } }, sum));
   return h('div.card', fold('ex-card', head, [list, tip('加回點數＝消耗熱量 × 0.75 ÷ 40（手錶和估算常常算多，所以打 75 折）。消耗用「運動強度（MET）× 體重 × 時間」估算，估得不準可以直接改大卡數。手錶已經記到的運動（Health Connect 會自動加入），不要再手動記一次，不然會算兩次。')]));
 }
 
