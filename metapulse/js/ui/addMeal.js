@@ -27,6 +27,8 @@ export function openAddMeal(o = {}) {
   let thumb = editing ? (editing.find(m => m.thumb) || {}).thumb : undefined;
   let busy = null; // AbortController
   let lastImage = null; // 本次拍的照片（只在面板開著時留在記憶體，供重新辨識）
+  let thumbFromPhoto = false; // thumb 是這次拍的照片做的（按 ✕ 時一起拿掉）
+  let hintText = ''; // 照片的補充說明（重畫拍照區時保留）
 
   openSheet(sh => {
     sh.append(h('div.sheet-h', h('b', editing ? '編輯這一餐' : '記一餐'), h('button.link', { type: 'button', onclick: () => closeSheet() }, '關閉')));
@@ -69,17 +71,28 @@ export function openAddMeal(o = {}) {
     const saveBtn = h('button.pri.full', { type: 'button' });
     const totalTxt = h('div.mu.small.num', { style: { textAlign: 'center', marginTop: '6px' } });
 
+    // 拍照區的元件（drawInput 建立）：辨識中把進度蓋在照片上，並鎖住拍照鈕
+    let photoUI = null;
     const setBusy = (text) => {
       status.textContent = '';
+      const ov = mode === 'photo' && photoUI && photoUI.overlay;
+      if (photoUI) for (const b of photoUI.lock) b.disabled = !!text;
+      if (ov) {
+        ov.textContent = '';
+        ov.hidden = !text;
+        if (text) ov.append(h('span.spin'), h('span', text), h('button.link', { type: 'button', onclick: () => busy?.abort() }, '取消'));
+        return;
+      }
       if (text) status.append(h('span.spin'), ' ', text, ' ', h('button.link', { type: 'button', onclick: () => busy?.abort() }, '取消'));
     };
     const showErr = (e) => {
-      status.textContent = '';
+      setBusy('');
       const msg = e.name === 'AbortError' ? '已取消。' : '辨識失敗：' + (e.message || e);
       status.append(h('div.notice', msg, e.name === 'AbortError' ? '' : h('div.tiny.mu', { style: { marginTop: '4px' } }, '可以改用文字描述、常用食物，或下方「自己輸入一項」。')));
+      status.scrollIntoView({ behavior: 'smooth', block: 'center' });
     };
 
-    async function runAI({ replace, ...args }) {   // replace：用同一張照片重新辨識，成功後取代上次照片辨識出的品項
+    async function runAI({ replace, ...args }) {   // replace：成功後取代這次照片（_photo）辨識出的品項；手動、常用加的都留著
       if (!L.geminiKey) { status.textContent = ''; status.append(h('div.notice', '還沒設定 AI 的 API 金鑰。請到「設定」→「AI 辨識食物」輸入。', h('a', { href: 'apikey.html', style: { marginLeft: '6px', color: 'var(--ac)', fontWeight: 600 } }, '怎麼申請 ›'))); return; }
       busy?.abort(); busy = new AbortController();
       const t0 = Date.now(), label = args.image ? '辨識照片中…' : '估算中…';
@@ -87,27 +100,35 @@ export function openAddMeal(o = {}) {
       const me = busy, tick = setInterval(() => { if (busy !== me) return clearInterval(tick); setBusy(label + ' ' + Math.floor((Date.now() - t0) / 1000) + ' 秒'); }, 1000);
       try {
         const res = await analyzeMeal({ key: L.geminiKey, model: L.geminiModel, api: L.geminiApi, prefer: L.geminiApiOk, fast: L.geminiFast !== false, signal: busy.signal, ...args });
-        busy = null; status.textContent = '';
+        busy = null; setBusy('');
         if (L.geminiApiOk !== res.api) { L.geminiApiOk = res.api; commitLocal(); }
         status.append(h('div.mu.tiny', '辨識花了 ' + (res.ms / 1000).toFixed(1) + ' 秒'));
-        if (!res.items.length) { status.append(h('div.notice', '沒有辨識到食物。' + (res.note || ''))); return; }
-        if (replace) for (let j = items.length - 1; j >= 0; j--) if (items[j].source === 'ai-photo') items.splice(j, 1);   // 先拿掉上次照片辨識的
+        if (!res.items.length) { status.append(h('div.notice', '沒有辨識到食物。' + (res.note || ''))); status.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+        if (replace) for (let j = items.length - 1; j >= 0; j--) if (items[j]._photo) items.splice(j, 1);   // 先拿掉上一張照片辨識的
+        const first = items.length;
         for (const x of res.items) items.push({
           name: x.name, per: x.per, servingGrams: x.servingGrams || 100, fistsPerServing: x.fistsPerServing,
           unit: 'serving', qty: x.servings, slider: 1, source: args.image ? 'ai-photo' : 'ai-text', foodId: '', aiRaw: res.raw,
+          ...(args.image ? { _photo: true } : {}),
         });
         if (res.note) status.append(h('div.mu.tiny', 'AI 備註：' + res.note));
         drawItems();
-      } catch (e) { busy = null; showErr(e); }
+        // 辨識好了：捲到結果，不用自己往下找
+        (itemsBox.children[first + (thumb ? 1 : 0)] || itemsBox).scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } catch (e) {
+        if (busy !== me) return;   // 已被新的辨識取代、或按了 ✕：不要蓋掉新的狀態
+        busy = null; showErr(e);
+      }
     }
 
     function drawInput() {
       inputArea.textContent = '';
+      photoUI = null;
       if (mode === 'photo') {
         const cam = h('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
         const pick = h('input', { type: 'file', accept: 'image/*', hidden: true });
-        const hint = h('input', { type: 'text', placeholder: '補充說明（選填），例如「只吃一半」' });
-        const prev = h('div');
+        const hint = h('input', { type: 'text', placeholder: '補充說明，例如只吃一半', value: hintText, style: { flex: 1, minWidth: 0 } });
+        hint.oninput = () => { hintText = hint.value; };
         const onFile = async ev => {
           const f = ev.target.files && ev.target.files[0]; ev.target.value = '';
           if (!f) return;
@@ -120,20 +141,40 @@ export function openAddMeal(o = {}) {
               when = new Date(lm); whenIn.value = toLocalInput(when); whenSet = true; drawWhen();
               toast('用餐時間已改成照片的時間 ' + toLocalInput(when).slice(11));
             }
-            prev.textContent = ''; prev.append(h('img.preview', { src: img.dataUrl, alt: '餐點照片' }),
-              // 照片一直留著：辨識不對、或食物被刪掉了，都可以從這張照片重來
-              h('button.ghost.full', { type: 'button', style: { marginTop: '8px' }, onclick: () => { if (lastImage) runAI({ image: lastImage, text: hint.value.trim(), replace: true }); } }, icon('camera'), ' 用這張照片重新辨識'));
-            if (L.keepThumbs) { try { thumb = (await shrinkImage(f, 200, 0.7, true)).dataUrl; } catch (e) { /* 縮圖失敗不影響 */ } }
-            runAI({ image: img, text: hint.value.trim() });
+            if (L.keepThumbs) { try { thumb = (await shrinkImage(f, 200, 0.7, true)).dataUrl; thumbFromPhoto = true; } catch (e) { /* 縮圖失敗不影響 */ } }
+            drawInput();
+            photoUI.box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            runAI({ image: img, text: hintText.trim(), replace: true });   // 重拍：取代上一張照片辨識出的品項
           } catch (e) { showErr(e); }
         };
         cam.onchange = onFile; pick.onchange = onFile;
+        const camBtn = h('button.pri', { type: 'button', onclick: () => cam.click() }, icon('camera'), lastImage ? ' 重拍' : ' 拍照');
+        const pickBtn = h('button.ghost', { type: 'button', onclick: () => pick.click() }, icon('image'), lastImage ? ' 換照片' : ' 選照片');
+        const lock = [camBtn, pickBtn];
+        let box = null, overlay = null;
+        if (lastImage) {
+          overlay = h('div.photo-ov', { hidden: true, 'aria-live': 'polite' });
+          // ✕：不要這張照片，連同它辨識出的品項一起拿掉
+          const drop = h('button.photo-x', { type: 'button', 'aria-label': '不要這張照片', onclick: () => {
+            busy?.abort(); busy = null;
+            lastImage = null;
+            for (let j = items.length - 1; j >= 0; j--) if (items[j]._photo) items.splice(j, 1);
+            if (thumbFromPhoto) { thumb = undefined; thumbFromPhoto = false; }
+            status.textContent = '';
+            drawInput(); drawItems();
+          } }, icon('x'));
+          box = h('div.photobox', h('img.preview', { src: lastImage.dataUrl, alt: '餐點照片' }), overlay, drop);
+          // 照片一直留著：辨識不對、補了說明、或食物被刪掉了，都可以從這張照片重來
+          const again = h('button.ghost', { type: 'button', style: { flex: '0 0 auto' }, onclick: () => { if (lastImage) runAI({ image: lastImage, text: hintText.trim(), replace: true }); } }, '重新辨識');
+          lock.push(again);
+          hint.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); again.click(); } };
+          inputArea.append(box, h('div.row', { style: { marginTop: '8px', gap: '8px' } }, hint, again));
+        } else inputArea.append(h('div', { style: { marginTop: '12px' } }, hint));
+        photoUI = { box, overlay, lock };
         inputArea.append(
-          h('div.grid2', { style: { marginTop: '12px' } },
-            h('button.pri', { type: 'button', onclick: () => cam.click() }, icon('camera'), ' 拍照'),
-            h('button.ghost', { type: 'button', onclick: () => pick.click() }, icon('image'), ' 選照片')),
-          h('div', { style: { marginTop: '8px' } }, hint), cam, pick, prev,
-          h('div.mu.tiny', { style: { marginTop: '6px' } }, '照片只送到 Google Gemini 辨識，不會存在 app 裡' + (L.keepThumbs ? '（只留一張小照片）' : '') + '。'));
+          h('div.grid2', { style: { marginTop: '8px' } }, camBtn, pickBtn), cam, pick,
+          h('div.mu.tiny.one', { style: { marginTop: '6px' } }, '照片只送到 Google Gemini 辨識，不存在 app 裡' + (L.keepThumbs ? '（只留小照片）' : '')));
+        if (busy) setBusy('辨識照片中…');
       } else if (mode === 'text') {
         const ta = h('textarea', { rows: 2, placeholder: '例如：一碗牛肉麵加滷蛋、一杯無糖豆漿' });
         const go = h('button.pri.full', { type: 'button', onclick: () => { const t = ta.value.trim(); if (t) runAI({ text: t }); else ta.focus(); } }, '估算');
@@ -173,6 +214,7 @@ export function openAddMeal(o = {}) {
         items.splice(i, 1, ...res.items.map(x => ({
           name: x.name, per: x.per, servingGrams: x.servingGrams || 100, fistsPerServing: x.fistsPerServing,
           unit: 'serving', qty: x.servings, slider: 1, source: useImg ? 'ai-photo' : 'ai-text', foodId: '', aiRaw: res.raw,
+          ...(useImg ? { _photo: true } : {}),
         })));
         drawItems();
         toast('已重新辨識（' + (res.ms / 1000).toFixed(1) + ' 秒）');

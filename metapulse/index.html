@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <script>
 /* 版本號：發布新版時改這裡。版本檢查會比對線上 index.html 的這一行。 */
-window.APP_VERSION = '0.9.30';
+window.APP_VERSION = '0.9.31';
 /* 載入失敗時不要只剩空白：記下錯誤，8 秒後程式還沒啟動就顯示原因與「重新載入」 */
 (function(){var errs=[];
 addEventListener('error',function(e){var t=e.target;if(t&&t!==window&&(t.src||t.href))errs.push('載入失敗：'+(t.src||t.href).split('/').slice(-2).join('/'));else errs.push((e.message||'程式檔載入失敗（網路或舊快取）')+(e.filename?'（'+e.filename.split('/').pop().split('?')[0]+':'+e.lineno+'）':''))},true);
@@ -126,6 +126,13 @@ svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stro
 .spin{width:22px;height:22px;border:2.5px solid var(--ln);border-top-color:var(--ac);border-radius:50%;animation:sp 1s linear infinite;display:inline-block;vertical-align:middle}
 @keyframes sp{to{transform:rotate(360deg)}}
 .preview{width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin-top:10px}
+.photobox{position:relative;margin-top:12px}
+.photobox .preview{display:block;height:120px;max-height:none;margin:0}
+.photo-ov{position:absolute;inset:0;border-radius:12px;background:rgba(0,0,0,.6);color:#fff;display:flex;align-items:center;justify-content:center;gap:10px;font-size:17px;font-weight:600}
+.photo-ov[hidden]{display:none}
+.photo-ov .spin{border-color:rgba(255,255,255,.35);border-top-color:#fff}
+.photo-ov .link{color:#fff;text-decoration:underline;font-size:15px}
+.photobox .photo-x{position:absolute;top:6px;right:6px;width:32px;height:32px;padding:0;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:0;display:flex;align-items:center;justify-content:center}
 .foot{position:sticky;bottom:calc(-20px - env(safe-area-inset-bottom,0px));background:var(--bg);padding:10px 0 4px;margin-top:6px}
 /* 底部分頁 */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:10;display:flex;justify-content:center;background:var(--card);border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom,0px)}
