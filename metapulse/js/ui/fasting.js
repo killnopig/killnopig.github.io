@@ -429,13 +429,16 @@ export function openJournal(journalDays = 14) {
     if (m.pending) continue;
     const k = m.group || m.id;
     if (!g.has(k)) g.set(k, { group: k, at: m.at, names: [], points: 0 });
-    const x = g.get(k); x.names.push(m.name); x.points += +m.points || 0; if (m.at < x.at) x.at = m.at;
+    const x = g.get(k); x.names.push(m.name); x.points += +m.points || 0; if (m.at < x.at) x.at = m.at; if (m.notDup) x.notDup = true;
   }
   const all = periods([...g.values()], S.fasts, now);
   // 同一分鐘、同樣內容的兩餐：可能存了兩次
   const seen = new Map();
-  for (const m of g.values()) { const k = String(m.at).slice(0, 16) + '|' + m.names.join('、'); seen.set(k, (seen.get(k) || 0) + 1); }
-  const dup = m => seen.get(String(m.at).slice(0, 16) + '|' + m.names.join('、')) > 1;
+  const dkey = m => String(m.at).slice(0, 16) + '|' + m.names.join('、');
+  for (const m of g.values()) if (!m.notDup) seen.set(dkey(m), (seen.get(dkey(m)) || 0) + 1);
+  const dup = m => !m.notDup && seen.get(dkey(m)) > 1;
+  // 「不是重複」：同一分鐘同樣的那幾餐都標起來，之後不再提示
+  const notDup = m => { const k = dkey(m), gs = new Set([...g.values()].filter(x => dkey(x) === k).map(x => x.group)); for (const x of S.meals) if (gs.has(x.group || x.id)) x.notDup = true; commit(); closeSheet(); setTimeout(() => openJournal(journalDays), 350); };
   const from = now - journalDays * 864e5;
   const list = all.filter(p => (p.end == null ? now : p.end) >= from);
   const back = () => openJournal(journalDays);
@@ -471,7 +474,9 @@ export function openJournal(journalDays = 14) {
         h('span.mu.tiny.one', '點一下改，長按拖到另一段可以合併'),
         h('button.link.small', { type: 'button', onclick: () => { closeSheet(); setTimeout(() => openFastEditor(null, back), 350); } }, '＋ 補記斷食')));
     const mealLine = m => h('div.row', { style: { gap: '8px', padding: '5px 0 5px 12px', cursor: 'pointer' }, onclick: () => { closeSheet(); setTimeout(() => openAddMeal({ group: m.group, onDone: back }), 350); } },
-      h('span.small.num.mu', { style: { flex: '0 0 auto' } }, hm(m.at)), h('span.small.one.grow', dup(m) ? h('span', { style: { color: 'var(--warn)', fontWeight: 650 } }, '⚠ 可能重複 ') : null, m.names.join('、')), h('span.small.num', { style: { flex: '0 0 auto', fontWeight: 650 } }, roundTo(m.points) + ' 點'));
+      h('span.small.num.mu', { style: { flex: '0 0 auto' } }, hm(m.at)), h('span.small.one.grow', dup(m) ? h('span', { style: { color: 'var(--warn)', fontWeight: 650 } }, '⚠ 可能重複 ') : null, m.names.join('、')),
+      dup(m) ? h('button.link.small', { type: 'button', style: { flex: '0 0 auto', padding: '0 2px' }, onclick: e => { e.stopPropagation(); notDup(m); } }, '不是重複') : null,
+      h('span.small.num', { style: { flex: '0 0 auto', fontWeight: 650 } }, roundTo(m.points) + ' 點'));
     const wrapEl = h('div'), items = [];
     for (const p of list) {
       const box = h('div.jbox', { style: { borderLeft: '4px solid ' + (p.type === 'fast' ? 'var(--c1)' : 'var(--ac)'), padding: '4px 0 4px 10px', margin: '8px 0' } });
@@ -502,7 +507,7 @@ export function openJournal(journalDays = 14) {
     dragMerge(sh, wrapEl, items, (a, b) => askMerge(sh, a, b));
     if (!list.length) sh.append(h('div.empty', '還沒有記錄'));
     if (all.length > list.length) sh.append(h('button.ghost.full', { type: 'button', onclick: () => { closeSheet(); setTimeout(() => openJournal(journalDays + 30), 350); } }, '看更早'));
-    sh.append(tip('長按一段拖到同一種的另一段上放開，可以合併：兩段斷食合併，中間吃的東西會留著；兩段進食合併，中間的斷食會刪掉。斷食段＝按「開始斷食」到「結束斷食」，中間只隔 30 分鐘以內又沒吃東西的兩段會自動接成一段。空白＝兩段斷食中間沒記食物，有吃可以補記，不記也沒關係。⚠ 跟別段重疊＝同一段時間記了兩次，刪掉多的那筆；⚠ 可能重複＝同一分鐘記了一樣的餐點，點進去刪掉一筆。進食段＝上一段斷食結束到下一段斷食開始，中間吃幾次都在同一段。以前沒有斷食記錄的日子，照每天分。'));
+    sh.append(tip('長按一段拖到同一種的另一段上放開，可以合併：兩段斷食合併，中間吃的東西會留著；兩段進食合併，中間的斷食會刪掉。斷食段＝按「開始斷食」到「結束斷食」，中間只隔 30 分鐘以內又沒吃東西的兩段會自動接成一段。空白＝兩段斷食中間沒記食物，有吃可以補記，不記也沒關係。⚠ 跟別段重疊＝同一段時間記了兩次，刪掉多的那筆；⚠ 可能重複＝同一分鐘記了一樣的餐點；真的吃了兩份就按「不是重複」，記錯了就點進去刪掉一筆。進食段＝上一段斷食結束到下一段斷食開始，中間吃幾次都在同一段。以前沒有斷食記錄的日子，照每天分。'));
   });
 }
 

@@ -74,6 +74,7 @@ export function normalizeMeal(m) {
     source: str(m.source) || 'manual', foodId: str(m.foodId), aiRaw: m.aiRaw ? str(m.aiRaw) : undefined,
     thumb: m.thumb ? str(m.thumb) : undefined,
     pending: m.pending ? true : undefined,   // 先存、還沒吃（按「結束斷食」才算吃了）
+    notDup: m.notDup ? true : undefined,     // 使用者說「不是重複」：同一分鐘同樣的兩餐都有吃
     advice: m.advice && typeof m.advice === 'object' ? { review: str(m.advice.review), next: str(m.advice.next), cheer: str(m.advice.cheer), local: !!m.advice.local } : undefined,
   };
 }

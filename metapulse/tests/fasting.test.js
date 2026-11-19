@@ -317,3 +317,9 @@ test('記錄頁拖拉合併：兩段斷食接成一段、兩段進食中間的�
   const eats = p.filter(x => x.type === 'eat');
   assert.deepEqual(fastsBetween([f1, f2], eats[0], eats[1], t0).map(x => x.id), ['f2']);
 });
+
+test('「不是重複」的標記存檔、讀檔後還在', async () => {
+  const { normalizeMeal } = await import('../js/storage.js');
+  assert.equal(normalizeMeal({ id: 'x', at: '2026-11-19T06:52:00.000Z', name: 'a', notDup: true }).notDup, true);
+  assert.equal(normalizeMeal({ id: 'y', at: '2026-11-19T06:52:00.000Z', name: 'a' }).notDup, undefined);
+});

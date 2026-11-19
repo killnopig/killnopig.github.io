@@ -292,6 +292,7 @@ export function openAddMeal(o = {}) {
           per: { ...it.per }, kcal: t.kcal, protein: t.protein, carb: t.carb, fat: t.fat, fiber: t.fiber, points: t.points,
           source: it.source, foodId: it.foodId || '', ...(it.aiRaw ? { aiRaw: it.aiRaw } : {}), ...(i === 0 && thumb ? { thumb } : {}),
           ...(pending ? { pending: true } : {}),
+          ...(editing && editing.some(m => m.notDup) ? { notDup: true } : {}),
         });
       });
       // 只有選了「現在吃，結束斷食」才結束斷食（記下是這一餐結束的，刪掉這一餐時會接回來）；其他情況都不動斷食
