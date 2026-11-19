@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <script>
 /* 版本號：發布新版時改這裡。版本檢查會比對線上 index.html 的這一行。 */
-window.APP_VERSION = '0.9.42';
+window.APP_VERSION = '0.9.43';
 /* 載入失敗時不要只剩空白：記下錯誤，8 秒後程式還沒啟動就顯示原因與「重新載入」 */
 (function(){var errs=[];
 addEventListener('error',function(e){var t=e.target;if(t&&t!==window&&(t.src||t.href))errs.push('載入失敗：'+(t.src||t.href).split('/').slice(-2).join('/'));else errs.push((e.message||'程式檔載入失敗（網路或舊快取）')+(e.filename?'（'+e.filename.split('/').pop().split('?')[0]+':'+e.lineno+'）':''))},true);
@@ -184,6 +184,11 @@ details.tip>summary::after{display:none}
 details.tip>div{font-size:12px;color:var(--mu);line-height:1.65;margin-top:4px;white-space:normal}
 details.tip>div *{white-space:normal}
 .two{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal}
+.jbox{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;border-radius:0 10px 10px 0;transition:background .15s}
+.jbox.lifted{position:relative;z-index:5;background:var(--card);box-shadow:0 10px 28px rgba(0,0,0,.25);transition:none}
+.jbox.drop{background:var(--ac-soft);outline:2px dashed var(--ac);outline-offset:2px}
+.mergebar{position:sticky;bottom:0;background:var(--card);border:2px solid var(--ac);border-radius:14px;padding:12px;margin-top:10px;box-shadow:0 -4px 18px rgba(0,0,0,.15)}
+.undobar{position:fixed;left:16px;right:16px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:70;max-width:528px;margin:0 auto;background:var(--tx);color:var(--bg);border-radius:12px;padding:8px 14px;display:flex;justify-content:space-between;align-items:center;font-size:14px}
 .card.tight{padding:12px 14px;line-height:1.4}.tight button.full{margin-top:8px}.tight .list .it{padding:7px 0}.tight details.tip{margin-top:0}.tight .cta-row{margin-top:10px}.tight .cta{padding:12px}.tight .empty{padding:8px 0}.tight .hero{gap:12px}
 @media (max-width:360px){.hero{grid-template-columns:100px 1fr}.ring,.ring svg{width:100px;height:100px}.grid5{grid-template-columns:repeat(3,1fr)}}
 </style>

@@ -4,7 +4,7 @@ import { h, fold, pills, toast, tip, info3, timePick, openSheet, closeSheet } fr
 import { FASTING } from '../config.js';
 import { HOURLY_MESSAGES, OMAD_DONE } from '../messages.js';
 import { fuelText, eatingText } from '../lines.js';
-import { currentFast, openFast, checkFast, periods, mergeFasts, targetHours, fastEnd, eatPending, pendingMeals, mealShift, stageAt, stageStarts, hourlyMessage, hybridSuggestion, eatingWindow, hm, dur } from '../fasting.js';
+import { currentFast, openFast, checkFast, periods, mergeFasts, mergeTwoFasts, fastsBetween, targetHours, fastEnd, eatPending, pendingMeals, mealShift, stageAt, stageStarts, hourlyMessage, hybridSuggestion, eatingWindow, hm, dur } from '../fasting.js';
 import { openAddMeal } from './addMeal.js';
 import { timeStop, gears } from './fx.js';
 import { longTermIndex, weightTrend, longTermMessage, leanTrend, leanSummary } from '../longterm.js';
@@ -439,15 +439,43 @@ export function openJournal(journalDays = 14) {
   const from = now - journalDays * 864e5;
   const list = all.filter(p => (p.end == null ? now : p.end) >= from);
   const back = () => openJournal(journalDays);
+  /** 放手後：確認框，按「合併」才改；改完可以復原 */
+  const askMerge = (sh, a, b) => {
+    let msg, apply;
+    if (a.type === 'fast') {
+      const st = Math.min(a.start, b.start), en = a.end == null || b.end == null ? null : Math.max(a.end, b.end);
+      const mids = [...g.values()].filter(m => { const t = new Date(m.at).getTime(); return t > st && (en == null || t < en); });
+      msg = '合併成一段斷食：' + span(st, en) + (mids.length ? '。中間有 ' + mids.length + ' 餐（' + mids.slice(0, 2).map(m => m.names[0]).join('、') + (mids.length > 2 ? '…' : '') + '），會留著放在斷食段裡' : '');
+      apply = () => { const rm = mergeTwoFasts(S.fasts, a.rec, b.rec); S.fasts = S.fasts.filter(x => !rm.includes(x)); };
+    } else {
+      const rm = fastsBetween(S.fasts, a, b, now);
+      if (!rm.length) { toast('這兩段中間沒有斷食，不用合併'); return; }
+      const st = Math.min(a.start, b.start);
+      msg = '合併成一段進食（從 ' + mdT(st) + ' ' + hm(st) + ' 開始）。中間的斷食 ' + rm.map(x => span(new Date(x.start).getTime(), new Date(x.end).getTime())).join('、') + ' 會刪掉';
+      apply = () => { S.fasts = S.fasts.filter(x => !rm.includes(x)); };
+    }
+    sh.querySelector('.mergebar')?.remove();
+    const bar = h('div.mergebar', h('div.small', { style: { fontWeight: 600, lineHeight: 1.5 } }, msg),
+      h('div.grid2', { style: { marginTop: '8px' } },
+        h('button.pri', { type: 'button', onclick: () => {
+          const snap = JSON.parse(JSON.stringify(S.fasts));
+          apply(); commit(); closeSheet();
+          setTimeout(() => { openJournal(journalDays); undoBar('已合併', () => restoreFasts(snap)); }, 350);
+        } }, '合併'),
+        h('button.ghost', { type: 'button', onclick: () => bar.remove() }, '取消')));
+    sh.append(bar);
+  };
   openSheet(sh => {
     sh.append(h('div.sheet-h', h('b', '斷食與飲食記錄'), h('button.link', { type: 'button', onclick: () => closeSheet() }, '關閉')),
       h('div.row.between', { style: { marginBottom: '6px' } },
-        h('span.mu.tiny.one', '點斷食段改時間，點食物改那一餐'),
+        h('span.mu.tiny.one', '點一下改，長按拖到另一段可以合併'),
         h('button.link.small', { type: 'button', onclick: () => { closeSheet(); setTimeout(() => openFastEditor(null, back), 350); } }, '＋ 補記斷食')));
     const mealLine = m => h('div.row', { style: { gap: '8px', padding: '5px 0 5px 12px', cursor: 'pointer' }, onclick: () => { closeSheet(); setTimeout(() => openAddMeal({ group: m.group, onDone: back }), 350); } },
       h('span.small.num.mu', { style: { flex: '0 0 auto' } }, hm(m.at)), h('span.small.one.grow', dup(m) ? h('span', { style: { color: 'var(--warn)', fontWeight: 650 } }, '⚠ 可能重複 ') : null, m.names.join('、')), h('span.small.num', { style: { flex: '0 0 auto', fontWeight: 650 } }, roundTo(m.points) + ' 點'));
+    const wrapEl = h('div'), items = [];
     for (const p of list) {
-      const box = h('div', { style: { borderLeft: '4px solid ' + (p.type === 'fast' ? 'var(--c1)' : 'var(--ac)'), padding: '4px 0 4px 10px', margin: '8px 0' } });
+      const box = h('div.jbox', { style: { borderLeft: '4px solid ' + (p.type === 'fast' ? 'var(--c1)' : 'var(--ac)'), padding: '4px 0 4px 10px', margin: '8px 0' } });
+      items.push({ el: box, p });
       if (p.type === 'fast') {
         const ok = p.end != null && p.hours >= goal;
         box.append(h('div.row.between', { style: { cursor: 'pointer', gap: '8px' }, onclick: () => { closeSheet(); setTimeout(() => openFastEditor(p.rec, back, p.overlap), 350); } },
@@ -468,10 +496,70 @@ export function openJournal(journalDays = 14) {
         if (p.meals.length) box.append(...p.meals.map(mealLine));
         else box.append(h('div.mu.tiny', { style: { padding: '4px 0 0 12px' } }, '還沒有記錄食物'));
       }
-      sh.append(box);
+      wrapEl.append(box);
     }
+    sh.append(wrapEl);
+    dragMerge(sh, wrapEl, items, (a, b) => askMerge(sh, a, b));
     if (!list.length) sh.append(h('div.empty', '還沒有記錄'));
     if (all.length > list.length) sh.append(h('button.ghost.full', { type: 'button', onclick: () => { closeSheet(); setTimeout(() => openJournal(journalDays + 30), 350); } }, '看更早'));
-    sh.append(tip('斷食段＝按「開始斷食」到「結束斷食」，中間只隔 30 分鐘以內又沒吃東西的兩段會自動接成一段。空白＝兩段斷食中間沒記食物，有吃可以補記，不記也沒關係。⚠ 跟別段重疊＝同一段時間記了兩次，刪掉多的那筆；⚠ 可能重複＝同一分鐘記了一樣的餐點，點進去刪掉一筆。進食段＝上一段斷食結束到下一段斷食開始，中間吃幾次都在同一段。以前沒有斷食記錄的日子，照每天分。'));
+    sh.append(tip('長按一段拖到同一種的另一段上放開，可以合併：兩段斷食合併，中間吃的東西會留著；兩段進食合併，中間的斷食會刪掉。斷食段＝按「開始斷食」到「結束斷食」，中間只隔 30 分鐘以內又沒吃東西的兩段會自動接成一段。空白＝兩段斷食中間沒記食物，有吃可以補記，不記也沒關係。⚠ 跟別段重疊＝同一段時間記了兩次，刪掉多的那筆；⚠ 可能重複＝同一分鐘記了一樣的餐點，點進去刪掉一筆。進食段＝上一段斷食結束到下一段斷食開始，中間吃幾次都在同一段。以前沒有斷食記錄的日子，照每天分。'));
   });
+}
+
+/** 復原合併：改過的記錄照原樣改回來；刪掉的換新 id 加回來（舊 id 已記為刪除，同步時會被拿掉） */
+function restoreFasts(snap) {
+  for (const r of snap) {
+    const i = S.fasts.findIndex(x => x.id === r.id);
+    if (i >= 0) S.fasts[i] = r; else S.fasts.push({ ...r, id: uid('f') });
+  }
+  commit(); toast('已復原');
+  if (document.getElementById('sheet').classList.contains('on')) { closeSheet(); setTimeout(() => openJournal(), 350); }
+}
+
+/** 畫面下方的「已合併・復原」（6 秒後消失） */
+function undoBar(text, onUndo) {
+  document.querySelector('.undobar')?.remove();
+  const bar = h('div.undobar', h('span', text), h('button.link', { type: 'button', style: { color: 'inherit', textDecoration: 'underline' }, onclick: () => { bar.remove(); onUndo(); } }, '復原'));
+  document.body.append(bar);
+  setTimeout(() => bar.remove(), 6000);
+}
+
+/**
+ * 長按拖拉：按住約半秒那一段浮起來（震一下），拖到同一種的另一段上（出現框），放手就呼叫 onDrop。
+ * 浮起來之後擋掉捲動，靠近上下邊緣會自動捲；長按過就不算點一下
+ */
+function dragMerge(scroller, wrapEl, items, onDrop) {
+  let timer = null, lifted = null, y0 = 0, s0 = 0, target = null, suppress = false, lastY = 0;
+  const clear = () => { clearTimeout(timer); timer = null; };
+  const lift = it => { lifted = it; s0 = scroller.scrollTop; it.el.classList.add('lifted'); try { navigator.vibrate && navigator.vibrate(15); } catch (e) { /* 不支援震動 */ } };
+  const hit = y => items.find(it => it !== lifted && it.p.type === lifted.p.type && (r => y >= r.top && y <= r.bottom)(it.el.getBoundingClientRect()));
+  const move = y => {
+    lastY = y;
+    if (!lifted) { if (timer && Math.abs(y - y0) > 8) clear(); return; }
+    const r = scroller.getBoundingClientRect();
+    if (y < r.top + 70) scroller.scrollTop -= 10; else if (y > r.bottom - 70) scroller.scrollTop += 10;
+    lifted.el.style.transform = 'translateY(' + (y - y0 + scroller.scrollTop - s0) + 'px) scale(1.02)';
+    const t = hit(y);
+    if (t !== target) { if (target) target.el.classList.remove('drop'); target = t; if (t) t.el.classList.add('drop'); }
+  };
+  const end = () => {
+    clear();
+    if (!lifted) return;
+    const src = lifted, dst = target;
+    src.el.classList.remove('lifted'); src.el.style.transform = '';
+    if (dst) dst.el.classList.remove('drop');
+    lifted = null; target = null; suppress = true; setTimeout(() => { suppress = false; }, 400);
+    if (dst) onDrop(src.p, dst.p);
+  };
+  const begin = (it, y) => { y0 = lastY = y; clear(); timer = setTimeout(() => lift(it), 450); };
+  for (const it of items) {
+    it.el.addEventListener('touchstart', e => begin(it, e.touches[0].clientY), { passive: true });
+    it.el.addEventListener('mousedown', e => begin(it, e.clientY));
+    it.el.addEventListener('click', e => { if (suppress) { e.stopPropagation(); e.preventDefault(); } }, true);
+    it.el.addEventListener('contextmenu', e => e.preventDefault());
+  }
+  wrapEl.addEventListener('touchmove', e => { if (lifted) e.preventDefault(); move(e.touches[0].clientY); }, { passive: false });
+  wrapEl.addEventListener('touchend', end); wrapEl.addEventListener('touchcancel', end);
+  wrapEl.addEventListener('mousemove', e => move(e.clientY));
+  wrapEl.addEventListener('mouseup', end); wrapEl.addEventListener('mouseleave', end);
 }

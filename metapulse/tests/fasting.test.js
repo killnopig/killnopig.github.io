@@ -296,3 +296,24 @@ test('記錄頁：兩段斷食中間沒吃東西顯示空白；只隔一下的�
   assert.equal(mergeFasts(f2, [{ at: iso(19.9), pending: true }]).length, 1, '先存、還沒吃的不算');
   assert.equal(mergeFasts([{ id: 'p', start: iso(30), end: iso(20) }, { id: 'q', start: iso(18), end: iso(10) }], []).length, 0, '隔 2 小時不接');
 });
+
+test('記錄頁拖拉合併：兩段斷食接成一段、兩段進食中間的斷食拿掉', async () => {
+  const { mergeTwoFasts, fastsBetween, periods } = await import('../js/fasting.js');
+  const iso = h => new Date(t0 - h * H).toISOString();
+  // 11/17 17:44→11/18 12:13 和 11/18 01:44→12:13（重疊）
+  const a = { id: 'a', start: iso(50), end: iso(26) }, b = { id: 'b', start: iso(42), end: iso(26) };
+  let fasts = [a, b];
+  const rm = mergeTwoFasts(fasts, b, a);
+  assert.deepEqual(rm.map(x => x.id), ['b']);
+  assert.equal(a.start, iso(50)); assert.equal(a.end, iso(26));
+  // 有一段還在進行：合併後也在進行
+  const c = { id: 'c', start: iso(20), end: iso(10) }, d = { id: 'd', start: iso(8), end: null };
+  fasts = [c, d, { id: 'in', start: iso(9.5), end: iso(9) }];
+  assert.deepEqual(mergeTwoFasts(fasts, d, c).map(x => x.id).sort(), ['d', 'in']);
+  assert.equal(c.end, null);
+  // 進食段 11:51 拖到 14:49→進行中：中間 11:51→14:49 的斷食拿掉
+  const f1 = { id: 'f1', start: iso(30), end: iso(8) }, f2 = { id: 'f2', start: iso(8), end: iso(5) };
+  const p = periods([{ group: 'm1', at: iso(8) }, { group: 'm2', at: iso(4) }], [f1, f2], t0);
+  const eats = p.filter(x => x.type === 'eat');
+  assert.deepEqual(fastsBetween([f1, f2], eats[0], eats[1], t0).map(x => x.id), ['f2']);
+});

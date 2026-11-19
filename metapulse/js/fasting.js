@@ -355,3 +355,28 @@ export function mergeFasts(fasts, meals, gapMin = 30) {
   }
   return removed;
 }
+
+/**
+ * 記錄頁拖拉合併兩段斷食：從比較早的開始到比較晚的結束（有一段還在進行就是進行中）。
+ * 被包進來的其他斷食記錄也一起拿掉（免得重疊）；中間的餐點不動。會直接改 keep，回傳要刪掉的記錄
+ */
+export function mergeTwoFasts(fasts, a, b) {
+  const t = x => new Date(x).getTime();
+  const keep = t(a.start) <= t(b.start) ? a : b, other = keep === a ? b : a;
+  const start = Math.min(t(a.start), t(b.start));
+  const end = a.end == null || b.end == null ? null : Math.max(t(a.end), t(b.end));
+  keep.start = new Date(start).toISOString(); keep.end = end == null ? null : new Date(end).toISOString();
+  delete keep.endedBy; if (end == null && other.goalEnd) keep.goalEnd = other.goalEnd;
+  const rm = (fasts || []).filter(x => x && x !== keep && x.start && (x === other || (t(x.start) >= start && (end == null || (x.end && t(x.end) <= end)))));
+  return rm;
+}
+
+/**
+ * 記錄頁拖拉合併兩段進食：兩段中間的斷食記錄拿掉，整段都算進食。回傳要刪掉的記錄
+ * @param p, q periods() 給的進食段（{start, end}；end＝null 是進行中）
+ */
+export function fastsBetween(fasts, p, q, now = Date.now()) {
+  const early = p.start <= q.start ? p : q, late = early === p ? q : p;
+  const from = early.start, to = late.start;
+  return (fasts || []).filter(x => x && x.start && x.end && new Date(x.start).getTime() >= from && new Date(x.end).getTime() <= to + 60000);
+}
