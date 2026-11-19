@@ -90,7 +90,7 @@ function addBtn(type, label) {
 }
 /** 卡片標題列：標題＋一行摘要＋按鈕；body 為展開內容（沒有就不收合） */
 function deviceCard(key, title, summary, btn, body, { force = false, accent = false } = {}) {
-  const head = h('div.row.grow', h('div.grow', h('h2', { style: { margin: 0 } }, title), h('div.small.num.one', { style: { marginTop: '2px', color: accent ? 'var(--ac)' : '', fontWeight: accent ? 650 : 400 } }, summary)), btn);
+  const head = h('div.row.grow', h('div.grow', h('h2', { style: { margin: 0 } }, title), h('div.small.num.one', { style: { marginTop: '2px', color: accent ? 'var(--ac-tx)' : '', fontWeight: accent ? 650 : 400 } }, summary)), btn);
   const card = h('div.card', accent ? { style: { borderColor: 'var(--ac)' } } : null);
   card.append(body ? fold(key, head, [body], { open: false, force }) : head);
   return card;
@@ -116,7 +116,7 @@ function scaleCard(es) {
   const lsum = leanSummary(leanStatus());
   const body = h('div', { style: { marginTop: '10px' } }, h('div.grid3', { style: { rowGap: '12px' } }, ...more),
     mx && lost >= 0.5 ? h('div.small.num.one', { style: { marginTop: '8px' } }, '最高 ' + mx.wt + '（' + md(mx.date) + '）→ 現在 ' + w.wt + '・已瘦 ' + r1(lost) + ' kg') : null,
-    lsum ? h('div.small.num', { style: { marginTop: '8px', fontWeight: 600, color: lsum.tone === 'good' ? 'var(--ac)' : lsum.tone === 'mid' ? '#ca8a04' : 'var(--warn)' } }, lsum.line) : null,
+    lsum ? h('div.small.num', { style: { marginTop: '8px', fontWeight: 600, color: lsum.tone === 'good' ? 'var(--ac-tx)' : lsum.tone === 'mid' ? '#ca8a04' : 'var(--warn)' } }, lsum.line) : null,
     !S.profile.height ? h('div.mu.tiny.one', { style: { marginTop: '6px' } }, '設定身高後顯示 BMI') : null);
   return deviceCard('dev-scale', '體重計', summary, addBtn('wt', '記錄'), body);
 }

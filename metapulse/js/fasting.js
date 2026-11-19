@@ -16,6 +16,7 @@ const dnStr = s => { const [y, m, d] = s.split('-').map(Number); return Math.rou
 export function currentFast(meals, fasts, now = Date.now(), override = null) {
   let lastAt = -Infinity, lastGroup = null;
   for (const m of meals) {
+    if (m.pending) continue;   // 先存、還沒吃的餐點：按「結束斷食」之前不算
     const t = new Date(m.at).getTime();
     if (t <= now && t > lastAt) { lastAt = t; lastGroup = m.group || m.id; }
   }
@@ -77,8 +78,36 @@ export function mealEndsFast(fi, at) {
 /** 目前最後一餐的 group（存手動修改時用） */
 export function lastMealGroup(meals, now = Date.now()) {
   let lastAt = -Infinity, g = null;
-  for (const m of meals) { const t = new Date(m.at).getTime(); if (t <= now && t > lastAt) { lastAt = t; g = m.group || m.id; } }
+  for (const m of meals) { if (m.pending) continue; const t = new Date(m.at).getTime(); if (t <= now && t > lastAt) { lastAt = t; g = m.group || m.id; } }
   return g;
+}
+
+/**
+ * 「先存，等一下吃」的餐點（pending）：不影響斷食，等使用者自己按「結束斷食」。
+ * 依 group 分組、照預計時間排序：[{group, at, items}]
+ */
+export function pendingMeals(meals) {
+  const g = new Map();
+  for (const m of meals || []) {
+    if (!m.pending) continue;
+    const k = m.group || m.id;
+    if (!g.has(k)) g.set(k, { group: k, at: m.at, items: [] });
+    g.get(k).items.push(m);
+  }
+  return [...g.values()].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+}
+
+/**
+ * 真的開始吃了：把所有先存的餐點改成這一刻吃的，拿掉 pending，並結束進行中的手動斷食。
+ * 會直接改 meals、fasts 裡的物件。回傳改了幾組
+ */
+export function eatPending(meals, fasts, at) {
+  const list = pendingMeals(meals);
+  for (const p of list) {
+    for (const m of p.items) { m.at = at; delete m.pending; }
+    closeFastsForMeal(fasts, at, p.group);
+  }
+  return list.length;
 }
 
 /**

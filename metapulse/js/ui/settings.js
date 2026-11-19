@@ -198,7 +198,7 @@ function aiCard() {
     h('label.row', { style: { color: 'var(--tx)', marginTop: '8px', fontSize: '15px' } }, adv, '記錄後給飲食建議'),
     fold('ai-adv', h('span.small.mu', '進階設定'), [h('label', '連線方式（通常不用改）'), api]),
     test, out,
-    h('a.small.one', { href: 'apikey.html', style: { display: 'block', marginTop: '12px', color: 'var(--ac)', fontWeight: 600 } }, '怎麼申請 API 金鑰（免費）›'),
+    h('a.small.one', { href: 'apikey.html', style: { display: 'block', marginTop: '12px', color: 'var(--ac-tx)', fontWeight: 600 } }, '怎麼申請 API 金鑰（免費）›'),
     tip('API 金鑰是使用 Google AI 的通行碼，像密碼一樣不要給別人。它只存在這支手機，不會放進存檔。照片和文字會直接從你的手機送到 Google 辨識。金鑰可以到 Google AI Studio 免費申請。測試連線會請 AI 估算「一顆水煮蛋」。「速度優先」會讓 AI 少想一點，照片也縮小成 512 像素再送出，回得比較快。')], !L.geminiKey);
 }
 
@@ -260,7 +260,7 @@ export function renderSettings(root) {
       fold('other-glossary', h('span.small', '名詞說明'), [glossaryList()]),
       fold('other-legal', h('span.small', '關於本 app 與免責聲明'), [h('div', { style: { marginTop: '8px' } }, legal())]),
       dangerCard()]); })(),
-    h('p.mu.small.one', { style: { textAlign: 'center', margin: '18px 0 6px' } }, '覺得好用？', h('a', { href: 'https://ko-fi.com/jjptt1980', target: '_blank', rel: 'noopener', style: { color: 'var(--ac)' } }, '請我喝杯咖啡'), '（自願）'));
+    h('p.mu.small.one', { style: { textAlign: 'center', margin: '18px 0 6px' } }, '覺得好用？', h('a', { href: 'https://ko-fi.com/jjptt1980', target: '_blank', rel: 'noopener', style: { color: 'var(--ac-tx)' } }, '請我喝杯咖啡'), '（自願）'));
 }
 
 /** 一鍵全部展開／收起：展開只開大卡片，收起連卡片裡的小區塊一起收 */

@@ -28,7 +28,7 @@ export function medCard() {
   for (const x of list) {
     const m = x.med;
     if (x.log) {
-      const row = h('div.row.between.small', { style: { padding: '6px 0', color: 'var(--ac)', fontWeight: 600 } }, h('span.one', '✓ ' + m.time + ' ' + m.name + '・' + hm(x.log.at) + ' 已服用'));
+      const row = h('div.row.between.small', { style: { padding: '6px 0', color: 'var(--ac-tx)', fontWeight: 600 } }, h('span.one', '✓ ' + m.time + ' ' + m.name + '・' + hm(x.log.at) + ' 已服用'));
       const undo = h('button.link.small', { type: 'button' }, '取消');
       undo.onclick = () => {
         if (!undo.dataset.c) { undo.dataset.c = 1; undo.textContent = '再按一次'; setTimeout(() => { undo.dataset.c = ''; undo.textContent = '取消'; }, 3000); return; }
@@ -36,7 +36,7 @@ export function medCard() {
       };
       row.append(undo); card.append(row);
     } else {
-      const take = h('button' + (x.due ? '.pri' : '.ghost'), { type: 'button', style: { padding: '8px 14px', flex: '0 0 auto', ...(x.late ? { background: 'var(--warn)', color: 'var(--act)' } : {}) } }, '已服用');
+      const take = h('button' + (x.due ? '.pri' : '.ghost'), { type: 'button', style: { padding: '8px 14px', flex: '0 0 auto', ...(x.late ? { background: 'var(--warn)', color: 'var(--on-warn)' } : {}) } }, '已服用');
       take.onclick = () => {
         S.medLog = S.medLog || [];
         S.medLog.push({ id: uid('k'), med: m.id, date: localDate(new Date()), at: new Date().toISOString() });
@@ -46,7 +46,7 @@ export function medCard() {
         h('span.one', { style: { fontWeight: x.due ? 650 : 400, color: x.late ? 'var(--warn)' : '' } }, m.time + ' ' + m.name + (x.late ? '・還沒吃' : '')), take));
     }
   }
-  card.append(fold('med-cal', h('span.small', { style: { color: 'var(--ac)', fontWeight: 650 } }, '服藥記錄'), [calendar()], { cls: 'daygrp' }));
+  card.append(fold('med-cal', h('span.small', { style: { color: 'var(--ac-tx)', fontWeight: 650 } }, '服藥記錄'), [calendar()], { cls: 'daygrp' }));
   return { card, urgent };
 }
 

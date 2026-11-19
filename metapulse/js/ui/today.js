@@ -11,7 +11,7 @@ import { medCard } from './meds.js';
 import { weeklyCard } from './weekly.js';
 import { openAddMeal } from './addMeal.js';
 import { latestAdviceCard } from './advice.js';
-import { fastingCard, longTermCard, fastInfo } from './fasting.js';
+import { fastingCard, longTermCard, fastInfo, pendingCard } from './fasting.js';
 
 const r1 = x => Math.round(x * 10) / 10;
 
@@ -45,7 +45,7 @@ function groupMeals(meals) {
   for (const m of meals) {
     const k = m.group || m.id;
     if (!g.has(k)) g.set(k, { group: k, at: m.at, items: [], points: 0, kcal: 0, protein: 0, thumb: null });
-    const x = g.get(k); x.items.push(m); x.points += m.points; x.kcal += m.kcal; x.protein += m.protein; if (m.thumb) x.thumb = m.thumb;
+    const x = g.get(k); x.items.push(m); x.points += m.points; x.kcal += m.kcal; x.protein += m.protein; if (m.thumb) x.thumb = m.thumb; if (m.pending) x.pending = true;
   }
   return [...g.values()].sort((a, b) => a.at < b.at ? 1 : -1);
 }
@@ -55,7 +55,7 @@ function mealRow(m) {
     m.thumb ? h('img.thumb', { src: m.thumb, alt: '' }) : null,
     h('div.grow',
       h('div', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, m.items.map(i => i.name).join('、')),
-      h('div.mu.tiny.num', hm(m.at) + ' · ' + Math.round(m.kcal) + ' 大卡 · 蛋白質 ' + r1(m.protein) + ' g')),
+      h('div.mu.tiny.num', (m.pending ? '預計 ' + hm(m.at) + ' 吃' : hm(m.at)) + ' · ' + Math.round(m.kcal) + ' 大卡 · 蛋白質 ' + r1(m.protein) + ' g')),
     h('span.pts.num', fmtPts(m.points), h('span.mu.tiny', ' 點')));
 }
 
@@ -133,8 +133,9 @@ export function renderToday(root) {
   if (mc && mc.urgent) root.append(mc.card);
   if (doseLine) root.append(doseLine);
   const ex = b.ok ? exerciseCard() : null;
-  if (fastFirst) { root.append(fastingCard(), top); if (ex) root.append(ex); }
-  else { root.append(top); if (ex) root.append(ex); root.append(fastingCard()); }
+  const pend = pendingCard();   // 先存、還沒吃的餐點：放在斷食卡上面，旁邊就是「結束斷食」
+  if (fastFirst) { if (pend) root.append(pend); root.append(fastingCard(), top); if (ex) root.append(ex); }
+  else { root.append(top); if (ex) root.append(ex); if (pend) root.append(pend); root.append(fastingCard()); }
   if (mc && !mc.urgent) root.append(mc.card);
   const adv = latestAdviceCard();
   if (adv) root.append(adv);

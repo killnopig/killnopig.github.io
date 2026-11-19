@@ -52,7 +52,7 @@ export function foodPicker(onPick, { limit = 30, manage = false } = {}) {
     for (const f of hits.slice(0, limit)) {
       const it = h('div.it', { onclick: () => onPick(f) },
         h('div.grow', h('div', f.name), h('div.mu.tiny', perLine(f))),
-        manage ? icon('edit') : h('span.pts', { style: { color: 'var(--ac)' } }, icon('plus')));
+        manage ? icon('edit') : h('span.pts', { style: { color: 'var(--ac-tx)' } }, icon('plus')));
       list.append(it);
     }
     if (hits.length > limit) list.append(h('div.mu.tiny', { style: { textAlign: 'center', padding: '8px 0' } }, '還有 ' + (hits.length - limit) + ' 項，請輸入關鍵字縮小範圍'));

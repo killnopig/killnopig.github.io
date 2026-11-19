@@ -33,7 +33,7 @@ export function itemCard(item, opts = {}) {
   // 改了名稱：問要不要用新名稱重新估算（只改名字時，營養素不會跟著變）
   if (opts.onReanalyze) {
     const was = item.name || '';
-    const ask = h('div.row.small', { style: { display: 'none', marginTop: '6px', gap: '8px', color: 'var(--ac)', fontWeight: 700 } });
+    const ask = h('div.row.small', { style: { display: 'none', marginTop: '6px', gap: '8px', color: 'var(--ac-tx)', fontWeight: 700 } });
     const btn = h('button.pri', { type: 'button', style: { whiteSpace: 'nowrap', minHeight: '36px', padding: '0 12px' } }, '用新名稱重新估算');
     ask.append(h('span.one', '✎ 名稱改了 →'), btn);
     btn.onclick = () => {

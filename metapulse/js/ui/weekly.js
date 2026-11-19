@@ -13,7 +13,7 @@ const wdOf = d => { const [y, m, dd] = d.split('-').map(Number); return WD[new D
 function cmp(cur, prev, unit) {
   const d = cur - prev;
   if (!d) return h('span.mu.tiny', '和上一段一樣');
-  return h('span.tiny', { style: { color: d > 0 ? 'var(--ac)' : 'var(--warn)' } }, '較上一段 ' + (d > 0 ? '▲' : '▼') + Math.abs(d) + unit);
+  return h('span.tiny', { style: { color: d > 0 ? 'var(--ac-tx)' : 'var(--warn)' } }, '較上一段 ' + (d > 0 ? '▲' : '▼') + Math.abs(d) + unit);
 }
 const tile = (label, value, unit, extra) => h('div', { style: { background: 'var(--soft)', borderRadius: '12px', padding: '10px 12px' } },
   h('div.mu.tiny', label), h('div.num', h('b', { style: { fontSize: '22px' } }, value), h('span.mu.small', ' ' + unit)), extra || null);
@@ -48,7 +48,7 @@ export function weeklyCard() {
   const sum = label + '：達標 ' + r.cur.healthy + '/' + r.cur.days + ' 天・存摺 ' + sgn(r.cur.balance) + ' 點';
   const ai = h('div', { style: { marginTop: '10px' } });
   const key = r.from;                                    // 同一段期間（同一週）只產生一次
-  const showAI = x => { ai.textContent = ''; ai.append(h('div', { style: { background: 'var(--ac-soft)', borderRadius: '12px', padding: '10px 12px', lineHeight: 1.7 } }, h('div.tiny', { style: { color: 'var(--ac)', fontWeight: 700 } }, 'AI 週報'), h('div.small', x.summary), x.tip ? h('div.small', { style: { marginTop: '4px', fontWeight: 650 } }, '下週試試：' + x.tip) : null, h('div.mu.tiny', { style: { marginTop: '4px' } }, '此內容由 AI 產生，僅供參考'))); };
+  const showAI = x => { ai.textContent = ''; ai.append(h('div', { style: { background: 'var(--ac-soft)', borderRadius: '12px', padding: '10px 12px', lineHeight: 1.7 } }, h('div.tiny', { style: { color: 'var(--ac-tx)', fontWeight: 700 } }, 'AI 週報'), h('div.small', x.summary), x.tip ? h('div.small', { style: { marginTop: '4px', fontWeight: 650 } }, '下週試試：' + x.tip) : null, h('div.mu.tiny', { style: { marginTop: '4px' } }, '此內容由 AI 產生，僅供參考'))); };
   const gen = async () => {
     if (aiBusy === key) {                                // 畫面重畫時已經在產生：等結果出來再顯示
       ai.textContent = ''; ai.append(h('div.row.small.mu', h('span.spin'), 'AI 正在寫這週的總結…'));
@@ -77,7 +77,7 @@ export function weeklyCard() {
       tile('記錄飲食', r.cur.logged, '天', cmp(r.cur.logged, r.prev.logged, ' 天')),
       tile('達標（剩餘 ≥ 0）', r.cur.healthy, '天', cmp(r.cur.healthy, r.prev.healthy, ' 天')),
       tile('運動賺取', fmt(r.cur.refund), '點', cmp(Math.round(r.cur.refund), Math.round(r.prev.refund), ' 點')),
-      tile('體重（平均）', r.weight != null ? r.weight.toFixed(1) : '--', 'kg', wc != null ? h('span.tiny', { style: { color: wc <= 0 ? 'var(--ac)' : 'var(--warn)' } }, '較上一段 ' + (wc <= 0 ? '▼' : '▲') + Math.abs(wc).toFixed(1) + ' kg') : h('span.mu.tiny', '這段沒有量'))),
+      tile('體重（平均）', r.weight != null ? r.weight.toFixed(1) : '--', 'kg', wc != null ? h('span.tiny', { style: { color: wc <= 0 ? 'var(--ac-tx)' : 'var(--warn)' } }, '較上一段 ' + (wc <= 0 ? '▼' : '▲') + Math.abs(wc).toFixed(1) + ' kg') : h('span.mu.tiny', '這段沒有量'))),
     h('div.small', { style: { marginTop: '12px', fontWeight: 650 } }, '每天剩下的點數（' + (WEEK_MODES.find(m => m[0] === mode) || WEEK_MODES[0])[1] + '）'),
     bars(r.days, today),
     h('div.mu.tiny.one', '綠＝達標・黃＝超標（用存摺補）・今天較淡'))];

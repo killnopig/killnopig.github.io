@@ -36,6 +36,7 @@ export function dailyFast(meals, fasts) {
 export function dailyFastDetail(meals, fasts) {
   const g = new Map();
   for (const m of meals || []) {
+    if (m.pending) continue;   // 先存、還沒吃的不算
     const k = m.group || m.id, t = new Date(m.at).getTime();
     const x = g.get(k) || { first: t, last: t };
     x.first = Math.min(x.first, t); x.last = Math.max(x.last, t); g.set(k, x);
@@ -245,6 +246,7 @@ export function buildSummary(S, P, today, withPrompt = true) {
 export function eatingWindows(meals) {
   const o = {}, groups = {};
   for (const m of meals || []) {
+    if (m.pending) continue;
     const t = new Date(m.at).getTime(); if (!Number.isFinite(t)) continue;
     const d = localDate(m.at), x = o[d] || (o[d] = { start: t, end: t, hours: 0, meals: 0 });
     if (t < x.start) x.start = t; if (t > x.end) x.end = t;

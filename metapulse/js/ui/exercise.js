@@ -23,7 +23,7 @@ export function exerciseCard() {
   const list = h('div.list', { style: { marginTop: '6px' } });
   for (const x of mine) list.append(h('div.it', { onclick: () => openExercise(x) },
     h('div.grow', h('div.one', NAME[x.type] || '運動'), h('div.mu.tiny.num', hm(x.at) + ' · ' + x.minutes + ' 分鐘 · ' + x.kcal + ' 大卡')),
-    h('span.pts.num', { style: { color: 'var(--ac)' } }, '+' + fmtPts(pts(x.kcal)), h('span.mu.tiny', ' 點'))));
+    h('span.pts.num', { style: { color: 'var(--ac-tx)' } }, '+' + fmtPts(pts(x.kcal)), h('span.mu.tiny', ' 點'))));
   if (watch) list.append(h('div.mu.tiny.one', { style: { marginTop: '6px' } }, 'Health Connect（手錶）今天 ' + Math.round(watch) + ' 大卡，+' + fmtPts(pts(watch)) + ' 點'));
   if (!mine.length && !watch) list.append(h('div.empty', '打球、走路都可以記，消耗會換成可以多吃的點數'));
   const head = h('div.row.between.grow', { style: { gap: '10px' } }, h('div.small.one', { style: { fontWeight: 600 } }, sum));

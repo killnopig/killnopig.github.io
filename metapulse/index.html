@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>MetaPulse</title>
 <meta name="description" content="MetaPulse — 飲食、斷食與用藥記錄">
-<meta name="theme-color" content="#c2410c">
+<meta name="theme-color" content="#faf6f1">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <script>
 /* 版本號：發布新版時改這裡。版本檢查會比對線上 index.html 的這一行。 */
-window.APP_VERSION = '0.9.33';
+window.APP_VERSION = '0.9.36';
 /* 載入失敗時不要只剩空白：記下錯誤，8 秒後程式還沒啟動就顯示原因與「重新載入」 */
 (function(){var errs=[];
 addEventListener('error',function(e){var t=e.target;if(t&&t!==window&&(t.src||t.href))errs.push('載入失敗：'+(t.src||t.href).split('/').slice(-2).join('/'));else errs.push((e.message||'程式檔載入失敗（網路或舊快取）')+(e.filename?'（'+e.filename.split('/').pop().split('?')[0]+':'+e.lineno+'）':''))},true);
@@ -34,29 +34,29 @@ var s=document.createElement('script');s.type='importmap';s.textContent=JSON.str
 <style>
 :root{
   --bg:#faf6f1;--card:#fff;--tx:#23180f;--mu:#75675a;--ln:#ece3d9;--soft:#f5ede4;
-  --ac:#c2410c;--ac-soft:#fbe8df;--act:#fff;--warn:#be123c;--warn-soft:#fde7ec;--bad:#b42318;
+  --ac:#e07b12;--ac-tx:#a85400;--ac-soft:#fdebd6;--act:#2a1606;--warn:#be123c;--on-warn:#fff;--warn-soft:#fde7ec;--bad:#b42318;
   --r:16px;color-scheme:light;--c1:#2f6fd0;--c3:#7c3aed;--c4:#0e7490;
 }
 /* 色系（data-pal）：暖色系是預設；冷色系、賽博朋克另外蓋上去。淺色／深色（data-theme）照舊 */
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#15100c;--card:#1f1813;--tx:#f2e9e1;--mu:#a8988a;--ln:#33281f;--soft:#271e17;
-  --ac:#ff8a5c;--ac-soft:#3a2216;--act:#1a0d06;--warn:#ff6b8a;--warn-soft:#3a1520;--bad:#ff7b72;color-scheme:dark;--c1:#7aa2ff;--c3:#b69cff;--c4:#4fd1e8}}
+  --ac:#ffa040;--ac-tx:#ffa040;--ac-soft:#3a2614;--act:#1a0d06;--warn:#ff6b8a;--on-warn:#1a0d06;--warn-soft:#3a1520;--bad:#ff7b72;color-scheme:dark;--c1:#7aa2ff;--c3:#b69cff;--c4:#4fd1e8}}
 :root[data-theme="dark"]{
   --bg:#15100c;--card:#1f1813;--tx:#f2e9e1;--mu:#a8988a;--ln:#33281f;--soft:#271e17;
-  --ac:#ff8a5c;--ac-soft:#3a2216;--act:#1a0d06;--warn:#ff6b8a;--warn-soft:#3a1520;--bad:#ff7b72;color-scheme:dark;--c1:#7aa2ff;--c3:#b69cff;--c4:#4fd1e8}
+  --ac:#ffa040;--ac-tx:#ffa040;--ac-soft:#3a2614;--act:#1a0d06;--warn:#ff6b8a;--on-warn:#1a0d06;--warn-soft:#3a1520;--bad:#ff7b72;color-scheme:dark;--c1:#7aa2ff;--c3:#b69cff;--c4:#4fd1e8}
 :root[data-pal="cool"]{
   --bg:#f4f7fb;--card:#fff;--tx:#142033;--mu:#5f6b7d;--ln:#dfe5ee;--soft:#eaf0f7;
-  --ac:#1f5fbf;--ac-soft:#e1ecfb;--act:#fff;--warn:#b45309;--warn-soft:#fdf1e3;--bad:#b42318;--c1:#0d9488;--c3:#7c3aed;--c4:#0e7490}
+  --ac:#1f5fbf;--ac-tx:#1f5fbf;--ac-soft:#e1ecfb;--act:#fff;--warn:#b45309;--on-warn:#fff;--warn-soft:#fdf1e3;--bad:#b42318;--c1:#0d9488;--c3:#7c3aed;--c4:#0e7490}
 @media (prefers-color-scheme:dark){:root[data-pal="cool"]:not([data-theme="light"]){
   --bg:#0d121a;--card:#151c27;--tx:#e6ecf5;--mu:#8f9bb0;--ln:#243044;--soft:#1b2433;
-  --ac:#6aa8ff;--ac-soft:#172a45;--act:#06101f;--warn:#f0a14a;--warn-soft:#33240f;--bad:#f2766b;--c1:#2dd4bf;--c3:#b69cff;--c4:#4fd1e8}}
+  --ac:#6aa8ff;--ac-tx:#6aa8ff;--ac-soft:#172a45;--act:#06101f;--warn:#f0a14a;--on-warn:#1a0f00;--warn-soft:#33240f;--bad:#f2766b;--c1:#2dd4bf;--c3:#b69cff;--c4:#4fd1e8}}
 :root[data-pal="cool"][data-theme="dark"]{
   --bg:#0d121a;--card:#151c27;--tx:#e6ecf5;--mu:#8f9bb0;--ln:#243044;--soft:#1b2433;
-  --ac:#6aa8ff;--ac-soft:#172a45;--act:#06101f;--warn:#f0a14a;--warn-soft:#33240f;--bad:#f2766b;--c1:#2dd4bf;--c3:#b69cff;--c4:#4fd1e8}
+  --ac:#6aa8ff;--ac-tx:#6aa8ff;--ac-soft:#172a45;--act:#06101f;--warn:#f0a14a;--on-warn:#1a0f00;--warn-soft:#33240f;--bad:#f2766b;--c1:#2dd4bf;--c3:#b69cff;--c4:#4fd1e8}
 /* 賽博朋克：固定深色底、霓虹粉紅＋青藍 */
 :root[data-pal="cyber"]{
   --bg:#0b0716;--card:#150e26;--tx:#f1eaff;--mu:#9b8fbf;--ln:#2d2150;--soft:#1d1433;
-  --ac:#ff2bd6;--ac-soft:#3a1240;--act:#12001a;--warn:#ffd400;--warn-soft:#332b00;--bad:#ff4d6d;color-scheme:dark;--c1:#00e5ff;--c3:#b388ff;--c4:#7cff6b}
+  --ac:#ff2bd6;--ac-tx:#ff2bd6;--ac-soft:#3a1240;--act:#12001a;--warn:#ffd400;--on-warn:#1a1400;--warn-soft:#332b00;--bad:#ff4d6d;color-scheme:dark;--c1:#00e5ff;--c3:#b388ff;--c4:#7cff6b}
 [data-pal="cyber"] button.pri{box-shadow:0 0 14px rgba(255,43,214,.45)}
 [data-pal="cyber"] .card{border-color:#3a2a66;box-shadow:0 0 0 1px rgba(0,229,255,.06)}
 [data-pal="cyber"] .ring .c b,[data-pal="cyber"] h1{text-shadow:0 0 10px rgba(0,229,255,.55)}
@@ -87,14 +87,14 @@ details:not(:first-child){margin-top:12px}
 button{font:inherit;border:0;border-radius:12px;padding:12px 16px;cursor:pointer;background:var(--soft);color:var(--tx);font-weight:600}
 button.pri{background:var(--ac);color:var(--act)}
 button.ghost{background:transparent;border:1px solid var(--ln)}
-button.link{background:none;padding:6px 2px;color:var(--ac);font-weight:600}
+button.link{background:none;padding:6px 2px;color:var(--ac-tx);font-weight:600}
 button.danger{background:transparent;color:var(--bad);border:1px solid var(--ln)}
 button.full{width:100%;margin-top:12px}
 button:disabled{opacity:.5}
 .row{display:flex;align-items:center;gap:8px}.row.between{justify-content:space-between}.grow{flex:1;min-width:0}
 .pills{display:flex;gap:6px;flex-wrap:wrap}
 .pills button{padding:7px 14px;border-radius:999px;font-size:14px;font-weight:500;background:transparent;border:1px solid var(--ln);color:var(--mu)}
-.pills button.on{background:var(--ac-soft);border-color:transparent;color:var(--ac);font-weight:650}
+.pills button.on{background:var(--ac-soft);border-color:transparent;color:var(--ac-tx);font-weight:650}
 .seg{display:flex;background:var(--soft);border-radius:12px;padding:3px;gap:3px}
 .seg button{flex:1;padding:9px 0;border-radius:10px;background:transparent;color:var(--mu);font-weight:550;display:flex;align-items:center;justify-content:center;gap:6px}
 .seg button.on{background:var(--card);color:var(--tx);box-shadow:0 1px 2px rgba(0,0,0,.06)}
@@ -116,7 +116,7 @@ svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stro
 .metric .row{font-size:14px}
 .cta{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:16px;padding:15px;font-size:17px;border-radius:14px}
 .cta svg.i{width:22px;height:22px}
-.cta-row{display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-top:16px}.cta-row .cta{margin-top:0;white-space:nowrap;min-width:0}.cta-row .ghost.cta{padding:15px 8px;border:1.5px solid var(--ac);color:var(--ac)}
+.cta-row{display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-top:16px}.cta-row .cta{margin-top:0;white-space:nowrap;min-width:0}.cta-row .ghost.cta{padding:15px 8px;border:1.5px solid var(--ac);color:var(--ac-tx)}
 .cta-row.sm{margin-top:10px}.cta-row.sm .cta{padding:10px 8px;font-size:15px}
 .list .it{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--ln);cursor:pointer}
 .list .it:first-child{border-top:0}
@@ -139,7 +139,7 @@ svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stro
 .sheet-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .sheet-h b{font-size:18px}
 .item-card .name{font-size:17px;font-weight:650;border:0;background:transparent;padding:0;border-radius:0}
-.item-card .big{font-size:26px;font-weight:700;color:var(--ac);white-space:nowrap}
+.item-card .big{font-size:26px;font-weight:700;color:var(--ac-tx);white-space:nowrap}
 .quick{display:flex;gap:6px;margin-top:8px}
 .quick button{flex:1;padding:8px 0;font-size:14px;font-weight:500}
 .spin{width:22px;height:22px;border:2.5px solid var(--ln);border-top-color:var(--ac);border-radius:50%;animation:sp 1s linear infinite;display:inline-block;vertical-align:middle}
@@ -157,7 +157,7 @@ svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stro
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:10;display:flex;justify-content:center;background:var(--card);border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom,0px)}
 nav.tabs .in{display:flex;max-width:560px;width:100%}
 nav.tabs button{flex:1;background:transparent;border-radius:0;padding:8px 0 10px;color:var(--mu);font-size:12px;font-weight:500;display:flex;flex-direction:column;align-items:center;gap:2px}
-nav.tabs button.on{color:var(--ac)}
+nav.tabs button.on{color:var(--ac-tx)}
 nav.tabs button[hidden]{display:none}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(78px + env(safe-area-inset-bottom,0px));background:var(--tx);color:var(--bg);
   padding:10px 16px;border-radius:12px;font-size:14px;z-index:50;display:none;max-width:90vw;text-align:center}

@@ -204,3 +204,56 @@ test('斷食目標時數依模式', () => {
   assert.equal(targetHours({ fastMode: 'PURE_DYNAMIC', fastTarget: 20 }), 20);
   assert.ok(targetHours({}) > 0);
 });
+
+/* ---- 先存、等一下吃（pending）：不影響斷食，按「結束斷食」才算吃了 ---- */
+import { pendingMeals, eatPending } from '../js/fasting.js';
+import { dailyFastDetail } from '../js/summary.js';
+
+test('先存的餐點不會結束斷食：時間沒到、時間過了都一樣', () => {
+  const t0 = Date.parse('2026-11-18T20:00:00');
+  const meals = [
+    { id: 'a', group: 'g1', at: new Date(t0).toISOString() },
+    { id: 'b', group: 'g2', at: new Date(t0 + 16 * H).toISOString(), pending: true },
+  ];
+  const before = currentFast(meals, [], t0 + 15 * H);
+  assert.equal(before.start, t0);
+  const after = currentFast(meals, [], t0 + 18 * H);   // 預計時間已過 2 小時
+  assert.equal(after.start, t0);
+  assert.equal(Math.round(after.hours), 18);
+  assert.equal(lastMealGroup(meals, t0 + 18 * H), 'g1');
+});
+
+test('按結束斷食：先存的餐點改成按下的那一刻，拿掉 pending，並結束手動斷食', () => {
+  const t0 = Date.parse('2026-11-18T20:00:00'), press = new Date(t0 + 17 * H).toISOString();
+  const meals = [
+    { id: 'a', group: 'g1', at: new Date(t0).toISOString() },
+    { id: 'b', group: 'g2', at: new Date(t0 + 16 * H).toISOString(), pending: true },
+    { id: 'c', group: 'g2', at: new Date(t0 + 16 * H).toISOString(), pending: true },
+  ];
+  const fasts = [{ id: 'f', start: new Date(t0 + H).toISOString(), end: null }];
+  assert.equal(pendingMeals(meals).length, 1);
+  assert.equal(eatPending(meals, fasts, press), 1);
+  assert.deepEqual(meals.filter(m => m.group === 'g2').map(m => [m.at, !!m.pending]), [[press, false], [press, false]]);
+  assert.equal(fasts[0].end, press);
+  assert.equal(fasts[0].endedBy, 'g2');
+  assert.equal(pendingMeals(meals).length, 0);
+  const cf = currentFast(meals, fasts, t0 + 17 * H + 60000);
+  assert.equal(cf.start, Date.parse(press));
+});
+
+test('圖表的斷食時數不算先存的餐點', () => {
+  const t0 = Date.parse('2026-11-18T20:00:00');
+  const meals = [
+    { id: 'a', group: 'g1', at: new Date(t0).toISOString() },
+    { id: 'b', group: 'g2', at: new Date(t0 + 16 * H).toISOString(), pending: true },
+  ];
+  assert.deepEqual(dailyFastDetail(meals, []), {});
+  delete meals[1].pending;
+  assert.equal(Object.values(dailyFastDetail(meals, []))[0].hours, 16);
+});
+
+test('先存的標記（pending）存檔、讀檔後還在', async () => {
+  const { normalizeMeal } = await import('../js/storage.js');
+  assert.equal(normalizeMeal({ id: 'x', at: '2026-11-19T04:00:00.000Z', name: 'a', pending: true }).pending, true);
+  assert.equal(normalizeMeal({ id: 'y', at: '2026-11-19T04:00:00.000Z', name: 'b' }).pending, undefined);
+});

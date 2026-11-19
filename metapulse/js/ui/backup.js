@@ -232,7 +232,7 @@ export function backupCard() {
     h('label', '或選擇存檔檔案'), file,
     tip('「產生存檔文字」會把全部記錄變成一段文字，可以複製貼到記事本或傳給自己保存。貼上或選擇檔案（.json 或 .txt）後，app 會自動判斷：MetaPulse 的存檔會「還原」（用它取代現在全部的資料，要再按一次確認）；同步版的存檔會「匯入」（只加入新的記錄，可以重複做）。'),
     aiFold(),
-    h('a.small.one', { href: 'guide.html', style: { display: 'block', marginTop: '14px', color: 'var(--ac)', fontWeight: 600 } }, '搬家說明：把其他 app 的資料整合到 MetaPulse ›'),
+    h('a.small.one', { href: 'guide.html', style: { display: 'block', marginTop: '14px', color: 'var(--ac-tx)', fontWeight: 600 } }, '搬家說明：把其他 app 的資料整合到 MetaPulse ›'),
   ];
   if (lastResult && Date.now() - lastResult.at < 15000) { say(outText, lastResult.text, true); lastResult = null; }
   return section('backup', '備份與匯入', sumEl, body, false);

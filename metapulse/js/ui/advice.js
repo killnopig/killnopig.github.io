@@ -63,6 +63,6 @@ export function latestAdviceCard() {
   if (seen) { L.adviceSeen = sig; commitLocal(); }
   card.append(fold('advice', h('div.grow',
     h('div.mu.tiny', hm(last.at) + ' · ' + names),
-    h('div', { style: { color: 'var(--ac)', fontWeight: 600, marginTop: '2px' } }, a.cheer || '這一餐記好了。')), body, { open: false, force: seen }));
+    h('div', { style: { color: 'var(--ac-tx)', fontWeight: 600, marginTop: '2px' } }, a.cheer || '這一餐記好了。')), body, { open: false, force: seen }));
   return card;
 }
