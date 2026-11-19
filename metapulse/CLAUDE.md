@@ -50,7 +50,7 @@ There is no build or lint step. Tests import the pure modules in `js/` directly.
   - Points: `protein×4/50 + carb×4/40 + fat×9/35 − fiber/5`, never below 0, rounded to 0.5.
   - BMR/TDEE; 7-day rolling pool `(TDEE×7 − weekly deficit)/40`; daily floor `BMR/40`; exercise refund.
 - `units.js`, `foods.js`: serving/gram/fist conversion and food-library search.
-- `fasting.js`: current fast, stages shifted by big meals, end/percent, hybrid-mode suggestion, eating window.
+- `fasting.js`: current fast, the 「依施打週期」 week table (`hybridWeek`; days 1–7 editable by the user in `S.prefs.hybridDays`, read through `hybridCfg`; it is a rule of thumb, not clinical evidence, and the UI says so), stages shifted by big meals, end/percent, hybrid-mode suggestion, eating window.
   - Fasting comes only from the user's own fast records (`S.fasts`): 「開始斷食」 adds an open record, 「結束斷食」 (or 「現在吃，結束斷食」 when saving a meal) closes it. Nothing starts or ends a fast automatically, and meals never create fast segments. The user dislikes being forced; keep it that way.
   - Not fasting = 「進食中」; the eating window starts at the last fast's end (`currentFast`). Eating several meals in a window is still one window.
   - Saving a new meal always asks 「現在吃」 or 「先存，等一下吃」 (`pending` meals don't count until eaten).
@@ -83,6 +83,7 @@ There is no build or lint step. Tests import the pure modules in `js/` directly.
 **UI** (`js/ui/*`):
 - Hand-built DOM with `h()` from `ui/common.js`, which also provides `fold`, `section`, `openSheet`, `toast`, and `kvTable`.
 - `app.js` wires the four bottom tabs (飲食運動 = `today.js`, 身體 = `log.js`, 圖表 = `charts.js`, 設定 = `settings.js`) and re-renders on state changes.
+- The settings tab does not re-render on `commit()`; controls inside it must redraw their own section (e.g. `fastModeBody(redraw)`).
 - `ui/fx.js` effects are all original: CSS, SVG gears, Web Audio, and `speechSynthesis`. Don't add copyrighted audio or images. (`assets/zawarudo.m4a` is original: generated with macOS `say -v "Grandpa (中文（台灣）)"` and `afconvert`, so it may stay.)
 - Chart.js is lazy-loaded from cdnjs in `ui/charts.js`.
 - Back gesture: the APK's `MainActivity` (`OnBackPressedCallback`) calls `window.__mpBack()` (`app.js`), which uses `backLayer()` in `ui/common.js`. Order: user-opened folds inside the sheet → the sheet → user-opened folds on the page → back to the today tab → 「再滑一次就離開」 toast (a second swipe within 2s exits). Any new overlay must hook into this chain, or a swipe closes the app.

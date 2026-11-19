@@ -4,7 +4,7 @@ import { h, fold, pills, toast, tip, info3, timePick, openSheet, closeSheet } fr
 import { FASTING } from '../config.js';
 import { OMAD_DONE } from '../messages.js';
 import { fuelText, eatingText, soupText } from '../lines.js';
-import { hybridWeek, currentFast, openFast, checkFast, periods, mergeFasts, mergeTwoFasts, fastsBetween, targetHours, fastEnd, eatPending, pendingMeals, mealShift, stageAt, stageStarts, hybridSuggestion, eatingWindow, hm, dur } from '../fasting.js';
+import { hybridWeek, hybridCfg, hybridDaysOf, HYBRID_CHOICES, currentFast, openFast, checkFast, periods, mergeFasts, mergeTwoFasts, fastsBetween, targetHours, fastEnd, eatPending, pendingMeals, mealShift, stageAt, stageStarts, hybridSuggestion, eatingWindow, hm, dur } from '../fasting.js';
 import { openAddMeal } from './addMeal.js';
 import { timeStop, gears } from './fx.js';
 import { longTermIndex, weightTrend, longTermMessage, leanTrend, leanSummary } from '../longterm.js';
@@ -58,7 +58,7 @@ function targetOf(mode, f, now) {
   }
   if (mode === 'HYBRID_GUIDED') {
     const { lt, wt } = longTermStatus();
-    const sg = hybridSuggestion(S.entries, localDate(new Date()), { fastLoss: wt.fast, lowIntake: lt.ready && lt.level !== 'ok' });
+    const sg = hybridSuggestion(S.entries, localDate(new Date()), { fastLoss: wt.fast, lowIntake: lt.ready && lt.level !== 'ok' }, hybridCfg(P));
     return { hours: FASTING.plans[sg.plan], label: '建議 ' + sg.plan, sg };
   }
   const t = +P.fastTarget || FASTING.freeTargetDefault;
@@ -201,15 +201,15 @@ function stagesFold(hours, shift, idx) {
 }
 
 /** 設定頁：斷食模式與目標（從今日頁搬過來） */
-export function fastModeBody() {
+export function fastModeBody(redraw = () => {}) {   // 設定頁不會因為 commit 重畫，改了就呼叫 redraw
   const P = S.prefs, mode = P.fastMode || 'PURE_DYNAMIC', now = Date.now();
   const f = currentFast(S.meals, S.fasts, now), tg = targetOf(mode, f.start ? f : { start: now }, now), win = tg.win || null;
-  const pickMode = v => { P.fastMode = v; commit(); };
+  const pickMode = v => { P.fastMode = v; commit(); redraw(); };
   const body = [h('div', { style: { marginTop: '8px' } }, pills(MODES, mode, pickMode))];
-  if (mode === 'PURE_DYNAMIC') body.push(h('div', { style: { marginTop: '8px' } }, h('div.mu.tiny', '目標（小時）'), pills(FASTING.freeTargets.map(t => [t, String(t)]), +P.fastTarget || FASTING.freeTargetDefault, v => { P.fastTarget = v; commit(); })));
+  if (mode === 'PURE_DYNAMIC') body.push(h('div', { style: { marginTop: '8px' } }, h('div.mu.tiny', '目標（小時）'), pills(FASTING.freeTargets.map(t => [t, String(t)]), +P.fastTarget || FASTING.freeTargetDefault, v => { P.fastTarget = v; commit(); redraw(); })));
   if (mode === 'STRICT_MANUAL') {
-    const timeIn = timePick(P.windowStart || '12:00', v => { P.windowStart = v; commit(); });
-    body.push(h('div', { style: { marginTop: '8px' } }, pills(PLANS.map(p => [p, p === '24H' ? '一天一餐' : p]), P.strictPlan || '16:8', v => { P.strictPlan = v; commit(); })),
+    const timeIn = timePick(P.windowStart || '12:00', v => { P.windowStart = v; commit(); redraw(); });
+    body.push(h('div', { style: { marginTop: '8px' } }, pills(PLANS.map(p => [p, p === '24H' ? '一天一餐' : p]), P.strictPlan || '16:8', v => { P.strictPlan = v; commit(); redraw(); })),
       h('div.row', { style: { marginTop: '8px' } }, h('span.small.mu', '進食窗口從'), timeIn, h('span.small.mu', '開始，' + win.eatHours + ' 小時')),
       h('div.small', { style: { marginTop: '6px' } }, win.inWindow ? '現在在進食窗口中，到 ' + hm(win.closesAt) + ' 結束' : '進食窗口 ' + dayLabel(win.opensAt) + ' 開始'));
   }
@@ -217,7 +217,7 @@ export function fastModeBody() {
     const sg = tg.sg;
     const { lt, wt } = longTermStatus();
     const flags = { fastLoss: wt.fast, lowIntake: lt.ready && lt.level !== 'ok' };
-    const week = hybridWeek(S.entries, localDate(new Date()), flags);
+    const week = hybridWeek(S.entries, localDate(new Date()), flags, hybridCfg(P));
     body.push(h('div', { style: { marginTop: '10px', fontWeight: 700, fontSize: '17px' } }, '今天建議 ' + sg.plan));
     if (week.length) {
       // 一週建議表：每天一格，今天框起來，打針那天 💉，被安全提醒改掉的 ⚠
@@ -230,8 +230,19 @@ export function fastModeBody() {
       body.push(grid);
       if (week.some(x => x.safer)) body.push(h('div.small', { style: { marginTop: '6px', color: 'var(--warn)' } }, '⚠ ' + (flags.fastLoss ? '最近體重下降偏快' : '最近一段時間熱量偏低') + '，先用比較溫和的 16:8'));
     } else body.push(h('div.small.mu', { style: { marginTop: '4px' } }, '還沒有施打記錄，先用 16:8。記了注射後，第 1～3 天建議 18:6、第 4～7 天 16:8。'));
+    // 自己排：第 1～7 天各用哪一種，點一下在 16:8／18:6 之間切換
+    const days = hybridDaysOf(P), custom = Array.isArray(P.hybridDays);
+    const edit = h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '3px', marginTop: '8px', textAlign: 'center' } },
+      ...days.map((plan, i) => h('button', { type: 'button', style: { padding: '6px 0', borderRadius: '8px', border: '1px solid var(--ln)', background: plan === '18:6' ? 'var(--ac-soft)' : 'transparent', minWidth: 0 },
+        onclick: () => { const d = hybridDaysOf(P); d[i] = HYBRID_CHOICES[(HYBRID_CHOICES.indexOf(d[i]) + 1) % HYBRID_CHOICES.length]; P.hybridDays = d; commit(); redraw(); } },
+        h('div.tiny.mu', '第' + (i + 1) + '天'), h('div.small.num', { style: { fontWeight: 700, color: plan === '18:6' ? 'var(--ac-tx)' : 'var(--tx)' } }, plan))));
+    body.push(fold('hybrid-edit', h('span.small', h('b', '自己排每一天'), h('span.mu', custom ? '・已自訂' : '・用預設')), [
+      h('div.mu.tiny', { style: { marginTop: '6px' } }, '點一下在 16:8 和 18:6 之間切換；第 8 天以後都用 16:8'), edit,
+      ...(custom ? [h('button.link.small', { type: 'button', onclick: () => { delete P.hybridDays; commit(); redraw(); } }, '改回預設（第 1～3 天 18:6、第 4～7 天 16:8）')] : [])]));
     const sp = residualSpark();
-    body.push(tip('打針那天算第 1 天：第 1～3 天藥效比較強、通常比較不餓，建議 18:6；第 4～7 天建議 16:8。體重掉太快或長期吃太少時，今天以後一律改成 16:8。只是建議，可以依身體狀況調整；模式只用來算目標，不會自己開始或結束斷食。', ...(sp ? [sp] : [])));
+    body.push(tip('這是經驗法則，目前沒有研究直接證實「打針後第幾天適合斷多久」；斷食和用藥怎麼搭配，建議和醫師討論。',
+      h('br'), '預設：打針那天算第 1 天，第 1～3 天血中藥量最高、通常比較不餓，建議 18:6；第 4～7 天建議 16:8。可以在「自己排每一天」照自己的感覺改。',
+      h('br'), '體重掉太快或長期吃太少時，今天以後一律改成 16:8，最多只建議到 18:6，因為用藥期間本來就吃得少，再斷更久容易吃不夠蛋白質。只是建議；模式只用來算目標，不會自己開始或結束斷食。', ...(sp ? [sp] : [])));
   }
   if (mode !== 'HYBRID_GUIDED') body.push(tip('模式只用來算目標和進食窗口，不會自己開始或結束斷食；一定要你按「開始斷食」「結束斷食」。'));
   return { label: MODE_NAME[mode] + '・' + tg.label, body };

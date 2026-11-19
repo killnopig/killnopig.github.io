@@ -292,9 +292,10 @@ export function showDisclaimerOnce() {
 /* ---------- 斷食 ---------- */
 function fastSettings() {
   const sumEl = sumLine();
-  const m = fastModeBody();
-  sumEl.textContent = m.label;
-  const body = [...m.body];
+  const holder = h('div');
+  const draw = () => { const m = fastModeBody(draw); sumEl.textContent = m.label; holder.textContent = ''; holder.append(...m.body); };
+  draw();
+  const body = [holder];
   // 剛剛「整理以前的斷食」留下的記錄：可以一次復原
   const ids = L.fastGuessUndo;
   if (Array.isArray(ids)) {

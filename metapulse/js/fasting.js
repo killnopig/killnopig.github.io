@@ -401,3 +401,18 @@ export function hybridWeek(entries, todayStr, flags = {}, cfg = FASTING) {
   }
   return out;
 }
+
+/**
+ * 使用者自訂的「依施打週期」：prefs.hybridDays＝第 1～7 天各用哪一種（'16:8' 或 '18:6'），沒設就用 config 的預設。
+ * 回傳一份 cfg（只換 hybrid.rules），給 hybridSuggestion／hybridWeek 用
+ */
+export const HYBRID_CHOICES = ['16:8', '18:6'];
+export function hybridDaysOf(prefs = {}, cfg = FASTING) {
+  const d = prefs.hybridDays;
+  if (Array.isArray(d) && d.length === 7 && d.every(x => HYBRID_CHOICES.includes(x))) return d.slice();
+  return [1, 2, 3, 4, 5, 6, 7].map(n => { const r = cfg.hybrid.rules.find(x => n >= x.fromDay && n <= x.toDay); return r ? r.plan : cfg.hybrid.fallback; });
+}
+export function hybridCfg(prefs = {}, cfg = FASTING) {
+  const days = hybridDaysOf(prefs, cfg);
+  return { ...cfg, hybrid: { ...cfg.hybrid, rules: days.map((plan, i) => ({ fromDay: i + 1, toDay: i + 1, plan })) } };
+}

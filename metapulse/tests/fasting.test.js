@@ -335,3 +335,15 @@ test('依施打週期的一週建議表：第 1～3 天 18:6、第 4～7 天 16:
   assert.equal(hybridWeek(es, '2026-11-22').length, 10, '超過第 7 天就排到今天');
   assert.deepEqual(hybridWeek([], '2026-11-15'), []);
 });
+
+test('依施打週期可以自訂每天用哪一種', async () => {
+  const { hybridWeek, hybridCfg, hybridDaysOf, hybridSuggestion } = await import('../js/fasting.js');
+  const es = [{ date: '2026-11-13', dose: 2.5 }];
+  assert.deepEqual(hybridDaysOf({}), ['18:6', '18:6', '18:6', '16:8', '16:8', '16:8', '16:8']);
+  const prefs = { hybridDays: ['16:8', '18:6', '18:6', '18:6', '16:8', '16:8', '16:8'] };
+  const w = hybridWeek(es, '2026-11-14', {}, hybridCfg(prefs));
+  assert.deepEqual(w.map(x => x.plan), prefs.hybridDays);
+  assert.equal(hybridSuggestion(es, '2026-11-16', {}, hybridCfg(prefs)).plan, '18:6');
+  assert.equal(hybridSuggestion(es, '2026-11-25', {}, hybridCfg(prefs)).plan, '16:8', '超過第 7 天用預設');
+  assert.deepEqual(hybridDaysOf({ hybridDays: ['20:4'] }), hybridDaysOf({}), '格式不對就用預設');
+});
