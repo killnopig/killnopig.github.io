@@ -478,7 +478,7 @@ export function openJournal(journalDays = 14) {
       dup(m) ? h('button.link.small', { type: 'button', style: { flex: '0 0 auto', padding: '0 2px' }, onclick: e => { e.stopPropagation(); notDup(m); } }, '不是重複') : null,
       h('span.small.num', { style: { flex: '0 0 auto', fontWeight: 650 } }, roundTo(m.points) + ' 點'));
     const wrapEl = h('div'), items = [];
-    for (const p of list) {
+    for (const p of list.slice().reverse()) {   // 舊的在上、新的在下：整頁從上往下讀，時間往前走
       const box = h('div.jbox', { style: { borderLeft: '4px solid ' + (p.type === 'fast' ? 'var(--c1)' : 'var(--ac)'), padding: '4px 0 4px 10px', margin: '8px 0' } });
       items.push({ el: box, p });
       if (p.type === 'fast') {
@@ -503,12 +503,13 @@ export function openJournal(journalDays = 14) {
       }
       wrapEl.append(box);
     }
+    if (all.length > list.length) sh.append(h('button.ghost.full', { type: 'button', style: { margin: '0 0 6px' }, onclick: () => { closeSheet(); setTimeout(() => openJournal(journalDays + 30), 350); } }, '看更早'));
     sh.append(wrapEl);
     dragMerge(sh, wrapEl, items, (a, b) => askMerge(sh, a, b));
     if (!list.length) sh.append(h('div.empty', '還沒有記錄'));
-    if (all.length > list.length) sh.append(h('button.ghost.full', { type: 'button', onclick: () => { closeSheet(); setTimeout(() => openJournal(journalDays + 30), 350); } }, '看更早'));
     sh.append(tip('長按一段拖到同一種的另一段上放開，可以合併：兩段斷食合併，中間吃的東西會留著；兩段進食合併，中間的斷食會刪掉。斷食段＝按「開始斷食」到「結束斷食」，中間只隔 30 分鐘以內又沒吃東西的兩段會自動接成一段。空白＝兩段斷食中間沒記食物，有吃可以補記，不記也沒關係。⚠ 跟別段重疊＝同一段時間記了兩次，刪掉多的那筆；⚠ 可能重複＝同一分鐘記了一樣的餐點；真的吃了兩份就按「不是重複」，記錯了就點進去刪掉一筆。進食段＝上一段斷食結束到下一段斷食開始，中間吃幾次都在同一段。以前沒有斷食記錄的日子，照每天分。'));
   });
+  setTimeout(() => { const sh = document.getElementById('sheet'); sh.scrollTop = sh.scrollHeight; }, 60);   // 一打開就看到最下面的「現在」
 }
 
 /** 復原合併：改過的記錄照原樣改回來；刪掉的換新 id 加回來（舊 id 已記為刪除，同步時會被拿掉） */

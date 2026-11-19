@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <script>
 /* 版本號：發布新版時改這裡。版本檢查會比對線上 index.html 的這一行。 */
-window.APP_VERSION = '0.9.45';
+window.APP_VERSION = '0.9.46';
 /* 載入失敗時不要只剩空白：記下錯誤，8 秒後程式還沒啟動就顯示原因與「重新載入」 */
 (function(){var errs=[];
 addEventListener('error',function(e){var t=e.target;if(t&&t!==window&&(t.src||t.href))errs.push('載入失敗：'+(t.src||t.href).split('/').slice(-2).join('/'));else errs.push((e.message||'程式檔載入失敗（網路或舊快取）')+(e.filename?'（'+e.filename.split('/').pop().split('?')[0]+':'+e.lineno+'）':''))},true);
@@ -192,6 +192,7 @@ details.tip>div *{white-space:normal}
 .updbadge{margin-left:auto;align-self:center;background:var(--ac);color:var(--act);border:0;border-radius:99px;padding:4px 12px;font-size:13px;font-weight:700;animation:updpulse 1.6s ease-in-out infinite}
 @keyframes updpulse{0%,100%{opacity:1}50%{opacity:.45}}
 .card.med{padding:11px 14px}.card.med .daygrp{padding:6px 0}
+.list.meals .it{padding:4px 0;gap:8px}.list.meals .thumb{width:28px;height:28px;border-radius:7px}.list.meals .pts{font-size:15px}
 .card.tight{padding:12px 14px;line-height:1.4}.tight button.full{margin-top:8px}.tight .list .it{padding:7px 0}.tight details.tip{margin-top:0}.tight .cta-row{margin-top:10px}.tight .cta{padding:12px}.tight .empty{padding:8px 0}.tight .hero{gap:12px}
 @media (max-width:360px){.hero{grid-template-columns:100px 1fr}.ring,.ring svg{width:100px;height:100px}.grid5{grid-template-columns:repeat(3,1fr)}}
 </style>

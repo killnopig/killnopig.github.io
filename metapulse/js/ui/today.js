@@ -3,7 +3,7 @@
 import { S, L, plan, commitLocal } from '../state.js';
 import { backupReminder } from '../sync.js';
 import { connect, linked } from '../drive.js';
-import { h, icon, hm, fmtPts } from './common.js';
+import { h, icon, hm, fmtPts, fold, startClosed } from './common.js';
 import { localDate } from '../points.js';
 import { ledger, allActivity } from '../ledger.js';
 import { exerciseCard, openExercise } from './exercise.js';
@@ -57,7 +57,7 @@ function mealRow(m) {
     m.thumb ? h('img.thumb', { src: m.thumb, alt: '' }) : null,
     h('div.grow',
       h('div', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, m.items.map(i => i.name).join('、')),
-      h('div.mu.tiny.num.one', (m.pending ? '預計 ' + hm(m.at) + ' 吃' : hm(m.at)) + '・' + Math.round(m.kcal) + ' 大卡・蛋白質 ' + Math.round(m.protein) + ' g')),
+      h('div.mu.tiny.num.one', (m.pending ? '預計 ' + hm(m.at) + ' 吃' : hm(m.at)) + '・' + Math.round(m.kcal) + ' 大卡・蛋白 ' + Math.round(m.protein) + 'g')),
     h('span.pts.num', fmtPts(m.points), h('span.mu.tiny', ' 點')));
 }
 
@@ -130,13 +130,16 @@ export function renderToday(root) {
   }
   // 今天吃了：只列食物（斷食在「斷食與飲食記錄」裡）
   const todays = groups.filter(g => !g.pending && localDate(g.at) === todayStr).reverse();
-  const tl = h('div', { style: { marginTop: '10px', borderTop: '1px solid var(--ln)', paddingTop: '4px' } });
-  tl.append(h('div.row.between', h('b.small', '今天吃了'), todays.length ? h('span.mu.small.num.one', todays.length + ' 餐・' + fmtPts(todays.reduce((a, g) => a + g.points, 0)) + ' 點') : null));
+  // 收成一行「今天吃了・2 餐・12.5 點」，點了才展開（每次打開 app 都先收起來）
+  const tl = h('div', { style: { marginTop: '8px', borderTop: '1px solid var(--ln)', paddingTop: '2px' } });
   if (todays.length) {
     const LIMIT = 5, shown = showAllMeals ? todays : todays.slice(-LIMIT);
-    if (!showAllMeals && todays.length > LIMIT) tl.append(h('button.link.small', { type: 'button', onclick: () => { showAllMeals = true; renderToday(root); } }, '顯示今天全部（還有 ' + (todays.length - LIMIT) + ' 餐）'));
-    const l = h('div.list'); shown.forEach(g => l.append(mealRow(g))); tl.append(l);
-  } else tl.append(h('div.empty', '今天還沒有記錄。拍了不一定要吃，可以先存。'));
+    const body = [];
+    if (!showAllMeals && todays.length > LIMIT) body.push(h('button.link.small', { type: 'button', onclick: () => { showAllMeals = true; renderToday(root); } }, '顯示今天全部（還有 ' + (todays.length - LIMIT) + ' 餐）'));
+    const l = h('div.list.meals'); shown.forEach(g => l.append(mealRow(g))); body.push(l);
+    startClosed('today-meals');
+    tl.append(fold('today-meals', h('div.row.between.grow', h('b.small', '今天吃了'), h('span.mu.small.num.one', todays.length + ' 餐・' + fmtPts(todays.reduce((a, g) => a + g.points, 0)) + ' 點')), body));
+  } else tl.append(h('div.row.between', h('b.small', '今天吃了'), h('span.mu.small.one', '還沒有記錄，拍了可以先存')));
   top.append(tl);
   if (b.ok) top.append(exerciseCard(true));
   const adv = latestAdviceCard(true);
