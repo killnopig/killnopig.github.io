@@ -36,7 +36,7 @@ There is no build or lint step. Tests import the pure modules in `js/` directly.
 ## Release / cache busting
 
 - The version lives in `index.html` as `window.APP_VERSION = 'x.y.z'`. Bump it on every deploy, then commit and push `main`.
-- The app polls for that regex and shows an "update available" prompt.
+- The app checks that regex on open, on returning from background, and every 10 minutes; the badge right of the title is always shown (grey 「✓ 最新」, orange blinking 「更新 vX」), and tapping it checks and reloads.
 - Push only to origin: `git push origin main`. The "Mirror to killnopig.github.io/metapulse" workflow then copies the site to the killnopig user-site repo. Never commit to `killnopig/killnopig.github.io` by hand; Releases (and the FB post workflow) live only on `JJptt1980/metapulse`.
 - After pushing, check that the mirror workflow succeeded (`gh run list -R JJptt1980/metapulse -w mirror-pages.yml -L 1`), then poll https://killnopig.github.io/metapulse/ (what the APK loads) and https://jjptt1980.github.io/metapulse/ with curl until both serve the new `APP_VERSION`; only then is the deploy done.
 - `KILLNOPIG_PAGES_TOKEN` is a fine-grained token of the `killnopig` account (only `killnopig/killnopig.github.io`, Contents read/write) and expires within a year. If the mirror workflow fails with an auth error, ask the user to make a new token and update the secret.

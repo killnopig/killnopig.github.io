@@ -20,7 +20,7 @@ $('ver').textContent = 'v' + APP_VERSION;
 /* APK 裡顯示 App 的版本（網頁版本放在括號裡）；舊版 APK 沒有這個功能就維持網頁版本 */
 try {
   const W = capPlugin('MapleWidget');
-  if (W && W.version) W.version().then(r => { if (r && r.version) $('ver').textContent = 'v' + r.version + '（網頁 ' + APP_VERSION + '）'; }).catch(() => {});
+  if (W && W.version) W.version().then(r => { if (r && r.version) $('ver').textContent = 'v' + r.version + '・網頁 ' + APP_VERSION; }).catch(() => {});
 } catch (e) { /* 不是 APK */ }
 applyTheme();
 
@@ -100,20 +100,33 @@ document.addEventListener('visibilitychange', () => {
   if (new Date().toDateString() !== lastDay) { lastDay = new Date().toDateString(); if (tab === 'today') renderToday($('p-today')); }
 });
 
-/* 版本檢查：比對線上 index.html 的 APP_VERSION */
-let updShown = false;
+/* 版本檢查：比對線上 index.html 的 APP_VERSION。標題右邊的小標籤常駐：
+ * 最新＝灰色「✓ 最新」；有新版＝橘色閃爍「更新 vX」。點一下就檢查，有新版直接更新。
+ * 打開時、從背景切回來時、開著每 10 分鐘各檢查一次（APK 切回來不會重新載入，只檢查一次會看不到） */
+let newVer = null;
+const reload = () => location.replace(location.pathname + '?v=' + Date.now());
 async function checkUpdate() {
-  if (updShown || !/^https?:/.test(location.protocol)) return;
+  if (!/^https?:/.test(location.protocol)) return null;
   try {
     const u = new URL('index.html', location.href); u.search = ''; u.hash = '';
     const r = await fetch(u.href + '?t=' + Date.now(), { cache: 'no-store' });
-    if (!r.ok) return;
+    if (!r.ok) return null;
     const m = (await r.text()).match(/APP_VERSION\s*=\s*'(\d+\.\d+\.\d+)'/);
-    if (m && m[1] !== APP_VERSION) { updShown = true; $('nv').textContent = 'v' + m[1]; $('upd').style.display = 'inline-block'; }
-  } catch (e) { /* 離線時略過 */ }
+    if (m && m[1] !== APP_VERSION) { newVer = m[1]; $('upd').textContent = '更新 v' + m[1]; $('upd').classList.remove('ok'); }
+    return m ? m[1] : null;
+  } catch (e) { return null; }   // 離線時略過
 }
-$('upd').onclick = () => location.replace(location.pathname + '?v=' + Date.now());
+$('upd').onclick = async () => {
+  if (newVer) return reload();
+  $('upd').textContent = '檢查中…';
+  const v = await checkUpdate();
+  if (newVer) return reload();
+  $('upd').textContent = '✓ 最新';
+  toast(v ? '已經是最新版 v' + APP_VERSION : '連不上網路，等一下再試', !v);
+};
 window.addEventListener('load', () => setTimeout(checkUpdate, 1500));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
+setInterval(checkUpdate, 10 * 60000);
 
 show('today');
 initDrive();
