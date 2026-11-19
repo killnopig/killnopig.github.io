@@ -6,11 +6,13 @@ import { fastInfo } from './ui/fasting.js';
 import { FASTING } from './config.js';
 import { stageStarts } from './fasting.js';
 import { WIDGET_MESSAGES, WIDGET_EATING } from './messages.js';
-import { fuelText, soupText, eatingText } from './lines.js';
+import { fuelText, soupText, eatingText, STEP as STEP30 } from './lines.js';
 
-/* 小工具目前的 APK 每 2 分鐘翻一格（版面寫死 120000）：先維持 2 分鐘一格，取樣 30 秒句庫裡的句子（一樣不重複）。
- * 等 APK 改成 30 秒翻一格時，再把這裡改成 lines.js 的 STEP */
-const STEP = 2 * 60000;
+/* 小工具翻頁的速度寫在 APK 裡：1.1.0 起每 30 秒翻一格，更早的 APK（1.0.x，包括測試版 1.0.10、1.0.11）每 2 分鐘。
+ * 先問 APK 的版本再決定時間表一格多久（舊 APK 取樣 30 秒句庫裡的句子，一樣不重複） */
+export const OLD_STEP = 2 * 60000;
+let step = OLD_STEP, asked = false;
+export const fastApk = v => { const [a, b] = String(v || '0').split('.').map(Number); return a > 1 || (a === 1 && b >= 1); };   // 1.1.0 以後
 
 const H = 3600000;
 export function widgetData(now = Date.now()) {
@@ -21,14 +23,14 @@ export function widgetData(now = Date.now()) {
   const starts = stageStarts(fi.shift || 0).map(h => fi.start + h * H);
   return { ...base, fasting: !!fi.fasting, start: fi.start, end: fi.end || 0,
     stages: starts.map((at, i) => ({ at, text: FASTING.stages[i].short + '｜' + FASTING.stages[i].fuel })),
-    timeline: timeline(fi, starts, now) };
+    timeline: timeline(fi, starts, now, step) };
 }
 
-/** 每 2 分鐘一格的文字（燃料那一行＋熱血雞湯），從現在這一格排到斷食第 30 小時（進食中排 8 小時）；
- *  小工具每次更新時取「現在這一格」之後的 16 句輪播 */
-export function timeline(fi, starts, now) {
+/** 一格 STEP 的文字（燃料那一行＋熱血雞湯）：2 分鐘一格排到斷食第 30 小時；30 秒一格排接下來 6 小時（資料才不會太大，
+ *  超過時小工具在最後 480 句裡繞）。進食中排 8 小時。小工具每次更新時取「現在這一格」之後的句子輪播 */
+export function timeline(fi, starts, now, STEP = OLD_STEP) {
   const t0 = fi.start + Math.floor(Math.max(0, now - fi.start) / STEP) * STEP;
-  const until = fi.fasting ? Math.max(fi.start + 30 * H, t0 + 120 * STEP) : t0 + 8 * H;
+  const until = !fi.fasting ? t0 + 8 * H : STEP < OLD_STEP ? t0 + 6 * H : Math.max(fi.start + 30 * H, t0 + 120 * STEP);
   const fuel = [], msg = [];
   for (let t = t0; t < until; t += STEP) {
     if (fi.fasting) {
@@ -45,5 +47,6 @@ export function updateWidgetSoon() { clearTimeout(timer); timer = setTimeout(() 
 export async function updateWidget() {
   const P = capPlugin('MapleWidget');
   if (!P || !S) return;
+  if (!asked && P.version) { asked = true; try { const r = await P.version(); if (r && fastApk(r.version)) step = STEP30; } catch (e) { /* 舊 APK */ } }
   await P.update({ data: JSON.stringify(widgetData()) });
 }
