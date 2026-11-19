@@ -282,7 +282,7 @@ PttReader.prototype.fetchDoc = function(url, opts) {
   var web = function() {
     return self.webDocTimed(url).catch(function(err) {
       // www.ptt.cc down (HTTP 5xx, no answer): the app reads it on the BBS
-      if (PttReader.webDown(err)) PttReader.webDownAt = Date.now();
+      if (PttReader.webDown(err)) PttReader.markWebDown(url);
       if (!PttReader.webDown(err) || !self.termSource()) throw err;
       return self.termDoc(url, err, opts);
     });
@@ -292,7 +292,7 @@ PttReader.prototype.fetchDoc = function(url, opts) {
   // so it is used again once it is back; what the BBS can't do still
   // goes to the web site
   var ptt = this.termSource();
-  if (PttReader.webRecentlyDown() && ptt && ptt.user) {
+  if (PttReader.webRecentlyDown(PttReader.webKind(url)) && ptt && ptt.user) {
     this.probeWeb(url);
     return this.termDoc(url, { webStatus: PttReader.webDownStatus }, opts).catch(function(err) {
       if (!err || !err.termCant) throw err;
@@ -325,9 +325,9 @@ PttReader.prototype.probeWeb = function(url) {
   if (Date.now() - PttReader.probeAt < PttReader.PROBE_MS) return;
   PttReader.probeAt = Date.now();
   this.webDocTimed(url).then(function() {
-    PttReader.webDownAt = 0;
+    PttReader.markWebUp(url);
   }, function(err) {
-    if (PttReader.webDown(err)) PttReader.webDownAt = Date.now();
+    if (PttReader.webDown(err)) PttReader.markWebDown(url);
   });
 };
 
@@ -341,8 +341,31 @@ PttReader.webDownStatus = 0;
 
 // www.ptt.cc failed in the last few minutes.
 PttReader.webDownAt = 0;
-PttReader.webRecentlyDown = function() {
-  return Date.now() - PttReader.webDownAt < 5 * 60 * 1000;
+PttReader.webRecentlyDown = function(kind) {
+  var at = kind ? PttReader.webDownBy[kind] || 0 : PttReader.webDownAt;
+  return Date.now() - at < 5 * 60 * 1000;
+};
+
+// www.ptt.cc can fail for some pages only (board lists and articles HTTP
+// 500 while its search answers): which kind of page an address is, and
+// when that kind failed last (webDownAt: any kind).
+PttReader.webKind = function(url) {
+  url = String(url || '');
+  if (/\/search\?/.test(url)) return 'search';
+  if (/\/bbs\/[\w\-]+\/index\d*\.html/.test(url)) return 'list';
+  if (/\/bbs\/[\w\-]+\/M\.\d+\.A\.\w+\.html/.test(url)) return 'article';
+  return 'other';
+};
+PttReader.webDownBy = {};
+PttReader.markWebDown = function(url) {
+  PttReader.webDownAt = Date.now();
+  PttReader.webDownBy[PttReader.webKind(url)] = PttReader.webDownAt;
+};
+PttReader.markWebUp = function(url) {
+  delete PttReader.webDownBy[PttReader.webKind(url)];
+  var last = 0;
+  for (var k in PttReader.webDownBy) last = Math.max(last, PttReader.webDownBy[k]);
+  PttReader.webDownAt = last;
 };
 
 // The app's background PTT connection (JJPtt), when there is one.
@@ -382,6 +405,12 @@ PttReader.prototype.termDoc = function(url, webErr, opts) {
     job = function() { return ptt.termArticle(plain, null, { bg: opts.bg, onPage: onPage }); };
   } else {
     return cant(down + '，這裡暫時不能用（看板文章可以改用 BBS 連線看）');
+  }
+  if (!ptt.user && ptt.loggingIn && !opts.afterLogin) {
+    // logging in (the app just opened): read once that is over
+    return ptt.loggingIn.then(function() {
+      return self.termDoc(url, webErr, Object.assign({}, opts, { afterLogin: true }));
+    });
   }
   if (!ptt.user) return cant(down + '。登入 PTT 帳號後，就能改用 BBS 連線看看板和文章');
   return job().then(function(r) {
@@ -567,7 +596,7 @@ PttReader.prototype.bgOrder = function(snap, index, dir) {
 // connection, replacing what was planned before (the one being read goes
 // on). False when it can't (web up, no saved password...): then as usual.
 PttReader.prototype.bgPlan = function(snap, index, dir) {
-  if (!snap || !PttReader.webRecentlyDown() || !this.prefetchCount()) return false;
+  if (!snap || !PttReader.webRecentlyDown('article') || !this.prefetchCount()) return false;
   var bg = this.bgPtt();
   if (!bg) return false;
   var self = this;
@@ -818,7 +847,7 @@ PttReader.TERM_RENDER_MS = 1500;  // re-draw the growing article at most this of
 PttReader.prototype.terminalArticle = function(url, key, h) {
   var self = this;
   var t = new JJPtt(this.app);
-  PttReader.webDownAt = Date.now();
+  PttReader.markWebDown(url);
   var shown = false, lastDraw = 0;
   // moved to another article or back to the terminal: stop paging
   var gone = function() { return self.loadingKey !== key && self.currentKey !== key; };

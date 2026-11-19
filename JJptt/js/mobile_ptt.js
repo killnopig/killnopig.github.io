@@ -243,9 +243,23 @@ JJPtt.prototype.connect = function() {
 
 JJPtt.prototype.login = function(user, pass) {
   var self = this;
-  return this.run(function() {
+  var p = this.run(function() {
     return self.doLogin(user, pass);
   });
+  this.waitLogin(p);
+  return p;
+};
+
+// A login on its way (this.loggingIn, settles when it is over either
+// way): pages read on the BBS wait for it instead of failing on 「登入後」
+// in the seconds after the app opens.
+JJPtt.prototype.waitLogin = function(p) {
+  var self = this;
+  var w = Promise.resolve(p).then(function() {}, function() {}).then(function() {
+    if (self.loggingIn === w) self.loggingIn = null;
+  });
+  this.loggingIn = w;
+  return w;
 };
 
 JJPtt.prototype.doLogin = function(user, pass) {

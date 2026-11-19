@@ -189,13 +189,14 @@ JJMobile.prototype.markRead = function(screen) {
 };
 
 // [推文數, label, what the button shows instead of the label (PTT's own
-// marks: 爆 in a red dot, a grey XX)]
-JJMobile.QUICK_PUSH = [[20, '推 ≥ 20'], [100, '爆文', '爆', 'jjm-quick-hot'], [-100, '噓爆', 'XX', 'jjm-quick-boo']];
+// marks: 爆 in a red dot, a grey XX; 止爆 -- 推 ≥ 200 -- a purple 爆)]
+JJMobile.QUICK_PUSH = [[20, '推 ≥ 20'], [100, '爆文', '爆', 'jjm-quick-hot'], [200, '止爆', '爆', 'jjm-quick-hot jjm-quick-stop'],
+  [-100, '噓爆', 'XX', 'jjm-quick-boo']];
 
 // 推文數 search in the title: 爆文 / 噓爆 / 推 ≥ N / 噓 ≥ N
 JJMobile.pushQueryLabel = function(n) {
   n = parseInt(n, 10);
-  if (n >= 100) return n === 100 ? '爆文' : '推 ≥ ' + n;
+  if (n >= 100) return n === 100 ? '爆文' : n === 200 ? '止爆' : '推 ≥ ' + n;
   if (n <= -100) return n === -100 ? '噓爆' : '噓 ≥ ' + (-n);
   return n < 0 ? '噓 ≥ ' + (-n) : '推 ≥ ' + n;
 };
@@ -308,7 +309,7 @@ JJMobile.prototype.prefetchList = function(screen, from) {
   var self = this;
   // www.ptt.cc down: each is read on the BBS, one at a time, and gives way
   // as soon as the user opens something else; a few only
-  var down = PttReader.webRecentlyDown();
+  var down = PttReader.webRecentlyDown('article');
   var ptt = this.app.reader && this.app.reader.termSource();
   if (down && !(ptt && ptt.user)) return;
   var n = down ? Math.min(3, this.aheadCount()) : this.aheadCount() * 2;

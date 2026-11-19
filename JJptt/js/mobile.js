@@ -411,6 +411,10 @@ JJMobile.prototype.installUpdate = function() {
 JJMobile.prototype.autoLogin = function() {
   var self = this;
   var tries = 0;
+  // until the settings say whether there is a saved account, pages wait
+  // as for a login (JJPtt.waitLogin)
+  var found;
+  this.ptt.waitLogin(new Promise(function(resolve) { found = resolve; }));
   var check = function() {
     var pref = self.app.pref;
     var saved = pref && pref.logins;
@@ -418,8 +422,11 @@ JJMobile.prototype.autoLogin = function() {
       self.ptt.login(saved[0], saved[1]).catch(function(err) {
         if (self.app.showToast) self.app.showToast('自動登入失敗：' + err.message, 4000);
       });
+      found();
     } else if (++tries < 15) {
       setTimeout(check, 200);
+    } else {
+      found();
     }
   };
   check();
