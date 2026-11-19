@@ -421,6 +421,10 @@ export function openJournal(journalDays = 14) {
     const x = g.get(k); x.names.push(m.name); x.points += +m.points || 0; if (m.at < x.at) x.at = m.at;
   }
   const all = periods([...g.values()], S.fasts, now);
+  // 同一分鐘、同樣內容的兩餐：可能存了兩次
+  const seen = new Map();
+  for (const m of g.values()) { const k = String(m.at).slice(0, 16) + '|' + m.names.join('、'); seen.set(k, (seen.get(k) || 0) + 1); }
+  const dup = m => seen.get(String(m.at).slice(0, 16) + '|' + m.names.join('、')) > 1;
   const from = now - journalDays * 864e5;
   const list = all.filter(p => (p.end == null ? now : p.end) >= from);
   const back = () => openJournal(journalDays);
@@ -430,13 +434,13 @@ export function openJournal(journalDays = 14) {
         h('span.mu.tiny.one', '點斷食段改時間，點食物改那一餐'),
         h('button.link.small', { type: 'button', onclick: () => { closeSheet(); setTimeout(() => openFastEditor(null, back), 350); } }, '＋ 補記斷食')));
     const mealLine = m => h('div.row', { style: { gap: '8px', padding: '5px 0 5px 12px', cursor: 'pointer' }, onclick: () => { closeSheet(); setTimeout(() => openAddMeal({ group: m.group, onDone: back }), 350); } },
-      h('span.small.num.mu', { style: { flex: '0 0 auto' } }, hm(m.at)), h('span.small.one.grow', m.names.join('、')), h('span.small.num', { style: { flex: '0 0 auto', fontWeight: 650 } }, roundTo(m.points) + ' 點'));
+      h('span.small.num.mu', { style: { flex: '0 0 auto' } }, hm(m.at)), h('span.small.one.grow', dup(m) ? h('span', { style: { color: 'var(--warn)', fontWeight: 650 } }, '⚠ 可能重複 ') : null, m.names.join('、')), h('span.small.num', { style: { flex: '0 0 auto', fontWeight: 650 } }, roundTo(m.points) + ' 點'));
     for (const p of list) {
       const box = h('div', { style: { borderLeft: '4px solid ' + (p.type === 'fast' ? 'var(--c1)' : 'var(--ac)'), padding: '4px 0 4px 10px', margin: '8px 0' } });
       if (p.type === 'fast') {
         const ok = p.end != null && p.hours >= goal;
         box.append(h('div.row.between', { style: { cursor: 'pointer', gap: '8px' }, onclick: () => { closeSheet(); setTimeout(() => openFastEditor(p.rec, back), 350); } },
-          h('div.grow', h('div.small', { style: { fontWeight: 650 } }, '斷食段'), h('div.mu.tiny.num.one', span(p.start, p.end))),
+          h('div.grow', h('div.small.one', { style: { fontWeight: 650 } }, '斷食段', p.overlap ? h('span', { style: { color: 'var(--warn)' } }, '・⚠ 跟別段重疊') : null), h('div.mu.tiny.num.one', span(p.start, p.end))),
           h('span.small.num', { style: { flex: '0 0 auto', fontWeight: 650, color: ok ? 'var(--ac-tx)' : '' } }, (p.end == null ? '已 ' : '') + (Math.round(p.hours * 10) / 10).toFixed(1) + ' 小時' + (ok ? ' ✓' : '')),
           h('span.mu', { style: { flex: '0 0 auto' } }, '›')));
         if (p.meals.length) box.append(h('div.mu.tiny', { style: { marginTop: '2px' } }, '斷食中補記的：'), ...p.meals.map(mealLine));
@@ -452,6 +456,6 @@ export function openJournal(journalDays = 14) {
     }
     if (!list.length) sh.append(h('div.empty', '還沒有記錄'));
     if (all.length > list.length) sh.append(h('button.ghost.full', { type: 'button', onclick: () => { closeSheet(); setTimeout(() => openJournal(journalDays + 30), 350); } }, '看更早'));
-    sh.append(tip('斷食段＝按「開始斷食」到「結束斷食」。進食段＝上一段斷食結束到下一段斷食開始，中間吃幾次都在同一段。以前沒有斷食記錄的日子，照每天分。'));
+    sh.append(tip('斷食段＝按「開始斷食」到「結束斷食」。⚠ 跟別段重疊＝同一段時間記了兩次，刪掉多的那筆；⚠ 可能重複＝同一分鐘記了一樣的餐點，點進去刪掉一筆。進食段＝上一段斷食結束到下一段斷食開始，中間吃幾次都在同一段。以前沒有斷食記錄的日子，照每天分。'));
   });
 }

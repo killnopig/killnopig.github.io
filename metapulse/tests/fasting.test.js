@@ -263,3 +263,17 @@ test('記錄頁：斷食段和進食段交替，窗口裡的餐點都在同一�
   assert.equal(open[0].end, null);
   assert.equal(open[0].hours, 2);
 });
+
+test('記錄頁：剛好在斷食開始那一刻的餐點算進食段；重疊的斷食標出來', async () => {
+  const { periods } = await import('../js/fasting.js');
+  const iso = h => new Date(t0 - h * H).toISOString();
+  const p = periods([{ group: 'a', at: iso(5) }], [{ id: 'x', start: iso(30), end: iso(5) }, { id: 'y', start: iso(5), end: iso(2) }, { id: 'z', start: iso(20), end: iso(10) }], t0);
+  const y = p.find(x => x.rec && x.rec.id === 'y');
+  assert.equal(y.meals.length, 0);
+  assert.equal(y.overlap, false);
+  const eat = p.filter(x => x.type === 'eat' && x.meals.length);
+  assert.equal(eat.length, 1, '那一餐沒有不見，放在進食段');
+  assert.equal(eat[0].meals[0].group, 'a');
+  assert.equal(p.find(x => x.rec && x.rec.id === 'z').overlap, true);
+  assert.equal(p.find(x => x.rec && x.rec.id === 'x').overlap, true);
+});

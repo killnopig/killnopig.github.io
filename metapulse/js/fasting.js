@@ -286,7 +286,7 @@ export function fastNotes(fi, now, freq = 'phase', qs = '23:00', qe = '07:00', c
 
 /**
  * 「斷食與飲食記錄」用：把時間切成斷食段和進食段，交替排列，新的在前
- * - 斷食段＝一筆斷食記錄（進行中的 end＝null）；斷食中補記的餐點掛在那一段的 meals
+ * - 斷食段＝一筆斷食記錄（進行中的 end＝null）；斷食中補記的餐點掛在那一段的 meals；跟別段時間重疊的 overlap＝true
  * - 進食段＝上一段斷食結束到下一段斷食開始，中間吃的都在同一段；最新的一段 end＝null（進行中）
  * - 沒有斷食記錄的日子，或兩段斷食中間隔了超過 24 小時（忘了按），進食段依「每天」分開（loose＝true）
  * @param groups 一餐一筆：[{group, at, ...}]（先存、還沒吃的不要放進來）
@@ -300,9 +300,10 @@ export function periods(groups, fasts, now = Date.now()) {
   const used = new Set();
   for (const f of fs) {
     const e = f.end == null ? now : f.end;
-    const inside = ms.filter(x => x.t >= f.start && x.t < e);
+    const inside = ms.filter(x => x.t > f.start && x.t < e);   // 剛好在開始那一刻記的餐點算進食段（是結束上一段斷食的那一餐）
     inside.forEach(x => used.add(x));
-    out.push({ type: 'fast', start: f.start, end: f.end, hours: (e - f.start) / H, meals: inside.map(x => x.g), rec: f.rec });
+    const overlap = fs.some(o => o !== f && o.start < e && f.start < (o.end == null ? now : o.end));
+    out.push({ type: 'fast', start: f.start, end: f.end, hours: (e - f.start) / H, meals: inside.map(x => x.g), rec: f.rec, overlap });
   }
   // 進食段：斷食之間的空檔
   const gaps = [];
@@ -311,7 +312,8 @@ export function periods(groups, fasts, now = Date.now()) {
   if (prev !== Infinity) gaps.push({ start: prev, end: null });
   for (const gp of gaps) {
     const a = gp.start == null ? -Infinity : gp.start, b = gp.end == null ? Infinity : gp.end;
-    const inside = ms.filter(x => !used.has(x) && x.t >= a && x.t < b);
+    const inside = ms.filter(x => !used.has(x) && x.t >= a && x.t <= b);   // 剛好在下一段斷食開始那一刻的也算這一段
+    inside.forEach(x => used.add(x));   // 一餐只放在一段裡
     const open = gp.end == null;
     const span = (open ? now : b) - (gp.start == null ? (inside[0] ? inside[0].t : now) : a);
     if (gp.start != null && span <= 24 * H) {
@@ -323,5 +325,5 @@ export function periods(groups, fasts, now = Date.now()) {
     for (const x of inside) { const d = new Date(x.t); const k = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(x); }
     for (const list of byDay.values()) out.push({ type: 'eat', start: list[0].t, end: list[list.length - 1].t, hours: (list[list.length - 1].t - list[0].t) / H, meals: list.map(x => x.g), loose: true });
   }
-  return out.sort((p, q) => q.start - p.start || (p.type === 'eat' ? -1 : 1));
+  return out.sort((p, q) => q.start - p.start || (p.type === 'fast' ? -1 : 1));   // 同一刻開始：進食段（結束上一段斷食那一餐）排在斷食段下面
 }
