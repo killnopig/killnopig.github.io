@@ -305,16 +305,21 @@ JJMobile.prototype.aheadCount = function() {
 };
 
 // Loads the next few articles of a list, two at a time; their pictures too
-// when 預先讀取時連圖片一起下載 is on.
+// when 預先讀取時連圖片一起下載 is on. 置底 are skipped: a board's list
+// starts with them, and reading them first kept the newest articles
+// waiting (on the BBS, one at a time, several seconds each).
 JJMobile.prototype.prefetchList = function(screen, from) {
   var self = this;
   // www.ptt.cc down: each is read on the BBS, one at a time, and gives way
-  // as soon as the user opens something else; a few only
+  // as soon as the user opens something else; a few only. Still logging
+  // in (the app just opened): queued now, read once it is in (termDoc waits)
   var down = PttReader.webRecentlyDown('article');
   var ptt = this.app.reader && this.app.reader.termSource();
-  if (down && !(ptt && ptt.user)) return;
+  if (down && !(ptt && (ptt.user || ptt.loggingIn))) return;
   var n = down ? Math.min(3, this.aheadCount()) : this.aheadCount() * 2;
-  var todo = screen.entries.slice(from, from + n).filter(function(e) { return e.url && (down || !JJPtt.isTermUrl(e.url)); });
+  var todo = screen.entries.slice(from).filter(function(e) {
+    return e.url && !e.pinned && (down || !JJPtt.isTermUrl(e.url));
+  }).slice(0, n);
   var token = this.prefetchToken = {};
   var next = function() {
     if (self.prefetchToken !== token) return;  // another list or article since

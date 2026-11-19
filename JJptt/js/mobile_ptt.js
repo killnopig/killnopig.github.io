@@ -1282,36 +1282,66 @@ JJPtt.prototype.termArticle = function(url, want, opts) {
   var self = this;
   var real = url;
   opts = opts || {};
-  var yielded = false;
+  var yielded = false, wrong = false;
   var onPage = function(i, n, lines) {
     if (opts.bg && self.fgWaiting > 0) { yielded = true; return false; }
+    // another article than the list's: stopped before any of it is drawn
+    if (want && /^jjterm:/.test(url) && !JJPtt.linesAre(lines, want)) { wrong = true; return false; }
     if (opts.onPage) return opts.onPage(i, n, lines, real);
   };
   return this.run(function() {
     if (opts.bg && self.fgWaiting > 0) { var e0 = new Error('讓給前面的工作'); e0.yielded = true; throw e0; }
     return self.ensureIn().then(function() {
       var m = /^jjterm:art\/([^\/]+)\/(\d+)(?:\/([^\/]+))?$/.exec(url);
-      if (!m) return self.toArticle(url);
-      return self.toList(decodeURIComponent(m[1]), m[3] ? decodeURIComponent(m[3]) : '').then(function() {
-        return self.cursorTo(+m[2], want);
-      }).then(function() {
-        // Q: the article's 文章網址 (for pushing and replying), any key closes it
-        var prev = self.screen();
-        self.send('Q');
-        return self.wait({ url: JJPtt.URL_IN_BOX }, 5000, prev, '找文章網址');
-      }).then(function() {
-        real = JJPtt.URL_IN_BOX.exec(self.screen())[0].replace(/^http:/, 'https:');
-        var prev = self.screen();
-        self.send(' ');
-        return self.settle(prev, 1500);
-      });
-    }).then(function() {
-      return self.readHere(onPage);
+      if (!m) return self.toArticle(url).then(function() { return self.readHere(onPage); });
+      var open = function(byAuthor) {
+        return self.toList(decodeURIComponent(m[1]), m[3] ? decodeURIComponent(m[3]) : '').then(function() {
+          return self.cursorTo(+m[2], want, byAuthor);
+        }).then(function() {
+          // Q: the article's 文章網址 (for pushing and replying), any key closes it
+          var prev = self.screen();
+          self.send('Q');
+          return self.wait({ url: JJPtt.URL_IN_BOX }, 5000, prev, '找文章網址');
+        }).then(function() {
+          real = JJPtt.URL_IN_BOX.exec(self.screen())[0].replace(/^http:/, 'https:');
+          var prev = self.screen();
+          self.send(' ');
+          return self.settle(prev, 1500);
+        }).then(function() {
+          return self.readHere(onPage);
+        }).then(function(lines) {
+          // the list said one article, PTT opened another (its list changed
+          // under the number, the cursor not where the screen showed it):
+          // never shown as that one -- found among the author's posts once more
+          if (!want || yielded || (!wrong && JJPtt.linesAre(lines, want))) return lines;
+          wrong = false;
+          console.log('JJptt BBS 開錯篇', url, JJPtt.linesHead(lines));
+          if (!byAuthor) return open(true);
+          throw new Error('PTT 開到別篇文章了（' + want.title + '），請重新整理列表再試一次');
+        });
+      };
+      return open(false);
     }).then(function(lines) {
       if (yielded) { var e = new Error('讓給前面的工作'); e.yielded = true; throw e; }
       return { url: real, html: JJPtt.articleHtml(lines) };
     });
   }, opts.bg);
+};
+
+// The article's own header (作者 / 標題 lines) is `want` ({ author, title }).
+JJPtt.linesHead = function(lines) {
+  var head = { author: '', title: '' };
+  for (var i = 0; i < Math.min(lines.length, 6); ++i) {
+    var a = /^\s*作者\s+([\w]+)/.exec(lines[i] || ''), t = /^\s*標題\s+(.*?)\s*$/.exec(lines[i] || '');
+    if (a) head.author = a[1];
+    if (t) head.title = t[1];
+  }
+  return head;
+};
+JJPtt.linesAre = function(lines, want) {
+  var h = JJPtt.linesHead(lines);
+  if (!h.author && !h.title) return true;  // no header to tell (rare): as it is
+  return h.author.toLowerCase() === String(want.author).toLowerCase() && JJPtt.sameTitle(h.title, want.title);
 };
 
 // Same title, as far as both show it: Re: / Fw: and spacing aside, and a
@@ -1342,15 +1372,16 @@ JJPtt.isWanted = function(row, want) {
 // ({ author, title }) when given. The number seen in a filtered list
 // (推文數, search results) is that list's own, not the board's: then it is
 // found among the author's posts (a) instead.
-JJPtt.prototype.cursorTo = function(num, want) {
+// byAuthor: straight to the author's posts, the number not tried.
+JJPtt.prototype.cursorTo = function(num, want, byAuthor) {
   var self = this;
   var jump = function(n) {
     var prev = self.screen();
     self.send(n + '\r');
     return self.settle(prev, 2000);
   };
-  return jump(num).then(function() {
-    if (JJPtt.isWanted(self.cursorRow(), want)) return;
+  return (byAuthor ? Promise.resolve() : jump(num)).then(function() {
+    if (!byAuthor && JJPtt.isWanted(self.cursorRow(), want)) return;
     if (!want || !want.author) throw new Error('找不到第 ' + num + ' 篇');
     var prev = self.screen();
     self.send('a');
