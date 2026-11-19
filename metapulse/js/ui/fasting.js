@@ -4,7 +4,7 @@ import { h, fold, pills, toast, tip, info3, timePick, openSheet, closeSheet } fr
 import { FASTING } from '../config.js';
 import { OMAD_DONE } from '../messages.js';
 import { fuelText, eatingText, soupText } from '../lines.js';
-import { currentFast, openFast, checkFast, periods, mergeFasts, mergeTwoFasts, fastsBetween, targetHours, fastEnd, eatPending, pendingMeals, mealShift, stageAt, stageStarts, hybridSuggestion, eatingWindow, hm, dur } from '../fasting.js';
+import { hybridWeek, currentFast, openFast, checkFast, periods, mergeFasts, mergeTwoFasts, fastsBetween, targetHours, fastEnd, eatPending, pendingMeals, mealShift, stageAt, stageStarts, hybridSuggestion, eatingWindow, hm, dur } from '../fasting.js';
 import { openAddMeal } from './addMeal.js';
 import { timeStop, gears } from './fx.js';
 import { longTermIndex, weightTrend, longTermMessage, leanTrend, leanSummary } from '../longterm.js';
@@ -215,11 +215,25 @@ export function fastModeBody() {
   }
   if (mode === 'HYBRID_GUIDED') {
     const sg = tg.sg;
-    body.push(h('div.notice.ok', { style: { marginTop: '10px' } }, sg.reason + '只是建議，可以依身體狀況調整。',
-      !sg.hasDose ? h('div.tiny.mu', '有施打記錄後，會依照「施打後第幾天」給建議：第 1～3 天 18:6、第 4～7 天 16:8。') : null));
-    const sp = residualSpark(); if (sp) body.push(sp);
+    const { lt, wt } = longTermStatus();
+    const flags = { fastLoss: wt.fast, lowIntake: lt.ready && lt.level !== 'ok' };
+    const week = hybridWeek(S.entries, localDate(new Date()), flags);
+    body.push(h('div', { style: { marginTop: '10px', fontWeight: 700, fontSize: '17px' } }, '今天建議 ' + sg.plan));
+    if (week.length) {
+      // 一週建議表：每天一格，今天框起來，打針那天 💉，被安全提醒改掉的 ⚠
+      const grid = h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(' + week.length + ', 1fr)', gap: '3px', marginTop: '8px', textAlign: 'center' } });
+      for (const x of week) grid.append(h('div', { style: { border: x.today ? '2px solid var(--ac)' : '1px solid var(--ln)', borderRadius: '8px', padding: '4px 0', background: x.today ? 'var(--ac-soft)' : 'transparent', minWidth: 0 } },
+        h('div.tiny.mu', '第' + x.day + '天'),
+        h('div.tiny.num', { style: { color: 'var(--mu)' } }, md(x.date)),
+        h('div.small.num', { style: { fontWeight: 700, color: x.plan === '18:6' ? 'var(--ac-tx)' : 'var(--tx)' } }, x.plan),
+        h('div.tiny', x.dose ? '💉' : x.safer ? '⚠' : x.today ? '今天' : '\u00a0')));
+      body.push(grid);
+      if (week.some(x => x.safer)) body.push(h('div.small', { style: { marginTop: '6px', color: 'var(--warn)' } }, '⚠ ' + (flags.fastLoss ? '最近體重下降偏快' : '最近一段時間熱量偏低') + '，先用比較溫和的 16:8'));
+    } else body.push(h('div.small.mu', { style: { marginTop: '4px' } }, '還沒有施打記錄，先用 16:8。記了注射後，第 1～3 天建議 18:6、第 4～7 天 16:8。'));
+    const sp = residualSpark();
+    body.push(tip('打針那天算第 1 天：第 1～3 天藥效比較強、通常比較不餓，建議 18:6；第 4～7 天建議 16:8。體重掉太快或長期吃太少時，今天以後一律改成 16:8。只是建議，可以依身體狀況調整；模式只用來算目標，不會自己開始或結束斷食。', ...(sp ? [sp] : [])));
   }
-  body.push(tip('模式只用來算目標和進食窗口，不會自己開始或結束斷食；一定要你按「開始斷食」「結束斷食」。'));
+  if (mode !== 'HYBRID_GUIDED') body.push(tip('模式只用來算目標和進食窗口，不會自己開始或結束斷食；一定要你按「開始斷食」「結束斷食」。'));
   return { label: MODE_NAME[mode] + '・' + tg.label, body };
 }
 

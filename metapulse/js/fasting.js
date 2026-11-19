@@ -380,3 +380,24 @@ export function fastsBetween(fasts, p, q, now = Date.now()) {
   const from = early.start, to = late.start;
   return (fasts || []).filter(x => x && x.start && x.end && new Date(x.start).getTime() >= from && new Date(x.end).getTime() <= to + 60000);
 }
+
+/**
+ * 「依施打週期」的一週建議表：從最近一次施打那天（第 1 天）排到第 7 天（今天更晚就排到今天）
+ * 今天和之後如果有安全提醒（減重太快、長期吃太少），改成比較溫和的方案並標 safer
+ * @returns [{date, day, plan, today, dose, safer}]；沒有施打記錄回傳 []
+ */
+export function hybridWeek(entries, todayStr, flags = {}, cfg = FASTING) {
+  const doses = (entries || []).filter(e => e.dose > 0 && e.date <= todayStr).map(e => e.date).sort();
+  const last = doses[doses.length - 1];
+  if (!last) return [];
+  const hy = cfg.hybrid, T = dnStr(todayStr), L0 = dnStr(last), out = [];
+  const warn = !!(flags.fastLoss || flags.lowIntake);
+  for (let n = L0; n <= Math.max(L0 + 6, T); n++) {
+    const day = n - L0 + 1, r = hy.rules.find(x => day >= x.fromDay && day <= x.toDay);
+    let plan = r ? r.plan : hy.fallback, safer = false;
+    if (warn && n >= T && plan !== hy.safer) { plan = hy.safer; safer = true; }
+    const d = new Date(n * 864e5), date = d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate());
+    out.push({ date, day, plan, today: n === T, dose: n === L0, safer });
+  }
+  return out;
+}

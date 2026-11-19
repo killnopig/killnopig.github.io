@@ -323,3 +323,15 @@ test('「不是重複」的標記存檔、讀檔後還在', async () => {
   assert.equal(normalizeMeal({ id: 'x', at: '2026-11-19T06:52:00.000Z', name: 'a', notDup: true }).notDup, true);
   assert.equal(normalizeMeal({ id: 'y', at: '2026-11-19T06:52:00.000Z', name: 'a' }).notDup, undefined);
 });
+
+test('依施打週期的一週建議表：第 1～3 天 18:6、第 4～7 天 16:8，安全提醒只改今天以後', async () => {
+  const { hybridWeek } = await import('../js/fasting.js');
+  const es = [{ date: '2026-11-13', dose: 2.5 }];
+  let w = hybridWeek(es, '2026-11-15');
+  assert.deepEqual(w.map(x => x.plan), ['18:6', '18:6', '18:6', '16:8', '16:8', '16:8', '16:8']);
+  assert.equal(w[0].dose, true); assert.equal(w[2].today, true); assert.equal(w[6].date, '2026-11-19');
+  w = hybridWeek(es, '2026-11-14', { fastLoss: true });
+  assert.deepEqual(w.slice(0, 3).map(x => x.plan + (x.safer ? '!' : '')), ['18:6', '16:8!', '16:8!']);
+  assert.equal(hybridWeek(es, '2026-11-22').length, 10, '超過第 7 天就排到今天');
+  assert.deepEqual(hybridWeek([], '2026-11-15'), []);
+});
