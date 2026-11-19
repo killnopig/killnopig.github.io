@@ -9,7 +9,7 @@ import { renderLog } from './ui/log.js';
 import { renderCharts } from './ui/charts.js';
 import { L, S } from './state.js';
 import { h, toast } from './ui/common.js';
-import { initDrive, onDrive, driveStatus, driveEmail, connect, linked, ready } from './drive.js';
+import { initDrive, onDrive, driveStatus, connect, linked, ready } from './drive.js';
 import { scheduleSoon } from './notify.js';
 import { preloadSounds } from './sounds.js';
 import { updateWidgetSoon } from './widget.js';
@@ -66,7 +66,12 @@ onChange(ev => {
 
 /* ---------- Google Drive 狀態列、提示 ---------- */
 const syncEl = $('sync');
-const drawSync = t => { syncEl.textContent = t + (linked() && driveEmail() ? '・' + driveEmail() : ''); };
+/** 標題下只寫一行短的狀態；帳號和完整說明在「設定」→「備份與匯入」 */
+const hhmm = () => { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+const shortSync = t => /連線中/.test(t) ? '☁ 連線中…' : /同步中/.test(t) ? '☁ 同步中…'
+  : /^已存到|^已和/.test(t) ? '☁ 已同步 ' + hhmm() : /重新登入|登入失敗/.test(t) ? '☁ 要重新登入（點這裡）'
+  : /同步失敗/.test(t) ? '☁ 同步失敗，資料還在手機裡' : /準備好|載入失敗/.test(t) ? '☁ Google 登入還沒好' : t;
+const drawSync = t => { syncEl.textContent = shortSync(t); syncEl.classList.add('one'); };
 drawSync(driveStatus());
 syncEl.onclick = () => { if (linked() && !ready()) connect(true); };
 onDrive((t, ev) => {
