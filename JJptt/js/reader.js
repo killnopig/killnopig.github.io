@@ -427,7 +427,9 @@ PttReader.prototype.termDoc = function(url, webErr, opts) {
         opts.onPartial(self.articleFromDoc(d, real || url, true), i, n);
       } catch (e) { console.log('JJptt BBS 部分內容', e); }
     };
-    job = function() { return ptt.termArticle(plain, null, { bg: opts.bg, onPage: onPage }); };
+    // from a list read on the BBS: which article the number has to be
+    var want = /^jjterm:/.test(plain) ? JJPtt.wantFromUrl(url) : null;
+    job = function() { return ptt.termArticle(plain, want, { bg: opts.bg, onPage: onPage }); };
   } else {
     return cant(down + '，這裡暫時不能用（看板文章可以改用 BBS 連線看）');
   }

@@ -1023,12 +1023,28 @@ JJPtt.indexHtml = function(board, rows, older, query) {
   h.push('</div><div class="r-list-container">');
   var tail = query ? '/' + encodeURIComponent(query) : '';
   rows.forEach(function(r) {
-    var t = r.deleted ? esc(r.title) : '<a href="' + esc(JJPtt.TERM + 'art/' + encodeURIComponent(board) + '/' + r.num + tail) + '">' + esc(r.title) + '</a>';
+    var t = r.deleted ? esc(r.title) : '<a href="' + esc(JJPtt.TERM + 'art/' + encodeURIComponent(board) + '/' + r.num + tail +
+      JJPtt.wantHash(r)) + '">' + esc(r.title) + '</a>';
     h.push('<div class="r-ent"><div class="nrec">' + esc(r.nrec) + '</div><div class="title">' + t +
       '</div><div class="meta"><div class="author">' + esc(r.author) + '</div><div class="date">' + esc(r.date) + '</div></div></div>');
   });
   h.push('</div>');
   return h.join('');
+};
+
+// A list row's author and title after the article's address (#author/title):
+// opening it checks that the number still lands on that article -- PTT's
+// list may have changed since (a search redone, other conditions on it), and
+// a number alone then opens another one. JJPtt.wantFromUrl reads it back.
+JJPtt.wantHash = function(r) {
+  return r && r.author && r.title ? '#' + encodeURIComponent(r.author) + '/' + encodeURIComponent(r.title) : '';
+};
+JJPtt.wantFromUrl = function(url) {
+  var m = /#([^\/#]+)\/([^#]+)$/.exec(String(url || ''));
+  if (!m) return null;
+  try {
+    return { author: decodeURIComponent(m[1]), title: decodeURIComponent(m[2]) };
+  } catch (e) { return null; }
 };
 
 // The article's lines as read from the screen -> an article page like
