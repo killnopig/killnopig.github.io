@@ -547,11 +547,41 @@ JJMobile.prototype.back = function() {
 };
 
 JJMobile.prototype.render = function(screen) {
+  // how long until its content shows (the corner, JJMobile.loaded)
+  screen.openedAt = Date.now();
+  screen.loadMs = null;
   this.setBar(screen);
   if (screen.type === 'home') this.renderHome(screen);
   else if (screen.type === 'board') this.renderBoard(screen);
   else if (screen.type === 'article') this.renderArticle(screen);
-  else if (screen.type === 'settings') this.renderSettings(screen);
+  else if (screen.type === 'settings') { this.renderSettings(screen); this.loaded(screen, ''); }
+};
+
+// A screen's content is on show: how long it took since it was opened (or
+// reloaded), in a corner of the screen with where it came from (網頁 /
+// BBS / 預讀) -- green within a second, orange slower. Once per showing.
+JJMobile.LOAD_SLOW_MS = 1000;
+JJMobile.prototype.loaded = function(screen, how) {
+  if (!screen || screen.loadMs !== null || !screen.openedAt) return;
+  screen.loadMs = Date.now() - screen.openedAt;
+  screen.loadHow = how || '';
+  if (this.stack[this.stack.length - 1] === screen) this.showLoadTime(screen);
+};
+JJMobile.loadText = function(ms, how) {
+  return (ms / 1000).toFixed(2) + 's' + (how ? ' ' + how : '');
+};
+JJMobile.prototype.showLoadTime = function(screen) {
+  if (!this.root) return;
+  if (!this.loadEl) {
+    this.loadEl = JJMobile.el('div', 'jjm-load-time');
+    this.loadEl.setAttribute('aria-hidden', 'true');
+    this.root.appendChild(this.loadEl);
+  }
+  var ms = screen && screen.loadMs;
+  var known = typeof ms === 'number';
+  this.loadEl.textContent = known ? JJMobile.loadText(ms, screen.loadHow) : '';
+  this.loadEl.style.display = known ? '' : 'none';
+  this.loadEl.classList.toggle('jjm-slow', known && ms > JJMobile.LOAD_SLOW_MS);
 };
 
 // Text onto the clipboard: the clipboard API, else a hidden text box and
@@ -599,6 +629,7 @@ JJMobile.prototype.setBar = function(screen) {
   // board / article: the title floats over the buttons, see-through, and taps go to the buttons under it
   this.bar.classList.toggle('jjm-float', screen.type === 'board' || screen.type === 'article');
   this.titleEl.textContent = screen.title || 'JJptt';
+  this.showLoadTime(screen);
   if (screen.type === 'home') this.refreshVersion();  // the version, not the name
   this.actions.innerHTML = '';
   // `what`: an icon's name (JJMobile.ICONS), or words with `words` (the

@@ -154,7 +154,7 @@ JJMobile.prototype.syncFavs = function(manual) {
     return;
   }
   if (manual && this.app.showToast) this.app.showToast('正在讀取 PTT 我的最愛…', 1500);
-  this.ptt.favorites().then(function(boards) {
+  this.ptt.favorites({ bg: !manual }).then(function(boards) {
     var mine = self.favs();
     var have = {};
     var merged = boards.map(function(b) {
@@ -184,6 +184,12 @@ JJMobile.prototype.syncFavs = function(manual) {
       if (self.stack.length === 1) self.setBar(home);
     }
   }).catch(function(err) {
+    // gave way to a board or article opened meanwhile: again a little later
+    if (err && err.yielded && !manual) {
+      self.favsTries = (self.favsTries || 0) + 1;
+      if (self.favsTries < 20) setTimeout(function() { self.syncFavs(false); }, 5000);
+      return;
+    }
     if (manual && self.app.showToast) self.app.showToast('同步失敗：' + err.message, 3500);
   });
 };
@@ -276,10 +282,12 @@ JJMobile.prototype.renderHome = function(screen) {
       list.appendChild(el('div', 'jjm-hint', '在看板裡按右上角的 ☆ 加到這裡，登入後也會自動拿 PTT 的我的最愛。'));
     }
     cur.boards.forEach(function(f) { list.appendChild(self.boardRow(f.name, JJPtt.cleanTitle(f.title), '')); });
+    this.loaded(screen, '');
   } else {
     var wait = this.loading(list);
     this.app.reader.fetchDoc(JJMobile.WEB + '/bbs/hotboards.html').then(function(doc) {
       wait.remove();
+      self.loaded(screen, doc.jjFromTerm ? 'BBS' : '網頁');
       var rows = doc.querySelectorAll('.b-ent a.board');
       for (var i = 0; i < rows.length; ++i) {
         var a = rows[i];
@@ -290,6 +298,7 @@ JJMobile.prototype.renderHome = function(screen) {
       }
     }).catch(function(err) {
       wait.remove();
+      self.loaded(screen, '失敗');
       self.failed(list, err, function() { self.reload(screen); });
     });
   }

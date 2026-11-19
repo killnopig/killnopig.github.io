@@ -117,33 +117,66 @@ JJPtt.prototype.steady = function(ms) {
   });
 };
 
-// Resolves once nothing has come from PTT for `ms` (at most `max`): a page
-// arrives in several pieces, more slowly on a phone's network, and one read
-// half drawn mixes rows of two pages. Without lastDataAt: steady().
-// Keys that may leave the screen as it is (End at the newest, a number
-// already under the cursor): PTT sends nothing back then, and settle()
-// waited its whole time (2 s). A Ctrl-L after them makes PTT redraw: once
-// that comes in and stops, the keys are done. Without lastDataAt (tests):
-// settle().
+// PTT draws each screen inside "synchronized output" marks (ESC[?2026h …
+// ESC[?2026l), and Ctrl-L redraws the whole screen (ESC[2J inside). Counts
+// such whole redraws as they end (app.jjRedrawn): one that ends after keys
+// and a Ctrl-L were sent shows the screen after all of those keys -- the
+// screen read before that could be one PTT had not got to yet (a jump not
+// made, a search still running), and another article was opened.
+JJPtt.prototype.hookRedraws = function() {
+  var app = this.app, parser = app.parser;
+  if (!parser || !parser.feed || parser.jjHooked) return;
+  parser.jjHooked = true;
+  app.jjRedrawn = app.jjRedrawn || 0;
+  var feed = parser.feed, carry = '', cleared = false;
+  parser.feed = function(d) {
+    var r = feed.apply(this, arguments);
+    var text = carry + String(d), re = /\x1b\[2J|\x1b\[\?2026l/g, m;
+    while ((m = re.exec(text))) {
+      if (m.index + m[0].length <= carry.length) continue;  // seen with the last piece
+      if (m[0] === '\x1b[2J') cleared = true;
+      else if (cleared) { cleared = false; app.jjRedrawn++; }
+    }
+    carry = text.slice(-8);
+    return r;
+  };
+};
+
+// Keys, then Ctrl-L: resolves once PTT's whole redraw after them is in
+// (see hookRedraws), so the screen is the one after the keys. Keys that
+// leave the screen as it is (End at the newest, a number already under
+// the cursor) get no answer of their own: waiting for a change took the
+// whole `ms`. No parser to watch (tests): settle().
 JJPtt.prototype.sendSync = function(keys, ms) {
   var app = this.app, self = this;
-  if (typeof app.lastDataAt !== 'number') {
+  this.hookRedraws();
+  if (typeof app.jjRedrawn !== 'number') {
+    if (!keys) return Promise.resolve();
     var prev = this.screen();
     this.send(keys);
     return this.settle(prev, ms);
   }
-  var d0 = app.lastDataAt, until = Date.now() + (ms || 2000);
+  var n0 = app.jjRedrawn, until = Date.now() + (ms || 3000);
   this.send(keys + '\x0c');
   return new Promise(function(resolve) {
     var tick = function() {
-      if (Date.now() > until || !self.connected()) return resolve();
-      if (app.lastDataAt > d0 && Date.now() - app.lastDataAt >= 60) return resolve();
-      setTimeout(tick, 20);
+      if (app.jjRedrawn > n0 || Date.now() > until || !self.connected()) {
+        // the screen buffer pairs Big5 bytes into characters 30 ms after
+        // data comes (TermBuf.notify): read now, the rows came out as
+        // bytes (「Re: [·s»D]」) -- pair them first
+        var buf = app.buf;
+        if (buf && buf.timerUpdate && buf.notify) buf.notify();
+        return resolve();
+      }
+      setTimeout(tick, 15);
     };
-    setTimeout(tick, 20);
+    setTimeout(tick, 15);
   });
 };
 
+// Resolves once nothing has come from PTT for `ms` (at most `max`): a page
+// arrives in several pieces, more slowly on a phone's network, and one read
+// half drawn mixes rows of two pages. Without lastDataAt: steady().
 JJPtt.prototype.quiet = function(ms, max) {
   var app = this.app, self = this;
   if (typeof app.lastDataAt !== 'number') return this.steady(ms);
@@ -482,16 +515,27 @@ JJPtt.prototype.toArticle = function(url, again) {
   var board = JJPtt.boardFromUrl(url);
   var aid = JJPtt.aidFromUrl(url);
   if (!board || !aid) return Promise.reject(new Error('看不懂這篇文章的網址'));
-  var before;
-  return this.toBoard(board).then(function() {
-    // the prompt itself, newly shown (not any 「#」 already on the list)
-    before = self.screen();
+  // # and the AID, the jump done (sendSync), not the echo of the AID
+  var jump = function() {
+    // the prompt itself, newly shown (not any 「#」 already on the list);
+    // an AID typed before it opens is lost
+    var before = self.screen();
     self.send('#');
-    return self.wait({ ask: /文章代碼|AID/ }, 5000, before, '找文章代碼');
+    return self.wait({ ask: /文章代碼|AID/ }, 5000, before, '找文章代碼').then(function() {
+      return self.sendSync(aid + '\r', 3000);
+    });
+  };
+  return this.toBoard(board).then(function() {
+    // PTT's first jump to an AID often lands a few articles off (in
+    // Gossiping 9 on, every time: 老黃被逼宮 for 蔡英文〈沒有自己的孩子〉),
+    // the second from there is right: jumped twice at once, instead of
+    // jumping, checking, finding it wrong and jumping again
+    return jump();
   }).then(function() {
-    var prev = self.screen();
-    self.send(aid + '\r');
-    return self.settle(prev, 1500);
+    if (/找不到這個文章代碼|找不到|沒有這篇/.test(self.screen())) throw new Error('在 PTT 上找不到這篇文章');
+    return jump();
+  }).then(function() {
+    return self.sendSync('', 3000);  // after everything (see sendSync)
   }).then(function() {
     if (/找不到這個文章代碼|找不到|沒有這篇/.test(self.screen())) throw new Error('在 PTT 上找不到這篇文章');
     return self.urlHere();
@@ -499,8 +543,10 @@ JJPtt.prototype.toArticle = function(url, again) {
     if (JJPtt.sameArticle(here, url)) return;
     console.log('JJptt BBS 文章代碼跳到別篇', url, here);
     if (again) throw new Error('PTT 跳到別篇文章了，請再試一次');
+    // out of a search (系列文章) first; ← in the whole list would leave the board
+    if (self.listFoot() !== 'search') return self.toArticle(url, true);
     var prev = self.screen();
-    self.send('\x1b[D');  // out of a search (or out of the board: toBoard goes back in)
+    self.send('\x1b[D');
     self.listQuery = '';
     return self.settle(prev, 2000).then(function() { return self.toArticle(url, true); });
   });
@@ -917,12 +963,17 @@ JJPtt.prototype.toMenu = function() {
 // (its F item), so this waits for the board list's column header among what
 // changed. A menu letter may only move the cursor there: then → goes in.
 JJPtt.LIST_HEAD = /編號.*看\s*板|看\s*板.*類別|類別.*轉信/;
+// f in the main menu only moves its cursor onto (F)avorite here, → goes in:
+// once PTT has taken the f (a whole redraw after it), → at once -- waiting
+// 2.5 s to see whether f went in by itself held up the first board opened.
 JJPtt.prototype.enterFavorites = function() {
   var self = this;
   var before = this.screen();
-  this.send('f');
-  return this.wait({ list: JJPtt.LIST_HEAD }, 2500, before).catch(function() {
-    if (!/主功能表/.test(self.screen())) throw new Error('進不了我的最愛');
+  return this.sendSync('f', 2500).then(function() {
+    if (JJPtt.LIST_HEAD.test(self.screen()) && !/主功能表/.test(self.screen())) return 'list';
+    if (!/主功能表/.test(self.screen())) {
+      return self.wait({ list: JJPtt.LIST_HEAD }, 2500, before).catch(function() { throw new Error('進不了我的最愛'); });
+    }
     self.send('\x1b[C');
     return self.wait({ list: JJPtt.LIST_HEAD }, 8000, before, '進我的最愛');
   });
@@ -938,9 +989,17 @@ JJPtt.parseFolderRow = function(row) {
 // The account's 我的最愛, in PTT's order, with the boards inside its folders
 // (each with `folder`: the folder's name):
 //   [{ name, title }, { name, title, folder: 'MLB' }, ...]
-JJPtt.prototype.favorites = function() {
+// opts.bg: the sync after logging in, which gives way (err.yielded, between
+// pages and folders) to what the user opens meanwhile -- it took the
+// connection for 2-3 s right when the first board was opened.
+JJPtt.prototype.favorites = function(opts) {
   var self = this;
+  var bg = !!(opts && opts.bg);
+  var giveWay = function() {
+    if (bg && self.fgWaiting > 0) { var e = new Error('讓給前面的工作'); e.yielded = true; throw e; }
+  };
   return this.run(function() {
+    giveWay();
     var out = [];
     // one list (我的最愛 or a folder), every page; folders found are
     // returned with where they were, to be read afterwards
@@ -965,6 +1024,7 @@ JJPtt.prototype.favorites = function() {
         return first;
       };
       var page = function() {
+        giveWay();
         var first = read();
         if (first === lastFirst || ++pages > 30) return Promise.resolve({ boards: boards, folders: folders });
         lastFirst = first;
@@ -1009,6 +1069,7 @@ JJPtt.prototype.favorites = function() {
       var inside = [];
       var next = function(i) {
         if (i >= top.folders.length) return Promise.resolve();
+        giveWay();
         return readFolder(top.folders[i]).then(function(b) {
           inside[i] = b;
           return next(i + 1);
@@ -1027,7 +1088,7 @@ JJPtt.prototype.favorites = function() {
       self.send('\x1b[D');  // leave the list
       return out;
     });
-  });
+  }, bg);
 };
 
 // ---- reading through the connection when www.ptt.cc is down --------------------------------
@@ -1248,6 +1309,13 @@ JJPtt.prototype.toList = function(board, query) {
       // nothing found, or not searched (pttbbs select_read): a message to
       // close, and the whole list still there -- not the search's
       var said = JJPtt.SEARCH_FAIL.exec(self.screen());
+      // a search shows 系列文章; the whole list still there: nothing found
+      // (its message closed by the redraw's Ctrl-L)
+      if (!said && self.listFoot() === 'list') {
+        var e0 = new Error('找不到符合條件的文章');
+        e0.searchEmpty = true;
+        throw e0;
+      }
       if (!said) { self.listQuery = query; return; }
       var p3 = self.screen();
       self.send(' ');
@@ -1268,10 +1336,15 @@ JJPtt.SEARCH_FAIL = /找不到符合條件的文章|搜尋服務異常[^\n]*|已
 // the search itself takes PTT a moment more, and the keys sent meanwhile
 // went into the question or were lost (searches piled up, 找不到, another
 // article opened).
+// The footer can come back before the search is over (the question
+// closed first): then a whole redraw (sendSync) to read the list after it.
+// Its Ctrl-L would close PTT's 找不到 message as any key: not when that
+// is on the screen already. Resolves 'fail' / 'done'.
 JJPtt.prototype.searched = function(prev) {
   var self = this;
-  return this.wait({ done: /文章選讀|文章列表|系列文章/, fail: JJPtt.SEARCH_FAIL }, 10000, prev, '搜尋').then(function() {
-    return self.quiet(60, 500);
+  return this.wait({ fail: JJPtt.SEARCH_FAIL, done: /文章選讀|文章列表|系列文章/ }, 10000, prev, '搜尋').then(function(k) {
+    if (k === 'fail') return k;
+    return self.sendSync('', 3000).then(function() { return k; });
   });
 };
 
@@ -1389,7 +1462,12 @@ JJPtt.prototype.termArticle = function(url, want, opts) {
     if (opts.bg && self.fgWaiting > 0) { var e0 = new Error('讓給前面的工作'); e0.yielded = true; throw e0; }
     return self.ensureIn().then(function() {
       var m = /^jjterm:art\/([^\/]+)\/(\d+)(?:\/([^\/]+))?$/.exec(url);
-      if (!m) return self.toArticle(url).then(function() { return self.readHere(onPage); });
+      // reading ahead gives way as soon as the user opens something, not
+      // only between pages
+      if (!m) return self.toArticle(url).then(function() {
+        if (opts.bg && self.fgWaiting > 0) { yielded = true; var e1 = new Error('讓給前面的工作'); e1.yielded = true; throw e1; }
+        return self.readHere(onPage);
+      });
       var open = function(byAuthor) {
         return self.toList(decodeURIComponent(m[1]), m[3] ? decodeURIComponent(m[3]) : '').then(function() {
           return self.cursorTo(+m[2], want, byAuthor);

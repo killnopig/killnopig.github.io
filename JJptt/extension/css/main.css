@@ -2154,3 +2154,12 @@ body.jj-mobile #jjToast {
 .jjm-run-open .jjm-run-text { display: none; }
 .jjm-run .jjm-run-floors .jjm-push { padding-left: 30px; }
 .jjm-run.jjm-faded .jjm-faded { opacity: 1; }
+
+/* how long the screen took to show (JJMobile.loaded): a corner, out of the way */
+body.jj-mobile .jjm-load-time {
+  position: fixed; left: 8px; bottom: calc(env(safe-area-inset-bottom, 0px) + 6px); z-index: 60;
+  padding: 2px 7px; border-radius: var(--r-pill, 999px); background: rgba(0, 0, 0, .45);
+  color: var(--accent); font-size: 11px; line-height: 1.4; font-variant-numeric: tabular-nums;
+  opacity: .8; pointer-events: none;
+}
+body.jj-mobile .jjm-load-time.jjm-slow { color: var(--warn); }

@@ -26,11 +26,16 @@ JJMobile.prototype.renderArticle = function(screen) {
     last = Date.now();
     shown = true;
     draw(article, 'PTT 網頁版現在故障，從 BBS 連線讀取中… ' + i + '／' + n + ' 頁');
+    self.loaded(screen, ahead ? '預讀' : 'BBS');  // (ahead: set below, before any page comes)
   };
   var key = screen.url;
+  // read ahead already (done, or coming in): 預讀 in the corner
+  var c0 = this.articles[key];
+  var ahead = !!(c0 && (c0.done || c0.last));
   this.getArticle(key, partial).then(function(article) {
     if (!v.isConnected) return;
     wait.remove();
+    self.loaded(screen, ahead ? '預讀' : article.fromTerm || JJPtt.isTermUrl(key) ? 'BBS' : '網頁');
     // opened from a list read on the BBS: its www.ptt.cc address (Q) is
     // what pushing and replying need
     if (JJPtt.isTermUrl(screen.url) && article.url && !JJPtt.isTermUrl(article.url)) screen.url = article.url;
@@ -39,6 +44,7 @@ JJMobile.prototype.renderArticle = function(screen) {
     if (!self.freshen(screen, article, key) && screen.list) self.prefetchList(screen.list, screen.index + 1);
   }).catch(function(err) {
     wait.remove();
+    self.loaded(screen, '失敗');
     self.failed(v, err, function() { self.reload(screen); });
   });
   this.swipeArticles(screen);

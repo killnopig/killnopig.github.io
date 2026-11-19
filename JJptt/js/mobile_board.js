@@ -82,6 +82,7 @@ JJMobile.prototype.renderBoard = function(screen) {
         page.pinned.forEach(function(e) { self.appendEntry(screen, e); });
       }
       page.entries.forEach(function(e) { self.appendEntry(screen, e); });
+      if (first) self.loaded(screen, doc.jjFromTerm ? 'BBS' : '網頁');
       more.textContent = screen.older ? '' : (screen.entries.length ? '沒有更早的文章了' : '沒有文章');
       screen.loadingMore = false;
       if (first) self.prefetchList(screen, 0);
@@ -90,6 +91,7 @@ JJMobile.prototype.renderBoard = function(screen) {
     }).catch(function(err) {
       screen.loadingMore = false;
       more.textContent = '';
+      if (first) self.loaded(screen, '失敗');
       self.failed(more, err, function() { more.innerHTML = ''; loadMore(); });
     });
   };
@@ -270,6 +272,11 @@ JJMobile.prototype.searchSheet = function(screen) {
 JJMobile.prototype.getArticle = function(url, onPartial, bg) {
   var c = this.articles[url];
   var self = this;
+  // opened while its read ahead is still waiting its turn on the BBS
+  // (behind others, a long article): read now instead -- what is being
+  // read ahead gives way at its next page. One already coming in page by
+  // page is ridden on.
+  if (c && onPartial && c.bg && !c.done && !c.last) c = null;
   if (c && Date.now() - c.at < JJMobile.CACHE_MS) {
     if (!onPartial) return c.promise;
     c.listener = onPartial;
@@ -280,7 +287,7 @@ JJMobile.prototype.getArticle = function(url, onPartial, bg) {
       return self.getArticle(url, onPartial);
     });
   }
-  var entry = { at: Date.now(), listener: onPartial || null, last: null };
+  var entry = { at: Date.now(), listener: onPartial || null, last: null, bg: !!bg, done: false };
   var p = this.app.reader.fetchArticle(url, {
     bg: !!bg,
     onPartial: function(a, i, n) {
@@ -289,7 +296,7 @@ JJMobile.prototype.getArticle = function(url, onPartial, bg) {
     }
   });
   entry.promise = p;
-  p.then(function() { entry.at = Date.now(); }, function() {});  // how old its pushes are
+  p.then(function() { entry.at = Date.now(); entry.done = true; }, function() {});  // how old its pushes are
   this.articles[url] = entry;
   p.catch(function() { if (self.articles[url] === entry) delete self.articles[url]; });
   var keys = Object.keys(this.articles);
