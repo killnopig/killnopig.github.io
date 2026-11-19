@@ -1143,7 +1143,9 @@ JJPtt.searchCmd = function(q) {
   q = String(q || '').trim();
   var m;
   if ((m = /^author:\s*(\S+)$/.exec(q))) return { key: 'a', ask: /(搜尋|增加條件) ?作者/, text: m[1] };
-  if ((m = /^recommend:\s*(-?\d+)$/.exec(q))) return +m[1] ? { key: 'Z', ask: /搜尋推文數|增加條件 ?推文數/, text: String(+m[1]) } : null;
+  // PTT counts pushes up to 100 (爆): 200 (止爆) found nothing on the BBS,
+  // where www.ptt.cc gives the 爆 ones
+  if ((m = /^recommend:\s*(-?\d+)$/.exec(q))) return +m[1] ? { key: 'Z', ask: /搜尋推文數|增加條件 ?推文數/, text: String(Math.max(-100, Math.min(100, +m[1]))) } : null;
   return q ? { key: '/', ask: /(搜尋|增加條件) ?標題/, text: q } : null;
 };
 
@@ -1302,6 +1304,12 @@ JJPtt.prototype.toList = function(board, query) {
     var prev = self.screen();
     self.send(cmd.key);
     return self.wait({ ask: cmd.ask }, 5000, prev, '搜尋').then(function() {
+      // PTT fills in the last one asked (「…的文章: 10」): typed after it,
+      // 100 was 10100 (找不到) and -100 another search -- erased first.
+      // Often not on the screen yet when the question is: Backspaces
+      // enough for it anyway (on an empty answer they do nothing)
+      var n = Math.max(JJPtt.filledIn(self.screen(), cmd.ask), JJPtt.SEARCH_ERASE);
+      self.send(new Array(n + 1).join('\x7f'));
       var p2 = self.screen();
       self.type(cmd.text + '\r');
       return self.searched(p2);
@@ -1327,6 +1335,22 @@ JJPtt.prototype.toList = function(board, query) {
       });
     });
   });
+};
+// What PTT filled in after the question `ask` on the screen's last line
+// (the last answer to it), in Backspaces to erase it: 2 for a double-byte
+// character, more erasing nothing.
+JJPtt.SEARCH_ERASE = 40;
+JJPtt.filledIn = function(screen, ask) {
+  var lines = String(screen || '').split('\n').filter(function(l) { return l.trim(); });
+  var last = lines[lines.length - 1] || '';
+  var m = ask.exec(last);
+  if (!m) return 0;
+  var rest = last.slice(m.index + m[0].length);
+  var c = rest.indexOf(':');
+  if (c < 0) return 0;
+  var text = rest.slice(c + 1).trim(), n = 0;
+  for (var i = 0; i < text.length; ++i) n += text.charCodeAt(i) > 0x7f ? 2 : 1;
+  return n;
 };
 JJPtt.SEARCH_FAIL = /找不到符合條件的文章|搜尋服務異常[^\n]*|已達搜尋條件上限|未搜尋/;
 
