@@ -277,3 +277,22 @@ test('記錄頁：剛好在斷食開始那一刻的餐點算進食段；重疊�
   assert.equal(p.find(x => x.rec && x.rec.id === 'z').overlap, true);
   assert.equal(p.find(x => x.rec && x.rec.id === 'x').overlap, true);
 });
+
+test('記錄頁：兩段斷食中間沒吃東西顯示空白；只隔一下的兩段接起來', async () => {
+  const { periods, mergeFasts } = await import('../js/fasting.js');
+  const iso = h => new Date(t0 - h * H).toISOString();
+  const p = periods([], [{ id: 'a', start: iso(30), end: iso(20) }, { id: 'b', start: iso(19), end: iso(5) }], t0);
+  const blank = p.find(x => x.empty);
+  assert.equal(blank.start, t0 - 20 * H);
+  assert.equal(blank.end, t0 - 19 * H);
+  // 16:37 結束、16:38 又開始，中間沒吃：接成一段
+  const fasts = [{ id: 'x', start: iso(30), end: iso(20) }, { id: 'y', start: new Date(t0 - 20 * H + 60000).toISOString(), end: null }, { id: 'z', start: iso(50), end: iso(40) }];
+  const rm = mergeFasts(fasts, []);
+  assert.deepEqual(rm.map(x => x.id), ['y']);
+  assert.equal(fasts.find(x => x.id === 'x').end, null, '後一段還在進行：接起來也在進行');
+  // 中間有吃東西就不接
+  const f2 = [{ id: 'x', start: iso(30), end: iso(20) }, { id: 'y', start: iso(19.7), end: iso(10) }];
+  assert.equal(mergeFasts(f2, [{ at: iso(19.9) }]).length, 0);
+  assert.equal(mergeFasts(f2, [{ at: iso(19.9), pending: true }]).length, 1, '先存、還沒吃的不算');
+  assert.equal(mergeFasts([{ id: 'p', start: iso(30), end: iso(20) }, { id: 'q', start: iso(18), end: iso(10) }], []).length, 0, '隔 2 小時不接');
+});

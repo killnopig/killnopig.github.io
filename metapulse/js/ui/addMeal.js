@@ -22,9 +22,9 @@ export function openAddMeal(o = {}) {
     name: m.name, per: { ...m.per }, servingGrams: m.servingGrams, fistsPerServing: m.fistsPerServing,
     unit: m.unit, qty: m.qty, slider: m.slider, source: m.source, foodId: m.foodId, aiRaw: m.aiRaw, _id: m.id, thumb: m.thumb,
   })) : [];
-  let when = editing ? new Date(editing[0].at) : new Date();
+  let when = editing ? new Date(editing[0].at) : o.at ? new Date(o.at) : new Date();
   const wasPending = !!(editing && editing.some(m => m.pending));   // 編輯「先存、還沒吃」的一餐：時間選項改成「幾分鐘後」
-  let whenSet = !!editing; // 沒改過時間：按「加入」的那一刻就是用餐時間
+  let whenSet = !!editing || !!o.at; // 沒改過時間：按「加入」的那一刻就是用餐時間（從記錄頁的空白補記會先帶入時間）
   let mode = o.mode || L.lastAddMode || 'photo';
   let thumb = editing ? (editing.find(m => m.thumb) || {}).thumb : undefined;
   let busy = null; // AbortController
@@ -35,7 +35,7 @@ export function openAddMeal(o = {}) {
   openSheet(sh => {
     sh.append(h('div.sheet-h', h('b', editing ? '編輯這一餐' : '記一餐'), h('button.link', { type: 'button', onclick: () => closeSheet() }, '關閉')));
     // 新的一餐：拍照、辨識都不會動到斷食；按儲存時才選「現在吃」或「先存，等一下吃」
-    if (!editing) sh.append(h('div.notice', { style: { margin: '0 0 12px' } },
+    if (!editing && !o.at) sh.append(h('div.notice', { style: { margin: '0 0 12px' } },
       h('div.small.one', { style: { fontWeight: 600 } }, fastInfo().fasting ? '斷食中：可以先存，等一下再吃' : '拍了不一定要吃：可以先存'),
       tip('拍照和辨識都不會影響斷食。按儲存時可以選「現在吃」，或「先存，等一下吃」。先存的話要選預計幾點吃，斷食和進食窗口都不變，等你真的要吃時再按「結束斷食」或「開始吃」。')));
 

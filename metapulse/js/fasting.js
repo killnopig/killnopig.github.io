@@ -289,6 +289,7 @@ export function fastNotes(fi, now, freq = 'phase', qs = '23:00', qe = '07:00', c
  * - 斷食段＝一筆斷食記錄（進行中的 end＝null）；斷食中補記的餐點掛在那一段的 meals；跟別段時間重疊的 overlap＝true
  * - 進食段＝上一段斷食結束到下一段斷食開始，中間吃的都在同一段；最新的一段 end＝null（進行中）
  * - 沒有斷食記錄的日子，或兩段斷食中間隔了超過 24 小時（忘了按），進食段依「每天」分開（loose＝true）
+ * - 兩段斷食中間沒記食物：empty＝true 的空白段
  * @param groups 一餐一筆：[{group, at, ...}]（先存、還沒吃的不要放進來）
  * @returns [{type:'fast'|'eat', start, end|null, hours, meals:[], rec?, loose?}]
  */
@@ -315,6 +316,8 @@ export function periods(groups, fasts, now = Date.now()) {
     const inside = ms.filter(x => !used.has(x) && x.t >= a && x.t <= b);   // 剛好在下一段斷食開始那一刻的也算這一段
     inside.forEach(x => used.add(x));   // 一餐只放在一段裡
     const open = gp.end == null;
+    // 兩段斷食中間沒記任何食物：顯示成空白（提醒可以補記，不強迫）
+    if (!inside.length && !open && gp.start != null) { if (b > a) out.push({ type: 'eat', start: a, end: b, hours: (b - a) / H, meals: [], empty: true }); continue; }
     const span = (open ? now : b) - (gp.start == null ? (inside[0] ? inside[0].t : now) : a);
     if (gp.start != null && span <= 24 * H) {
       if (inside.length || open) out.push({ type: 'eat', start: a, end: open ? null : b, hours: ((open ? now : b) - a) / H, meals: inside.map(x => x.g) });
@@ -326,4 +329,29 @@ export function periods(groups, fasts, now = Date.now()) {
     for (const list of byDay.values()) out.push({ type: 'eat', start: list[0].t, end: list[list.length - 1].t, hours: (list[list.length - 1].t - list[0].t) / H, meals: list.map(x => x.g), loose: true });
   }
   return out.sort((p, q) => q.start - p.start || (p.type === 'fast' ? -1 : 1));   // 同一刻開始：進食段（結束上一段斷食那一餐）排在斷食段下面
+}
+
+/**
+ * 接起來：兩段斷食中間只隔 gapMin 分鐘以內、而且中間沒吃東西（多半是測試或按錯），合成一段
+ * 會直接改 fasts（前一段的結束改成後一段的結束），回傳要刪掉的後一段記錄
+ */
+export function mergeFasts(fasts, meals, gapMin = 30) {
+  const list = (fasts || []).filter(x => x && x.start).sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
+  const eats = (meals || []).filter(m => !m.pending).map(m => new Date(m.at).getTime());
+  const removed = [];
+  let cur = null;
+  for (const x of list) {
+    if (cur && cur.end) {
+      const e = new Date(cur.end).getTime(), s = new Date(x.start).getTime();
+      if (s >= e && s - e <= gapMin * 60000 && !eats.some(t => t >= e && t <= s)) {
+        cur.end = x.end || null; delete cur.endedBy;
+        if (x.endedBy) cur.endedBy = x.endedBy;
+        if (x.goalEnd) cur.goalEnd = x.goalEnd;
+        removed.push(x);
+        continue;
+      }
+    }
+    cur = x;
+  }
+  return removed;
 }

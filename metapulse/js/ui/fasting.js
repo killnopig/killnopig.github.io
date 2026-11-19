@@ -4,7 +4,7 @@ import { h, fold, pills, toast, tip, info3, timePick, openSheet, closeSheet } fr
 import { FASTING } from '../config.js';
 import { HOURLY_MESSAGES, OMAD_DONE } from '../messages.js';
 import { fuelText, eatingText } from '../lines.js';
-import { currentFast, openFast, checkFast, periods, targetHours, fastEnd, eatPending, pendingMeals, mealShift, stageAt, stageStarts, hourlyMessage, hybridSuggestion, eatingWindow, hm, dur } from '../fasting.js';
+import { currentFast, openFast, checkFast, periods, mergeFasts, targetHours, fastEnd, eatPending, pendingMeals, mealShift, stageAt, stageStarts, hourlyMessage, hybridSuggestion, eatingWindow, hm, dur } from '../fasting.js';
 import { openAddMeal } from './addMeal.js';
 import { timeStop, gears } from './fx.js';
 import { longTermIndex, weightTrend, longTermMessage, leanTrend, leanSummary } from '../longterm.js';
@@ -117,6 +117,7 @@ function eatHoursOf(mode, tg) {
 
 /** ① 現在：斷食中或進食中（只看你按的按鈕，不會自己開始），先存的餐點也放在這裡 */
 export function fastingCard() {
+  tidyFasts();
   const now = Date.now();
   const P = S.prefs;
   const mode = P.fastMode || 'PURE_DYNAMIC';
@@ -172,6 +173,14 @@ export function fastingCard() {
   card.append(row2);
   card.append(stagesFold(f.hours, shift, st.index));
   return card;
+}
+
+/** 只隔一下、中間沒吃東西的兩段斷食接成一段（今日頁、記錄頁打開時檢查；有改才存） */
+export function tidyFasts() {
+  const rm = mergeFasts(S.fasts, S.meals);
+  if (!rm.length) return;
+  S.fasts = S.fasts.filter(x => !rm.includes(x));
+  setTimeout(() => commit(), 0);
 }
 
 /** 打開「斷食與飲食記錄」的連結 */
@@ -267,7 +276,7 @@ function startBtn() {
 /**
  * 修改／補記一段斷食。rec＝null 是補記新的一段；進行中的那一段只能改開始和預計結束
  */
-export function openFastEditor(rec, onDone) {
+export function openFastEditor(rec, onDone, overlap = false) {
   const isOpen = !!(rec && !rec.end);
   const now = Date.now();
   openSheet(sh => {
@@ -297,12 +306,13 @@ export function openFastEditor(rec, onDone) {
     sh.append(h('label', { style: { marginTop: 0 } }, '開始時間'), sIn, h('label', isOpen ? '預計結束（只用來倒數）' : '結束時間'), eIn, lens, save);
     if (isOpen && rec.goalEnd) sh.append(h('button.link.small', { type: 'button', onclick: () => { delete rec.goalEnd; commit(); closeSheet(); toast('預計結束改回照目標算'); } }, '預計結束改回照目標算'));
     if (rec) {
-      const del = h('button.danger.full', { type: 'button', style: { marginTop: '16px' } }, isOpen ? '刪除這次斷食（當作沒開始）' : '刪除這段斷食');
+      const del = h('button.danger.full', { type: 'button', style: { marginTop: overlap ? '0' : '16px' } }, isOpen ? '刪除這次斷食（當作沒開始）' : '刪除這段斷食');
       del.onclick = () => {
         if (!del.dataset.c) { del.dataset.c = 1; del.textContent = '再按一次確認刪除'; setTimeout(() => { del.dataset.c = ''; del.textContent = isOpen ? '刪除這次斷食（當作沒開始）' : '刪除這段斷食'; }, 3000); return; }
         S.fasts = S.fasts.filter(x => x !== rec); commit(); closeSheet(); toast('已刪除');
       };
-      sh.append(del);
+      if (overlap) { const head = sh.querySelector('.sheet-h'); head.after(h('div.notice', { style: { margin: '0 0 8px' } }, h('div.small.one', { style: { fontWeight: 600 } }, '⚠ 這段跟別段時間重疊，多半是記了兩次')), del); }
+      else sh.append(del);
     }
     sh.append(tip('時間不能跟別的斷食重疊，也不能晚於現在。圖表的斷食時間就是照這些記錄畫的。'));
   }, onDone ? () => setTimeout(onDone, 350) : null);
@@ -412,6 +422,7 @@ export function leanParts() {
 const mdT = t => { const x = new Date(t); return (x.getMonth() + 1) + '/' + x.getDate(); };
 const span = (a, b) => mdT(a) + ' ' + hm(a) + ' → ' + (b == null ? '進行中' : (mdT(a) === mdT(b) ? '' : mdT(b) + ' ') + hm(b));
 export function openJournal(journalDays = 14) {
+  tidyFasts();
   const now = Date.now(), goal = targetHours(S.prefs);
   const g = new Map();
   for (const m of S.meals) {
@@ -439,11 +450,16 @@ export function openJournal(journalDays = 14) {
       const box = h('div', { style: { borderLeft: '4px solid ' + (p.type === 'fast' ? 'var(--c1)' : 'var(--ac)'), padding: '4px 0 4px 10px', margin: '8px 0' } });
       if (p.type === 'fast') {
         const ok = p.end != null && p.hours >= goal;
-        box.append(h('div.row.between', { style: { cursor: 'pointer', gap: '8px' }, onclick: () => { closeSheet(); setTimeout(() => openFastEditor(p.rec, back), 350); } },
+        box.append(h('div.row.between', { style: { cursor: 'pointer', gap: '8px' }, onclick: () => { closeSheet(); setTimeout(() => openFastEditor(p.rec, back, p.overlap), 350); } },
           h('div.grow', h('div.small.one', { style: { fontWeight: 650 } }, '斷食段', p.overlap ? h('span', { style: { color: 'var(--warn)' } }, '・⚠ 跟別段重疊') : null), h('div.mu.tiny.num.one', span(p.start, p.end))),
           h('span.small.num', { style: { flex: '0 0 auto', fontWeight: 650, color: ok ? 'var(--ac-tx)' : '' } }, (p.end == null ? '已 ' : '') + (Math.round(p.hours * 10) / 10).toFixed(1) + ' 小時' + (ok ? ' ✓' : '')),
           h('span.mu', { style: { flex: '0 0 auto' } }, '›')));
         if (p.meals.length) box.append(h('div.mu.tiny', { style: { marginTop: '2px' } }, '斷食中補記的：'), ...p.meals.map(mealLine));
+      } else if (p.empty) {
+        box.style.borderLeftColor = 'var(--ln)';
+        box.append(h('div.row.between', { style: { gap: '8px' } },
+          h('div.grow', h('div.small.mu', { style: { fontWeight: 650 } }, '空白'), h('div.mu.tiny.num.one', span(p.start, p.end) + '・這段有吃東西嗎？')),
+          h('button.link.small', { type: 'button', style: { flex: '0 0 auto' }, onclick: () => { closeSheet(); setTimeout(() => openAddMeal({ at: new Date(p.start + Math.min(30 * 60000, (p.end - p.start) / 2)).toISOString(), onDone: back }), 350); } }, '＋記一餐')));
       } else {
         const pts = p.meals.reduce((a, m) => a + m.points, 0);
         box.append(h('div.row.between', { style: { gap: '8px' } },
@@ -456,6 +472,6 @@ export function openJournal(journalDays = 14) {
     }
     if (!list.length) sh.append(h('div.empty', '還沒有記錄'));
     if (all.length > list.length) sh.append(h('button.ghost.full', { type: 'button', onclick: () => { closeSheet(); setTimeout(() => openJournal(journalDays + 30), 350); } }, '看更早'));
-    sh.append(tip('斷食段＝按「開始斷食」到「結束斷食」。⚠ 跟別段重疊＝同一段時間記了兩次，刪掉多的那筆；⚠ 可能重複＝同一分鐘記了一樣的餐點，點進去刪掉一筆。進食段＝上一段斷食結束到下一段斷食開始，中間吃幾次都在同一段。以前沒有斷食記錄的日子，照每天分。'));
+    sh.append(tip('斷食段＝按「開始斷食」到「結束斷食」，中間只隔 30 分鐘以內又沒吃東西的兩段會自動接成一段。空白＝兩段斷食中間沒記食物，有吃可以補記，不記也沒關係。⚠ 跟別段重疊＝同一段時間記了兩次，刪掉多的那筆；⚠ 可能重複＝同一分鐘記了一樣的餐點，點進去刪掉一筆。進食段＝上一段斷食結束到下一段斷食開始，中間吃幾次都在同一段。以前沒有斷食記錄的日子，照每天分。'));
   });
 }
