@@ -177,53 +177,46 @@ export function swayFrames(W = 18) {
 /** 五個版本（順序固定）；小工具照時間輪流 */
 export const runSets = W => [runFrames(W), walkerFrames(W), chaseFrames(W), liftFrames(W), swayFrames(W)];
 
-/* ---------- 終端機版（點陣）：用點字符號畫 8 點高的小人，一格 2×4 點，兩行高 ----------
- * 畫布寬 W 格＝2W 點；空白也用空的點字（U+2800），寬度才會一致。每一格是「第一行\n第二行」 */
-const BLANK = '⠀';
+/* ---------- 終端機版（點陣）：用方塊字 █ ▀ ▄ 畫 4 像素高的小人，一格＝上下兩個正方形像素，兩行高 ----------
+ * 畫布寬 W 格＝W 像素；每一格是「第一行\n第二行」。圖案用 '#' 表示亮的像素 */
 const flip = g => g.map(r => [...r].reverse().join(''));
 const PX = {
-  runA: ['...##...', '...##...', '..####..', '.#.##.#.', '...##...', '..#..#..', '.#....#.', '.#.....#'],
-  runB: ['...##...', '...##...', '..####..', '..###...', '...##.#.', '...##...', '..#.#...', '..#..#..'],
-  yay: ['#..##..#', '.#.##.#.', '..####..', '...##...', '...##...', '..#..#..', '..#..#..', '.##..##.'],
+  runA: ['.#..', '###.', '.##.', '#..#'],
+  runB: ['.#..', '.##.', '##..', '.##.'],
+  yay: ['#.#.#', '.###.', '..#..', '.#.#.'],
   // 行人號誌的小人（面向左走）
-  walkA: ['...##...', '...##...', '..###...', '.#.##...', '...###..', '...#.#..', '..#...#.', '.#....#.'],
-  walkB: ['...##...', '...##...', '...##...', '..###...', '...##...', '...##...', '...#.#..', '...#.#..'],
-  rice: ['...##...', '..####..', '.######.', '.######.', '########', '##....##', '##....##', '########'],
-  chew: ['..####..', '.#....#.', '#.#..#.#', '#......#', '#.####.#', '#......#', '.#....#.', '..####..'],
-  liftUp: ['##........##', '############', '##..####..##', '.....##.....', '....####....', '.....##.....', '....#..#....', '...#....#...'],
-  liftDn: ['............', '.....##.....', '##...##...##', '############', '##..####..##', '.....##.....', '....#..#....', '...#....#...'],
-  swayA: ['#..##...', '.#.##...', '..####..', '...##.#.', '...##..#', '..#..#..', '..#..#..', '.##..##.'],
+  walkA: ['.#..', '###.', '.#..', '#.#.'],
+  walkB: ['.#..', '.##.', '.#..', '.#..'],
+  rice: ['.##.', '####', '#..#', '####'],
+  chew: ['.##.', '##..', '##..', '.##.'],
+  liftUp: ['#######', '..#.#..', '...#...', '..#.#..'],
+  liftDn: ['...#...', '#######', '...#...', '..#.#..'],
+  swayA: ['#.#..', '.###.', '..#..', '.#.#.'],
 };
 PX.swayB = flip(PX.swayA);
 PX.walkFastA = flip(PX.runA); PX.walkFastB = flip(PX.runB);
 
-/** 把幾個圖案放到 2W 點寬、8 點高的畫布上，轉成兩行點字 */
+/** 把幾個圖案放到 W 像素寬、4 像素高的畫布上，轉成兩行方塊字 */
 export function pixelLine(W, items) {
-  const H = 8, P = W * 2, g = Array.from({ length: H }, () => Array(P).fill(0));
-  for (const [sprite, x] of items) sprite.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '#' && x + c >= 0 && x + c < P) g[r][x + c] = 1; }));
-  const bit = [[0, 0, 1], [1, 0, 2], [2, 0, 4], [0, 1, 8], [1, 1, 16], [2, 1, 32], [3, 0, 64], [3, 1, 128]];
+  const H = 4, g = Array.from({ length: H }, () => Array(W).fill(0));
+  for (const [sprite, x] of items) sprite.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === '#' && x + c >= 0 && x + c < W) g[r][x + c] = 1; }));
   const lines = [];
-  for (let r = 0; r < H; r += 4) {
-    let s = '';
-    for (let c = 0; c < P; c += 2) { let b = 0; for (const [dr, dc, v] of bit) if (g[r + dr][c + dc]) b |= v; s += String.fromCharCode(0x2800 + b); }
-    lines.push(s);
-  }
+  for (let r = 0; r < H; r += 2) lines.push(g[r].map((t, c) => (t && g[r + 1][c] ? '█' : t ? '▀' : g[r + 1][c] ? '▄' : ' ')).join('').replace(/\s+$/, ''));
   return lines.join('\n');
 }
-const textFrame = t => t + '\n' + BLANK;
+const textFrame = t => t + '\n ';
 
 /** 五個點陣版本（順序跟 runSets 一樣）；W＝一行幾格 */
 export function pixelSets(W = 25, every = RUN_EVERY) {
-  const P = W * 2;
   // ① 跑步：往右跑，最後舉手
   const run = [];
   for (const c of ['加油！', '好好吃飯！', '吃飽再出發！']) {
-    for (let x = 0, k = 0; x + 8 <= P; x += 2, k++) run.push(pixelLine(W, [[k % 2 ? PX.runB : PX.runA, x]]));
-    run.push(pixelLine(W, [[PX.yay, P - 8]]), pixelLine(W, [[PX.yay, P - 8]]), textFrame(c), textFrame(c));
+    for (let x = 0; x + 4 <= W; x++) run.push(pixelLine(W, [[x % 2 ? PX.runB : PX.runA, x]]));
+    run.push(pixelLine(W, [[PX.yay, W - 5]]), pixelLine(W, [[PX.yay, W - 5]]), textFrame(c), textFrame(c));
   }
   // ② 紅綠燈小綠人：左邊倒數，從右往左走，最後幾秒小跑步
-  const walk = [], pos = [], field = W - 3, PP = field * 2 - 8;
-  for (let x = PP; x > 0;) { const slow = x > PP * 0.35; pos.push([x, slow]); if (slow) pos.push([x, slow]); x -= slow ? 2 : 4; }
+  const walk = [], pos = [], field = W - 3, PP = field - 4;
+  for (let x = PP; x > 0;) { const slow = x > PP * 0.35; pos.push([x, slow]); if (slow) pos.push([x, slow]); x -= slow ? 1 : 2; }
   pos.push([0, false]);
   pos.forEach(([x, slow], i) => {
     const left = String(Math.ceil((pos.length - i) * every / 1000)).padStart(2, ' ');
@@ -235,20 +228,20 @@ export function pixelSets(W = 25, every = RUN_EVERY) {
   // ③ 追飯糰：追到右邊的飯糰，咬一口
   const chase = [];
   for (const c of ['開動！', '先吃蛋白質！', '慢慢嚼～']) {
-    for (let x = 0, k = 0; x + 18 <= P; x += 2, k++) chase.push(pixelLine(W, [[k % 2 ? PX.runB : PX.runA, x], [PX.rice, P - 8]]));
-    chase.push(pixelLine(W, [[PX.chew, P - 18], [PX.rice, P - 8]]), pixelLine(W, [[PX.chew, P - 18]]), textFrame(c), textFrame(c));
+    for (let x = 0; x + 10 <= W; x++) chase.push(pixelLine(W, [[x % 2 ? PX.runB : PX.runA, x], [PX.rice, W - 4]]));
+    chase.push(pixelLine(W, [[PX.chew, W - 9], [PX.rice, W - 4]]), pixelLine(W, [[PX.chew, W - 8], [PX.rice, W - 4]]), pixelLine(W, [[PX.chew, W - 7]]), textFrame(c), textFrame(c));
   }
   // ④ 舉槓鈴：在中間舉，右邊數次數
-  const lift = [], mid = Math.floor((P - 12) / 2 / 2) * 2, cw = Math.floor(mid / 2) + 6;
+  const lift = [], mid = Math.max(0, Math.floor((W - 12) / 2)), cw = mid + 7;
   for (let n = 1; n <= 10; n++) for (const [sp, k] of [[PX.liftDn, n - 1], [PX.liftUp, n]]) {
     const [l1, l2] = pixelLine(cw, [[sp, mid]]).split('\n');
-    lift.push(l1 + ' ×' + k + '\n' + l2);
+    lift.push(l1.padEnd(cw, ' ') + ' ×' + k + '\n' + l2);
   }
   for (const t of ['肌力也要練！', '吃夠蛋白質！']) lift.push(textFrame(t), textFrame(t), textFrame(t));
   // ⑤ 搖擺走路：左右晃著往右走
   const sway = [];
   for (let k = 0; k < 2; k++) {
-    for (let x = 0, j = 0; x + 8 <= P; x += 2, j++) sway.push(pixelLine(W, [[j % 2 ? PX.swayB : PX.swayA, x]]));
+    for (let x = 0; x + 5 <= W; x++) sway.push(pixelLine(W, [[x % 2 ? PX.swayB : PX.swayA, x]]));
     sway.push(textFrame('吃飽散散步～'), textFrame('吃飽散散步～'), textFrame('吃飽散散步～'));
   }
   return [run, walk, chase, lift, sway];

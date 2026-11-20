@@ -67,15 +67,19 @@ test('五個版本的小人：每一格都不超過寬度，紅綠燈最後倒�
   assert.ok(w[w.length - 1].startsWith(' 0 '));
 });
 
-test('點陣版小人：每格兩行、不超過寬度、只用點字和文字', async () => {
+test('點陣版小人：每格兩行、不超過寬度、只用方塊字和文字', async () => {
   const { pixelSets, pixelLine } = await import('../js/lines.js');
-  assert.equal(pixelLine(4, [[['#.......', '........', '........', '........', '........', '........', '........', '.......#'], 0]]), '⠁⠀⠀⠀\n⠀⠀⠀⢀');
+  assert.equal(pixelLine(4, [[['#...', '#..#', '....', '.##.'], 0]]), '█  ▄\n ▄▄');
   for (const W of [25, 36]) {
     const sets = pixelSets(W);
     assert.equal(sets.length, 5);
     sets.forEach((f, k) => {
       assert.ok(f.length >= 10, 'set ' + k);
-      for (const t of f) { const ls = t.split('\n'); assert.equal(ls.length, 2, k + ':' + t); for (const l of ls) assert.ok(l.length <= W, k + ':' + l); assert.ok(!/[\u{1F300}-\u{1FAFF}]/u.test(t), 'no emoji'); }
+      for (const t of f) {
+        const ls = t.split('\n'); assert.equal(ls.length, 2, k + ':' + t);
+        for (const l of ls) assert.ok(l.length <= W, k + ':' + l);
+        assert.ok(!/[\u{1F300}-\u{1FAFF}\u2800-\u28FF]/u.test(t), 'no emoji / braille');
+      }
     });
   }
 });
