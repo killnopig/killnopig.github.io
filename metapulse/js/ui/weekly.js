@@ -1,7 +1,7 @@
 /* 飲食頁的週報：收起時一行；點開看記錄天數、達標天數、運動賺取、體重變化、每天的剩餘點數（以 0 為線），以及 AI 總結 */
 import { S, L, commitLocal, plan } from '../state.js';
 import { h, fold, toast, tip } from './common.js';
-import { weekReport, WEEK_MODES } from '../ledger.js';
+import { weekReport } from '../ledger.js';
 import { localDate } from '../points.js';
 import { weeklySummary } from '../gemini.js';
 import { dailyFastDetail } from '../summary.js';
@@ -23,6 +23,7 @@ const tile = (label, value, unit, extra) => h('div', { style: { background: 'var
 /** 每天的剩餘點數長條：0 為線，綠＝達標、黃＝超標，今天用淡色 */
 function bars(days, today) {
   const W = 320, H0 = 120, mid = 64, max = Math.max(10, ...days.map(d => Math.abs(d.logged ? d.left : 0)));
+  const room = mid - 18;                                 // 長條上下留位置寫數字
   const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
   svg.setAttribute('viewBox', '0 0 ' + W + ' ' + (H0 + 18)); svg.style.width = '100%'; svg.style.display = 'block'; svg.style.marginTop = '10px';
   const el = (t, a, txt) => { const x = document.createElementNS(ns, t); for (const k in a) x.setAttribute(k, a[k]); if (txt != null) x.textContent = txt; svg.appendChild(x); return x; };
@@ -31,8 +32,11 @@ function bars(days, today) {
   days.forEach((d, i) => {
     const x = i * bw + bw * 0.25, w = bw * 0.5;
     if (d.logged) {
-      const v = d.left, hgt = Math.max(2, Math.abs(v) / max * (mid - 6));
-      el('rect', { x, y: v >= 0 ? mid - hgt : mid, width: w, height: hgt, rx: 3, fill: v >= 0 ? 'var(--ac)' : '#e0a800', opacity: d.date === today ? 0.45 : 1 });
+      const v = d.left, hgt = Math.max(2, Math.abs(v) / max * room);
+      el('rect', { x, y: v >= 0 ? mid - hgt : mid, width: w, height: hgt, rx: 3, fill: v >= 0 ? 'var(--ac)' : 'var(--warn)', opacity: d.date === today ? 0.45 : 1 });
+      el('text', { x: x + w / 2, y: v >= 0 ? mid - hgt - 4 : mid + hgt + 12, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 600, fill: 'var(--tx)' }, sgn(v));
+    } else if (d.date < today) {
+      el('text', { x: x + w / 2, y: mid - 5, 'text-anchor': 'middle', 'font-size': 10, fill: 'var(--mu)' }, '沒記');
     }
     el('text', { x: x + w / 2, y: H0 + 14, 'text-anchor': 'middle', 'font-size': 11, fill: 'var(--mu)' }, wdOf(d.date));
   });
@@ -50,7 +54,9 @@ export function weeklyCard(bare = false) {
   // 只算有記錄、而且已經過完的日子；記錄太少就不給數字（才記一天的存摺沒有意義）
   const fd = dailyFastDetail(S.meals, S.fasts), goal = targetHours(S.prefs);
   const doneDays = r.days.filter(d => d.date < today), fastMet = doneDays.filter(d => fd[d.date] && fd[d.date].hours >= goal).length;
-  const few = r.cur.logged < 3;
+  const few = r.cur.logged < 3, tLeft = r.days[r.days.length - 1].left;
+  const title = mode === 'roll' ? '最近 7 天' : '本週（從週' + (mode === 'sun' ? '日' : '一') + '開始）';
+  const sw = c => h('span', { style: { display: 'inline-block', width: '10px', height: '10px', borderRadius: '2px', background: c, verticalAlign: '-1px' } });
   const sum = few ? label + '：才記 ' + r.cur.logged + ' 天，記滿 3 天再看'
     : label + '：記 ' + r.cur.logged + ' 天・沒超吃 ' + r.cur.healthy + ' 天・斷食達標 ' + fastMet + ' 天';
   const ai = h('div', { style: { marginTop: '10px' } });
@@ -85,11 +91,12 @@ export function weeklyCard(bare = false) {
       tile('沒超吃（剩餘 ≥ 0）', r.cur.healthy, '天', cmp(r.cur.healthy, r.prev.healthy, ' 天')),
       tile('運動賺取', fmt(r.cur.refund), '點', cmp(Math.round(r.cur.refund), Math.round(r.prev.refund), ' 點')),
       tile('體重（平均）', r.weight != null ? r.weight.toFixed(1) : '--', 'kg', wc != null ? h('span.tiny', { style: { color: wc <= 0 ? 'var(--ac-tx)' : 'var(--warn)' } }, '較上一段 ' + (wc <= 0 ? '▼' : '▲') + Math.abs(wc).toFixed(1) + ' kg') : h('span.mu.tiny', '這段沒有量'))),
-    h('div.small', { style: { marginTop: '12px', fontWeight: 650 } }, '每天剩下的點數（' + (WEEK_MODES.find(m => m[0] === mode) || WEEK_MODES[0])[1] + '）'),
+    h('div.small.one', { style: { marginTop: '12px', fontWeight: 650 } }, '每天剩下的點數・' + title),
     bars(r.days, today),
-    h('div.mu.tiny.one', '綠＝有剩・黃＝超吃（用存摺補）・今天較淡'),
-    h('div.small.num', { style: { marginTop: '8px' } }, few ? '存摺：記錄太少，先不算' : '存摺 ' + sgn(r.cur.balance) + ' 點（只算有記錄的日子）'),
-    tip('只算有記錄的日子：沒記的日子不算預算，也不算省下來。整天都在斷食的日子算「有記錄、吃 0 點」。斷食達標＝那天結束的最長一段斷食到了目標 ' + goal + ' 小時。'))];
+    h('div.mu.tiny.one', sw('var(--ac)'), ' 有剩　', sw('var(--warn)'), ' 超吃（用存摺補）　淡色＝今天'),
+    h('div.small.num.one', { style: { marginTop: '8px' } }, few ? '存摺：過完的日子記 ' + r.cur.logged + ' 天，滿 3 天才算' : '存摺 ' + sgn(r.cur.balance) + ' 點（只算有記錄的日子）'),
+    few ? h('div.mu.tiny.num.one', '今天先算 ' + sgn(tLeft) + ' 點（還沒結束）') : null,
+    tip('長條上的數字是那天剩下的點數，正的是有剩、負的是超吃；「沒記」的日子不算。存摺要等已經過完的日子記滿 3 天才算，今天還沒結束，先另外顯示。只算有記錄的日子：沒記的日子不算預算，也不算省下來。整天都在斷食的日子算「有記錄、吃 0 點」。斷食達標＝那天結束的最長一段斷食到了目標 ' + goal + ' 小時。'))];
   const d = fold('week-card', h('div.small.one', { style: { fontWeight: 600 } }, sum), body);
   if (auto) { if (d.open) auto(); d.addEventListener('toggle', () => { if (d.open && auto) { const f = auto; auto = null; f(); } }); }
   return bare ? d : h('div.card', d);
