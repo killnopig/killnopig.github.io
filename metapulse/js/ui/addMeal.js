@@ -41,7 +41,7 @@ export function openAddMeal(o = {}) {
 
     const inputArea = h('div');
     const tabs = h('div.seg');
-    const TABS = [['photo', 'camera', '拍照'], ['text', 'text', '文字'], ['library', 'star', '常用']];
+    const TABS = [['photo', 'image', '照片'], ['text', 'text', '文字'], ['library', 'star', '常用']];
     const drawTabs = () => {
       tabs.textContent = '';
       for (const [k, ic, t] of TABS) tabs.append(h('button' + (k === mode ? '.on' : ''), { type: 'button', onclick: () => { mode = k; L.lastAddMode = k; commitLocal(); drawTabs(); drawInput(); } }, icon(ic), t));
@@ -151,8 +151,8 @@ export function openAddMeal(o = {}) {
           } catch (e) { showErr(e); }
         };
         cam.onchange = onFile; pick.onchange = onFile;
-        const camBtn = h('button.pri', { type: 'button', onclick: () => cam.click() }, icon('camera'), lastImage ? ' 重拍' : ' 拍照');
-        const pickBtn = h('button.ghost', { type: 'button', onclick: () => pick.click() }, icon('image'), lastImage ? ' 換照片' : ' 選照片');
+        const camBtn = h('button.pri', { type: 'button', onclick: () => cam.click() }, icon('camera'), lastImage ? ' 重拍' : ' 開相機');
+        const pickBtn = h('button.ghost', { type: 'button', onclick: () => pick.click() }, icon('image'), lastImage ? ' 換一張' : ' 從相簿選');
         const lock = [camBtn, pickBtn];
         let box = null, overlay = null;
         if (lastImage) {

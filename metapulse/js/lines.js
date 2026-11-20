@@ -104,3 +104,23 @@ export function eatingText(now, mealStart) {
   const k = Math.floor(Math.max(0, now - mealStart) / STEP);
   return comboAt(EATING.heads, EATING.tails, k, daySeed(mealStart) * 10 + 9);
 }
+
+/* 進食中小工具的跑步小人（原創顏文字）：從左往右跑、手腳一前一後交換（看起來在跳），跑到右邊舉手加油，再從左邊重來。
+ * 一格一句，小工具每 RUN_EVERY 毫秒換一格；W＝一行幾個半形字寬。改這裡就好，不用重裝 APK */
+export const RUN_EVERY = 350;
+export const RUN_CHEERS = ['加油！', '好好吃飯！', '吃飽再出發！', '蛋白質先吃！', '慢慢吃～', '吃飽才有力！'];
+const RUN_A = '┌(>_<)┘', RUN_B = '└(>_<)┐', RUN_YAY = 'ヽ(>∀<)ノ';
+export function runFrames(W = 18, cheers = RUN_CHEERS, loops = 3) {
+  const out = [], L = RUN_A.length;
+  for (let k = 0; k < loops; k++) {
+    for (let i = 0; i + L <= W; i++) {
+      const dust = i >= 2 ? 'ε=' : i === 1 ? 'ε' : '';
+      out.push(' '.repeat(i - dust.length) + dust + (i % 2 ? RUN_B : RUN_A));
+    }
+    const pad = ' '.repeat(Math.max(0, W - 10));
+    out.push(pad + RUN_YAY, pad + RUN_YAY);
+    const c = cheers[k % cheers.length];
+    out.push(c, c, c);
+  }
+  return out;
+}

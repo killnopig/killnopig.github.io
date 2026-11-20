@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ledger, windowStart, weekReport } from '../js/ledger.js';
+import { ledger, windowStart, weekReport, firstDay } from '../js/ledger.js';
 
 const meal = (d, pts, h = 12) => ({ at: new Date(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8), h).toISOString(), points: pts, kcal: pts * 40, protein: 20 });
 
@@ -59,4 +59,15 @@ test('存摺只算有記錄的日子：才記一天不會多出一百多點', ()
   assert.equal(l.balance, 13 + 33);
   // 今天還沒吃也算今日剩餘
   assert.equal(ledger([], [], 33, '2026-11-19', 'roll', null, null, now).today.left, 33);
+});
+
+test('週報從開始記錄那天起算：之前的日子不算漏記', () => {
+  const at = (d, t) => new Date(d + 'T' + t + ':00').toISOString();
+  const S = { meals: [{ id: 'a', at: at('2026-11-18', '12:00'), points: 20 }, { id: 'b', at: at('2026-11-17', '12:00'), points: 5, pending: true }], fasts: [{ id: 'f', start: at('2026-11-17', '19:00'), end: at('2026-11-18', '11:00') }], activity: [], entries: [] };
+  assert.equal(firstDay(S), '2026-11-17');
+  const r = weekReport(S, 30, '2026-11-20', 'roll');
+  assert.equal(r.dayNo, 4);
+  assert.equal(r.newbie, true);
+  assert.equal(r.hasPrev, false);
+  assert.equal(firstDay({ meals: [], fasts: [] }), null);
 });

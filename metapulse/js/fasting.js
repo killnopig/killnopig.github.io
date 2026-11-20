@@ -161,11 +161,11 @@ export function pendingMeals(meals) {
 }
 
 /**
- * 真的開始吃了：把所有先存的餐點改成這一刻吃的，拿掉 pending，並結束進行中的手動斷食。
+ * 真的開始吃了：把先存的餐點（group＝null 是全部，否則只有那一餐）改成這一刻吃的，拿掉 pending，並結束進行中的手動斷食。
  * 會直接改 meals、fasts 裡的物件。回傳改了幾組
  */
-export function eatPending(meals, fasts, at) {
-  const list = pendingMeals(meals);
+export function eatPending(meals, fasts, at, group = null) {
+  const list = pendingMeals(meals).filter(p => group == null || p.group === group);
   for (const p of list) {
     for (const m of p.items) { m.at = at; delete m.pending; }
     closeFastsForMeal(fasts, at, p.group);

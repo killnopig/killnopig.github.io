@@ -144,9 +144,9 @@ export function info3({ now, advice, about, tone = 'var(--ac)' }) {
 export function timePick(value, onChange) {
   const [h0, m0] = (/^\d{1,2}:\d{2}$/.test(value || '') ? value : '19:00').split(':').map(Number);
   const pad = n => String(n).padStart(2, '0');
-  const hs = h('select', { 'aria-label': '時', style: { width: '76px', textAlign: 'center' } }, ...Array.from({ length: 24 }, (_, i) => h('option', { value: pad(i) }, pad(i))));
+  const hs = h('select', { 'aria-label': '時', style: { width: '56px', textAlign: 'center', padding: '7px 2px' } }, ...Array.from({ length: 24 }, (_, i) => h('option', { value: pad(i) }, pad(i))));
   const mins = Array.from({ length: 12 }, (_, i) => i * 5); if (!mins.includes(m0)) mins.push(m0); mins.sort((a, b) => a - b);
-  const ms = h('select', { 'aria-label': '分', style: { width: '76px', textAlign: 'center' } }, ...mins.map(m => h('option', { value: pad(m) }, pad(m))));
+  const ms = h('select', { 'aria-label': '分', style: { width: '56px', textAlign: 'center', padding: '7px 2px' } }, ...mins.map(m => h('option', { value: pad(m) }, pad(m))));
   hs.value = pad(h0); ms.value = pad(m0);
   const fire = () => onChange(hs.value + ':' + ms.value);
   hs.onchange = fire; ms.onchange = fire;

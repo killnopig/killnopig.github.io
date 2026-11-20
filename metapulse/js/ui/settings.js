@@ -74,7 +74,7 @@ const numIn = (v, attrs = {}) => h('input.num', { type: 'number', inputmode: 'de
 function profileCard() {
   const P = S.profile;
   const sumEl = sumLine();
-  const sum = h('div', { style: { marginTop: '14px' } });
+  const sum = h('div', { style: { marginTop: '8px' } });
   const save = () => { commit(); drawSum(); };
   const bind = (el, key, f = val) => { el.oninput = () => { P[key] = f(el); save(); }; return el; };
 

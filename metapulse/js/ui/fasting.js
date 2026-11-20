@@ -140,11 +140,11 @@ export function fastingCard() {
       line = (f.hours >= 24 ? '上次斷食在 ' + md(localDate(new Date(f.start))) + ' ' + hm(f.start) + ' 結束' : '從 ' + hm(f.start) + ' 開始・' + planName + ' 可吃到 ' + hm(until))
         + (f.hours >= 24 ? '' : left > 0 ? '（還剩 ' + dur(left) + '）' : '（已超過 ' + dur(-left) + '）');
     }
-    card.append(h('div.row.between', h('h2', { style: { margin: 0 } }, '進食中'), f.lastMealAt ? h('span.mu.small.num', '上一餐 ' + hm(f.lastMealAt)) : null),
+    card.append(h('div.row', h('h2', { style: { margin: 0 } }, '進食中'), f.lastMealAt ? h('span.mu.small.num.grow.one', '上一餐 ' + hm(f.lastMealAt)) : h('span.grow'), startBtn()),
       h('div.small.num.one', { style: { marginTop: '2px' } }, line));
     if (f.start) card.append(h('div.small.two.ln-eat', { 'data-s': f.start, style: { marginTop: '8px', color: 'var(--ac-tx)', fontWeight: 600 } }, eatingText(now, f.start)));
     if (pend) card.append(pend);
-    card.append(startBtn(),
+    card.append(
       h('div.row.between', { style: { marginTop: '2px' } },
         tip('斷食只照你按的按鈕算：按「開始斷食」才開始，按「結束斷食」才結束，不會自己開始。進食窗口裡吃幾餐都可以，不會切成很多段。時間記錯了，到「斷食與飲食記錄」裡改。'),
         journalLink()));
@@ -282,31 +282,39 @@ function endFastBtn(f) {
   }, '結束斷食');
 }
 
-/** 先存、還沒吃的餐點（放在 ① 裡面）：不影響斷食，等你按「結束斷食」或「開始吃」 */
+/** 先存、還沒吃的餐點（放在 ① 裡面）：還沒算進今天，用一條提醒列出來；吃了按「吃了」，不吃就刪除 */
 function pendingRows(fasting, now) {
   const list = pendingMeals(S.meals);
   if (!list.length) return null;
-  const box = h('div', { style: { marginTop: '10px', border: '2px solid var(--ac)', borderRadius: '12px', padding: '8px 10px' } });
+  const box = h('div', { style: { marginTop: '8px', border: '2px solid var(--ac)', borderRadius: '12px', padding: '6px 10px' } },
+    h('div.tiny.one', { style: { color: 'var(--ac-tx)', fontWeight: 700 } }, '還有 ' + list.length + ' 餐還沒吃（還沒算進今天）'));
   for (const p of list) {
     const t = new Date(p.at).getTime(), pts = p.items.reduce((a, m) => a + (+m.points || 0), 0);
-    box.append(h('div.row', { style: { gap: '10px', cursor: 'pointer' }, onclick: () => openAddMeal({ group: p.group }) },
-      h('div.grow',
-        h('div.small.one', { style: { fontWeight: 650 } }, '先存・預計 ' + hm(t) + ' 吃・' + p.items.map(m => m.name).join('、')),
-        h('div.mu.tiny.one', fasting ? '要吃時按「結束斷食」才算開始吃' : '點這裡改時間或刪除')),
-      h('span.pts.num', { style: { flex: '0 0 auto' } }, roundTo(pts), h('span.mu.tiny', ' 點'))));
+    const del = h('button.ghost', { type: 'button', style: { padding: '5px 10px', flex: '0 0 auto' } }, '刪除');
+    del.onclick = e => {
+      e.stopPropagation();
+      if (!del.dataset.c) { del.dataset.c = 1; del.textContent = '再按一次'; setTimeout(() => { del.dataset.c = ''; del.textContent = '刪除'; }, 3000); return; }
+      const ids = new Set(p.items.map(m => m.id));
+      S.meals = S.meals.filter(m => !ids.has(m.id)); commit(); toast('已刪除');
+    };
+    const eat = fasting ? null : h('button.pri', { type: 'button', style: { padding: '5px 12px', flex: '0 0 auto' }, onclick: e => {
+      e.stopPropagation();
+      eatPending(S.meals, S.fasts, new Date().toISOString(), p.group); S.meals.sort((a, b) => a.at < b.at ? -1 : a.at > b.at ? 1 : 0);
+      commit(); toast('已記為現在吃');
+    } }, '吃了');
+    box.append(h('div.row', { style: { gap: '8px', cursor: 'pointer', marginTop: '4px' }, onclick: () => openAddMeal({ group: p.group }) },
+      h('div.grow', { style: { minWidth: 0 } },
+        h('div.small.one', { style: { fontWeight: 650 } }, p.items.map(m => m.name).join('、')),
+        h('div.mu.tiny.one.num', '預計 ' + hm(t) + '・' + roundTo(pts) + ' 點' + (fasting ? '・要吃時按「結束斷食」' : '・點這裡改時間'))),
+      eat, del));
   }
-  if (!fasting) box.append(h('button.ghost.full', { type: 'button', style: { marginTop: '8px' }, onclick: () => {
-    const at = new Date().toISOString();
-    eatPending(S.meals, S.fasts, at); S.meals.sort((a, b) => a.at < b.at ? -1 : a.at > b.at ? 1 : 0);
-    commit(); toast('已記為現在吃');
-  } }, '開始吃，記為現在'));
   return box;
 }
 
 /** 開始斷食：只有按這個才開始。時間停止特效＋音效 */
 function startBtn() {
-  return h('button.pri.full', {
-    type: 'button', style: { marginTop: '10px' },
+  return h('button.pri', {
+    type: 'button', style: { flex: '0 0 auto', padding: '7px 16px' },
     onclick: () => {
       if (openFast(S.fasts)) { toast('已經在斷食中', true); return; }
       S.fasts.push({ id: uid('f'), start: new Date().toISOString(), end: null, at: Date.now(), mode: S.prefs.fastMode || 'PURE_DYNAMIC' });

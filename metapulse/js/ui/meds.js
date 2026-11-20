@@ -136,7 +136,7 @@ export function medsSettings() {
   const meds = () => (S.prefs.meds = S.prefs.meds || []);
   const drawSum = () => { const m = meds(); sumEl.textContent = m.length ? m.map(x => x.time + ' ' + x.name).join('・') : '還沒有設定'; };
   const list = h('div');
-  const msg = h('div.small.one', { style: { marginTop: '10px', fontWeight: 600 } });
+  const msg = h('div.small.one', { style: { marginTop: '8px', fontWeight: 600 } });
   const actions = h('div.grid2', { style: { marginTop: '6px', gap: '6px' } });
   /** 通知狀態一行＋測試按鈕；缺「準時鬧鐘」時給一顆打開設定的按鈕 */
   const drawStatus = async () => {
@@ -161,8 +161,9 @@ export function medsSettings() {
       const del = h('button.ghost', { type: 'button', style: { padding: '8px 12px', flex: '0 0 auto' } }, '刪除');
       del.onclick = () => { meds().splice(i, 1); commit(); draw(); resched(); };
       const box = (label, key, after) => { const cb = h('input', { type: 'checkbox', checked: !!m[key], style: { width: '20px', height: '20px' } }); cb.onchange = () => { m[key] = cb.checked || undefined; commit(); after && after(); }; return h('label.row.one', { style: { color: 'var(--tx)', fontSize: '14px', margin: 0, gap: '6px' } }, cb, label); };
-      list.append(h('div', { style: { marginTop: '8px' } }, name, h('div.row.between', { style: { marginTop: '6px', gap: '8px' } }, time, del),
-        h('div.row', { style: { marginTop: '6px', gap: '14px', flexWrap: 'wrap' } }, box('這是降血糖藥', 'glucose', draw), m.glucose ? box('空腹吃問過醫師了', 'fastOk') : null)));
+      list.append(h('div', { style: { marginTop: i ? '10px' : '2px', paddingTop: i ? '8px' : 0, borderTop: i ? '1px solid var(--ln)' : 0 } },
+        h('div.row', { style: { gap: '6px' } }, h('div.grow', { style: { minWidth: 0 } }, name), time, del),
+        h('div.row', { style: { marginTop: '4px', gap: '14px', flexWrap: 'wrap' } }, box('這是降血糖藥', 'glucose', draw), m.glucose ? box('空腹吃問過醫師了', 'fastOk') : null)));
     });
   };
   const add = h('button.ghost.full', { type: 'button' }, '＋ 新增藥物');
@@ -170,14 +171,16 @@ export function medsSettings() {
   // 斷食與注射通知（只有 MetaPulse app 會發）
   const N = (L.notify = L.notify || {});
   const saveN = () => { commitLocal(); resched(); };
-  const freq = h('select', h('option', { value: 'phase' }, '階段轉換和達標時（建議）'), h('option', { value: 'hourly' }, '每小時'), h('option', { value: 'off' }, '不通知'));
+  const freq = h('select', h('option', { value: 'phase' }, '換階段和達標時'), h('option', { value: 'hourly' }, '每小時'), h('option', { value: 'off' }, '不通知'));
   freq.value = N.freq || 'phase'; freq.onchange = () => { N.freq = freq.value; saveN(); };
-  const notifyBox = h('div', { style: { marginTop: '14px', paddingTop: '10px', borderTop: '1px solid var(--ln)' } },
-    h('label', { style: { marginTop: 0 } }, '斷食通知'), freq,
-    h('label', '晚上不打擾'), h('div.row', { style: { gap: '6px', flexWrap: 'wrap' } },
-      timePick(N.quietStart || '23:00', v => { N.quietStart = v; saveN(); }), h('span.small.mu', '到'),
+  // 一列一個設定：左邊名稱、右邊選項（不用滑很久）
+  const nrow = (label, ...ctl) => h('div.row', { style: { gap: '8px', marginTop: '6px' } }, h('span.small.one', { style: { flex: '0 0 5.5em' } }, label), ...ctl);
+  freq.style.flex = '1 1 0'; freq.style.minWidth = '0';
+  const notifyBox = h('div', { style: { marginTop: '10px', paddingTop: '6px', borderTop: '1px solid var(--ln)' } },
+    nrow('斷食通知', freq),
+    h('div.row', { style: { gap: '4px', marginTop: '6px' } }, h('span.small', { style: { flex: '0 0 auto', marginRight: '4px' } }, '不打擾'), timePick(N.quietStart || '23:00', v => { N.quietStart = v; saveN(); }), h('span.small.mu', '到'),
       timePick(N.quietEnd || '07:00', v => { N.quietEnd = v; saveN(); })),
-    h('label', '注射日提醒時間'), timePick(N.doseRemindAt || '09:00', v => { N.doseRemindAt = v; saveN(); }));
+    nrow('注射日提醒', timePick(N.doseRemindAt || '09:00', v => { N.doseRemindAt = v; saveN(); })));
   draw(); drawSum(); drawStatus();
   return section('meds', '提醒與通知', sumEl, [list, add, msg, actions, notifyBox,
     tip('勾「這是降血糖藥」：斷食中到了吃藥時間、或斷食超過 16 小時，斷食卡會提醒留意低血糖。還沒勾「空腹吃問過醫師了」時，會多提醒一句去問醫師或藥師。', h('br'), '到了吃藥時間，「飲食運動」頁最上面會出現服藥卡（往下捲也會貼在頂端），吃完按「已服用」。服藥卡下面的「服藥記錄」是月曆，每一天都可以點開修改。在 MetaPulse app 裡，時間到會跳手機通知（第一次會問你要不要允許通知）；網頁版不會通知，只會顯示卡片。斷食通知：在每個斷食階段開始和達標時通知（或每小時一次），「晚上不打擾」時段內不發。注射日當天在設定的時間提醒一次。這只是提醒，吃藥的方式請照醫師或藥師的指示。')]);

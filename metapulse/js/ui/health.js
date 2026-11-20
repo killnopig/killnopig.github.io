@@ -36,28 +36,29 @@ export function healthCard() {
     out.textContent = '';
     const b = buildRecords(last.raw, { allSources: all.checked, calSource: L.hcCalSource });
     const p = planHealth(b, S);
-    const line = t => h('div.small', t);
-    const box = h('div', { style: { background: 'var(--soft)', borderRadius: '12px', padding: '10px 12px', lineHeight: 1.8 } },
-      line('量測記錄：新增 ' + p.add.length + ' 筆・補上身體組成 ' + p.merge.length + ' 筆・已存在 ' + p.dup + ' 筆' + (p.from ? '（' + p.from + ' ～ ' + p.to + '）' : '')),
-      line('Health Connect 最新：' + (latestText(b.recs) || '沒有' + (all.checked ? '' : ' Omron 的') + '量測資料') + (b.activity.length ? '・運動 ' + b.activity[b.activity.length - 1].date.slice(5).replace('-', '/') : '')),
-      line('這支手機最新：' + (latestText(S.entries) || '沒有身體記錄')),
-      line('運動消耗：新增 ' + p.act.add.length + ' 天・更新 ' + p.act.update.length + ' 天' + (b.calSource ? '（來源：' + b.calSource + '）' : '（沒有資料）')));
+    const line = t => h('div.small.one', t);
+    const box = h('div', { style: { background: 'var(--soft)', borderRadius: '10px', padding: '7px 10px', lineHeight: 1.45 } },
+      line('量測：新增 ' + p.add.length + '・補體組成 ' + p.merge.length + '・已有 ' + p.dup),
+      line('運動消耗：新增 ' + p.act.add.length + ' 天・更新 ' + p.act.update.length + ' 天'));
     out.append(box);
+    const nothing = !p.add.length && !p.merge.length && !p.act.add.length && !p.act.update.length;
+    const go = nothing ? h('div.notice.ok', '沒有新的資料。') : h('button.pri.full', { type: 'button' }, '確認匯入');
+    out.append(go);                                       // 匯入按鈕緊接在結果下面，不用往下滑
     if (b.calSources.length > 1) {
       const sel = h('select', ...b.calSources.map(s => h('option', { value: s }, s)));
       sel.value = b.calSource;
       sel.onchange = () => { L.hcCalSource = sel.value; commitLocal(); show(); };
-      out.append(h('label', '運動消耗要用哪個 app 的資料（手機和手錶都有記錄時只選一個，才不會算兩次）'), sel);
+      out.append(h('label.one', '運動消耗用哪個 app（只選一個才不會重複）'), sel);
     }
     const names = Object.keys(b.sources).map(k => k + ' ' + b.sources[k] + ' 筆').join('、');
-    out.append(h('div.mu.tiny', { style: { marginTop: '6px', lineHeight: 1.6 } },
-      'Health Connect 裡有資料的 app：' + (names || '無') + '。' + (all.checked ? '' : '血壓、體重等量測只讀 Omron 的資料。'),
+    out.append(tip(
+      (p.from ? '量測期間 ' + p.from + ' ～ ' + p.to + '。' : '') + 'Health Connect 最新：' + (latestText(b.recs) || '沒有' + (all.checked ? '' : ' Omron 的') + '量測資料') + '；這支手機最新：' + (latestText(S.entries) || '沒有身體記錄') + '。運動消耗來源：' + (b.calSource || '沒有資料') + '。',
+      h('br'), 'Health Connect 裡有資料的 app：' + (names || '無') + '。' + (all.checked ? '' : '血壓、體重等量測只讀 Omron 的資料。'),
       last.denied.length ? h('div', '沒有允許讀取的項目：' + last.denied.join('、')) : null,
       last.historyDenied ? h('div', '沒有允許讀取 30 天以前的資料，所以只拿到最近大約 30 天。') : null,
       ...last.errs.map(e => h('div', '讀取失敗：' + e)),
       h('div', '骨骼肌、內臟脂肪、身體年齡不會存進 Health Connect，之後可以用 Omron 匯出的 CSV 檔案匯入。')));
-    if (!p.add.length && !p.merge.length && !p.act.add.length && !p.act.update.length) { out.append(h('div.notice.ok', '沒有新的資料。')); return; }
-    const go = h('button.pri.full', { type: 'button' }, '確認匯入');
+    if (nothing) return;
     go.onclick = () => {
       try { localStorage.setItem(UNDO_KEY, JSON.stringify({ entries: S.entries, activity: S.activity || [] })); } catch (e) { /* 空間不足時不保留復原 */ }
       applyHealth(S, p, uid);
@@ -67,13 +68,12 @@ export function healthCard() {
       undo.style.display = hasUndo() ? '' : 'none';
       toast('Health Connect 匯入完成');
     };
-    out.append(go);
   };
 
   const btn = h('button.pri.full', { type: 'button' }, '允許並讀取 Health Connect');
   btn.onclick = async () => {
     btn.disabled = true; out.textContent = ''; out.append(h('div.row.small.mu', h('span.spin'), '正在讀取 Health Connect…'));
-    try { last = await readHealth(+days.value || 30); show(); }
+    try { last = await readHealth(+days.value || 30); show(); out.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
     catch (e) { out.textContent = ''; out.append(h('div.notice', 'Health Connect 同步失敗：' + (e && e.message ? e.message : e))); }
     btn.disabled = false;
   };
@@ -86,9 +86,8 @@ export function healthCard() {
     } catch (e) { toast('復原失敗', true); }
   };
   return section('hc', 'Health Connect 同步', sumEl, [
-    h('div.grid2', h('div', h('label', { style: { marginTop: 0 } }, '期間'), days), h('div')),
-    h('label.row', { style: { color: 'var(--tx)', marginTop: '10px', fontSize: '15px' } }, all, '也讀其他 app 的資料'),
-    tip('預設只讀 Omron 的血壓和體重，避免別的 app 的資料混進來。選「最近 1 年」時，要在權限畫面允許讀取 30 天以前的資料。'),
+    h('div.grid2', { style: { alignItems: 'center' } }, days, h('label.row.one', { style: { color: 'var(--tx)', margin: 0, fontSize: '14px' } }, all, '也讀其他 app')),
     btn, out, undo,
+    tip('預設只讀 Omron 的血壓和體重，避免別的 app 的資料混進來。選「最近 1 年」時，要在權限畫面允許讀取 30 天以前的資料。'),
   ], !L.lastHC);
 }

@@ -41,3 +41,15 @@ test('換一天順序不一樣；同一格內文字固定', () => {
   assert.equal(soupText(a + 5 * STEP, a), soupText(a + 5 * STEP + STEP - 1000, a));
   assert.ok(eatingText(a + STEP, a).length > 0);
 });
+
+test('跑步小人：每格不超過一行的寬度，最後舉手加油', async () => {
+  const { runFrames, RUN_CHEERS } = await import('../js/lines.js');
+  const f = runFrames(18);
+  assert.ok(f.length > 20);
+  for (const t of f.filter(x => x.includes('(>_<)'))) assert.ok(t.length <= 18, t);
+  assert.ok(f.includes(RUN_CHEERS[0]));
+  assert.ok(f[1].startsWith('ε'));
+  assert.notEqual(f[2].trim().slice(-7), f[3].trim().slice(-7));   // 姿勢一格一換
+  const n = runFrames(12, ['加油！'], 1);
+  for (const t of n.filter(x => x.includes('(>_<)'))) assert.ok(t.length <= 12, t);
+});

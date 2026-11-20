@@ -97,13 +97,13 @@ export function backupCard() {
   };
 
   /* ---------- Google ---------- */
-  const acct = h('div.small');
+  const acct = h('span');
   const main = h('button.pri.full', { type: 'button', style: { marginTop: '8px' } });
   main.onclick = () => { if (linked() && ready()) syncNow(); else connect(true); };
   const sw = h('button.ghost', { type: 'button', onclick: () => { disconnect(); connect(true, true); } }, '切換帳號');
   const off = h('button.ghost', { type: 'button', onclick: () => { disconnect(); draw(); } }, '中斷連線');
   const acctBtns = h('div.grid2', { style: { marginTop: '8px' } }, sw, off);
-  const fromDrive = h('button.ghost.full', { type: 'button', style: { marginTop: '8px' } }, '匯入同步版（Drive）');
+  const fromDrive = h('button.ghost.one', { type: 'button' }, '匯入同步版');
   fromDrive.onclick = async () => {
     if (!ready()) { say(outDrive, '請先按上面的「連線 Google Drive」，登入和同步版同一個 Google 帳號，再按一次。'); return; }
     const done = busy(fromDrive, '讀取中…'); outDrive.textContent = '';
@@ -114,10 +114,10 @@ export function backupCard() {
 
   /* ---------- 檢查各處最新日期 ---------- */
   const outCheck = h('div', { style: { marginTop: '10px' } });
-  const check = h('button.ghost.full', { type: 'button', style: { marginTop: '8px' } }, '檢查各處最新日期');
+  const check = h('button.ghost.one', { type: 'button' }, '檢查最新日期');
   check.onclick = async () => {
     check.disabled = true; outCheck.textContent = '';
-    const box = h('div', { style: { background: 'var(--soft)', borderRadius: '12px', padding: '10px 12px', lineHeight: 1.8 } });
+    const box = h('div', { style: { background: 'var(--soft)', borderRadius: '10px', padding: '7px 10px', lineHeight: 1.45 } });
     const row = (title, ...lines) => box.append(h('div.small', { style: { marginTop: box.childNodes.length ? '6px' : 0 } }, h('b', title)), ...lines.filter(Boolean).map(t => h('div.small.num', t)));
     const lastMeal = ms => { let t = ''; for (const m of ms || []) if (m.at > t) t = m.at; return t ? '餐點 ' + fmtAt(new Date(t).getTime()) : ''; };
     row('這支手機', latestText(S.entries) || '沒有身體記錄', lastMeal(S.meals));
@@ -215,7 +215,7 @@ export function backupCard() {
     const em = driveEmail();
     sumEl.textContent = linked() ? (em || 'Google Drive 已連線') + (L.lastBackup ? '・' + ago(L.lastBackup) + '存檔' : '') : 'Google Drive 尚未連線';
     sumEl.style.color = linked() ? '' : 'var(--warn)';
-    acct.textContent = linked() ? (em || '已連線（按「重新登入」後顯示帳號）') + '・' + driveStatus().replace(/（點這裡.*?）/, '') : '連線後，每次修改都自動存到雲端';
+    acct.textContent = linked() ? driveStatus().replace(/（點這裡.*?）/, '') : '連線後，每次修改都自動存到雲端';   // 帳號已經寫在標題那行，這裡不重複
     main.textContent = linked() ? (ready() ? '立即同步' : '重新登入 Google Drive') : '連線 Google Drive';
     acctBtns.style.display = linked() ? '' : 'none';
   }
@@ -223,8 +223,8 @@ export function backupCard() {
   draw();
 
   const body = [
-    sub('Google', true), acct, main, acctBtns, check, outCheck,
-    fromDrive, outDrive,
+    sub('Google', true), h('div.small.one', acct), main, acctBtns,
+    h('div.grid2', { style: { marginTop: '8px' } }, check, fromDrive), outCheck, outDrive,
     tip('Google Drive（雲端硬碟）：MetaPulse 的存檔放在一個看不到的專用資料夾，只有這個 app 能讀寫，別人（包括作者）都看不到。手機和雲端的存檔會合併在一起，同一筆記錄以最後修改的為準，不會整份互相蓋掉。', h('br'),
       '同步版：你之前用的「注射與體重記錄 同步版」app。「匯入同步版（Drive）」會把它存在 Google Drive 的記錄搬過來；只會讀取，不會改動同步版，可以重複按，不會重複加入。'),
     sub('其他：文字或檔案'),
@@ -232,7 +232,7 @@ export function backupCard() {
     h('label', '或選擇存檔檔案'), file,
     tip('「產生存檔文字」會把全部記錄變成一段文字，可以複製貼到記事本或傳給自己保存。貼上或選擇檔案（.json 或 .txt）後，app 會自動判斷：MetaPulse 的存檔會「還原」（用它取代現在全部的資料，要再按一次確認）；同步版的存檔會「匯入」（只加入新的記錄，可以重複做）。'),
     aiFold(),
-    h('a.small.one', { href: 'guide.html', style: { display: 'block', marginTop: '14px', color: 'var(--ac-tx)', fontWeight: 600 } }, '搬家說明：把其他 app 的資料整合到 MetaPulse ›'),
+    h('a.small.one', { href: 'guide.html', style: { display: 'block', marginTop: '8px', color: 'var(--ac-tx)', fontWeight: 600 } }, '搬家說明：把其他 app 的資料整合到 MetaPulse ›'),
   ];
   if (lastResult && Date.now() - lastResult.at < 15000) { say(outText, lastResult.text, true); lastResult = null; }
   return section('backup', '備份與匯入', sumEl, body, false);

@@ -13,6 +13,14 @@ export const WEEK_MODES = [['roll', '最近 7 天（滾動）'], ['sun', '每週
 
 const dow = d => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd).getDay(); };
 
+/** 開始記錄的那一天：第一筆吃過的餐點或斷食記錄（沒有就是 null）。在這之前的日子不算「漏記」 */
+export function firstDay(S) {
+  let f = null;
+  for (const m of S.meals || []) { if (m.pending || !m.at) continue; const d = localDate(new Date(m.at)); if (!f || d < f) f = d; }
+  for (const x of S.fasts || []) { if (!x || !x.start) continue; const d = localDate(new Date(x.start)); if (!f || d < f) f = d; }
+  return f;
+}
+
 /** 存摺的第一天：滾動＝今天往前 6 天；週日／週一＝這週的第一天 */
 export function windowStart(today, mode = 'roll') {
   if (mode === 'sun') return addDays(today, -dow(today));
@@ -67,7 +75,9 @@ export function weekReport(S, daily, today, mode = 'roll') {
   const stat = l => { const ds = done(l); return { logged: ds.filter(d => d.logged).length, healthy: ds.filter(d => d.logged && d.left >= 0).length, refund: roundTo(l.days.reduce((a, d) => a + d.refund, 0)), days: ds.length }; };
   const wAvg = (a, b) => { const v = (S.entries || []).filter(e => e.wt > 0 && e.date >= a && e.date <= b).map(e => e.wt); return v.length ? v.reduce((p, q) => p + q, 0) / v.length : null; };
   const wNow = wAvg(start, today), wPrev = wAvg(prevStart, prevEnd);
-  return { from: start, to: today, cur: { ...stat(cur), balance: cur.balance }, prev: stat(prev), days: cur.days, weight: wNow, weightPrev: wPrev, weightChange: wNow != null && wPrev != null ? wNow - wPrev : null };
+  const first = firstDay(S);
+  const dayNo = first ? Math.round((new Date(today + 'T12:00') - new Date(first + 'T12:00')) / 864e5) + 1 : 0;   // 開始記錄第幾天
+  return { from: start, to: today, first, dayNo, newbie: !!first && first > start, hasPrev: !!first && first <= prevEnd, cur: { ...stat(cur), balance: cur.balance }, prev: stat(prev), days: cur.days, weight: wNow, weightPrev: wPrev, weightChange: wNow != null && wPrev != null ? wNow - wPrev : null };
 }
 
 /**

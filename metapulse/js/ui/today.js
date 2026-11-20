@@ -112,18 +112,21 @@ export function renderToday(root) {
     if (fi.fasting) {
       // 斷食中：存摺縮成兩行，畫面留給斷食
       top.append(h('div.small.num.one', { style: { fontWeight: 650 } }, '今日剩餘 ' + fmtPts(td.left) + ' 點・' + label + ' ' + fmtPts(bal)),
-        h('div.mu.tiny.num.one', '今日 ' + Math.round(td.kcal) + ' 大卡・蛋白質 ' + Math.round(td.protein) + '／' + b.proteinTarget + ' g'));
+        h('div.mu.tiny.num.one', '今日 ' + Math.round(td.kcal) + ' 大卡・' + (b.proteinTarget - td.protein > 0 ? '蛋白質還差 ' + Math.round(b.proteinTarget - td.protein) + ' g' : '蛋白質已達標')));
     } else {
+      // 今日剩餘放最大；蛋白質也寫「還差多少」，跟點數一樣看剩下的
+      const pGap = Math.round(b.proteinTarget - td.protein);
       top.append(h('div.hero',
-        h('div.ring', ring(total ? Math.max(0, bal) / total : 0, bal < 0),
-          h('div.c', h('span.mu.tiny', bal < 0 ? '存摺透支' : label), h('b.num', fmtPts(Math.abs(bal))), h('span.mu.tiny.num', '/ ' + fmtPts(total) + ' 點'))),
         h('div',
-          h('div.metric',
-            h('div.row.between', h('span', '今日剩餘'), h('span.num', h('b', { style: { color: over ? 'var(--warn)' : '' } }, fmtPts(td.left)), h('span.mu', ' / ' + fmtPts(td.budget) + ' 點'))),
-            h('div.bar' + (over ? '.warn' : ''), h('i', { style: { width: Math.min(100, td.budget > 0 ? td.eaten / td.budget * 100 : 0) + '%' } }))),
-          metric('蛋白質', td.protein, b.proteinTarget, 'g', null, false))));
+          h('div.mu.tiny.one', over ? '今日超吃' : '今日剩餘'),
+          h('div.one', { style: { whiteSpace: 'nowrap' } }, h('b.num.big', { style: { color: over ? 'var(--warn)' : '' } }, fmtPts(Math.abs(td.left))), h('span.mu.small.num', ' / ' + fmtPts(td.budget) + ' 點')),
+          h('div.bar' + (over ? '.warn' : ''), h('i', { style: { width: Math.min(100, td.budget > 0 ? td.eaten / td.budget * 100 : 0) + '%' } })),
+          h('div.small.num.one', { style: { marginTop: '6px' } }, pGap > 0 ? '蛋白質還差 ' + pGap + ' g' : '蛋白質已達標 ✓', h('span.mu.tiny', '（目標 ' + Math.round(b.proteinTarget) + ' g）')),
+          h('div.bar', h('i', { style: { width: (b.proteinTarget > 0 ? Math.min(100, td.protein / b.proteinTarget * 100) : 0) + '%' } }))),
+        h('div.ring', ring(total ? Math.max(0, bal) / total : 0, bal < 0),
+          h('div.c', h('span.mu.tiny.one', bal < 0 ? '存摺透支' : label), h('b.num', fmtPts(Math.abs(bal))), h('span.mu.tiny.num', '/ ' + fmtPts(total) + ' 點')))));
       const low = new Date().getHours() >= 20 && td.eaten > 0 && td.eaten < b.floorPoints;
-      top.append(h('div.mu.tiny.num.one', { style: { marginTop: '10px', color: low ? 'var(--warn)' : '' } },
+      top.append(h('div.mu.tiny.num.one', { style: { marginTop: '6px', color: low ? 'var(--warn)' : '' } },
         low ? '今天只吃 ' + fmtPts(td.eaten) + ' 點，少於基本需要的 ' + b.floorPoints + ' 點，記得吃夠'
           : '今日 ' + Math.round(td.kcal) + ' 大卡' + (td.refund ? '・運動 +' + fmtPts(td.refund) : '') + '・存摺只算有記錄的日子'));
     }
