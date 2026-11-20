@@ -246,6 +246,9 @@ JJMobile.prototype.renderSettings = function(screen) {
   });
   panes.about.appendChild(cafe);
   panes.about.appendChild(el('div', 'jjm-hint', '會先問一次再打開 Ko-fi，不會誤按就扣款。'));
+  if (typeof JJPTT_NOTICE !== 'undefined') {
+    ab.appendChild(this.setRow('使用聲明', '有必要時會多開連線加快速度…', function() { self.noticeSheet(true); }));
+  }
   ab.appendChild(this.setRow('原始碼與回報問題', 'GitHub', function() {
     window.open('https://github.com/JJptt1980/JJptt', '_blank');
   }));

@@ -189,6 +189,28 @@ JJMobile.prototype.start = function() {
   this.open({ type: 'home' });
   this.autoLogin();
   this.checkUpdate(false);
+  this.noticeSheet(false);
+};
+
+// 使用聲明 (js/notice.js): once on first use, from below; again only when its version goes up.
+// Closing it by tapping outside leaves it to show next time; 我知道了 marks it seen.
+JJMobile.prototype.noticeSheet = function(always) {
+  if (typeof JJPTT_NOTICE === 'undefined' || (!always && JJPTT_NOTICE.seen())) return;
+  var self = this;
+  var el = JJMobile.el;
+  var box = el('div', 'jjm-sheet-list jjm-notice');
+  JJPTT_NOTICE.list().forEach(function(pt) {
+    var row = el('div', 'jjm-notice-pt');
+    row.appendChild(el('div', 'jjm-notice-h', pt[0]));
+    row.appendChild(el('div', 'jjm-hint', pt[1]));
+    box.appendChild(row);
+  });
+  box.appendChild(el('div', 'jjm-hint', '這些說明之後也可以在 設定 → 關於 看到。'));
+  box.appendChild(JJMobile.button('jjm-btn jjm-btn-main jjm-wide', JJPTT_NOTICE.ok, function() {
+    JJPTT_NOTICE.markSeen();
+    self.closeSheet();
+  }));
+  this.showSheet(JJPTT_NOTICE.title, box);
 };
 
 // ---- updating from inside the app ----------------------------------------------------

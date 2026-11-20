@@ -18,6 +18,8 @@ $(document).ready(function() {
     $('#BBSWindow').show();
     //$('#sideMenus').show();
     app.onWindowResize();
+    // first use: 使用聲明 (js/notice.js), then typing goes to the terminal again
+    if (typeof JJPTT_NOTICE !== 'undefined') JJPTT_NOTICE.showPage(function() { app.setInputAreaFocus(); });
   }, { from: from, keepAlive: keepAlive, ssh: !site || site === 'ptt.cc' });
 });
 

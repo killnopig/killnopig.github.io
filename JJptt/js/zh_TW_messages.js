@@ -992,6 +992,9 @@ locale.zh_TW = {
   "about_kofiPost": {
     "message": "（自願，不影響任何功能）"
   },
+  "about_notice_title": {
+    "message": "使用聲明"
+  },
   "about_traffic_title": {
     "message": "流量提醒"
   },

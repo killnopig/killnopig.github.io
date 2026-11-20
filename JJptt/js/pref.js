@@ -714,7 +714,7 @@ PttChromePref.prototype = {
     var contents = [
         'github', 'issues',
         'forkedFrom', 'forkedBy', 'forkedLicense',
-        'version_title', 'source_title', 'traffic_title',
+        'version_title', 'source_title', 'traffic_title', 'notice_title',
         'new_title'
       ];
     for (var i in contents) {
@@ -740,6 +740,8 @@ PttChromePref.prototype = {
       var traffic = $('#about_traffic').empty();
       (JJPTT_PITCH.traffic || []).forEach(function(line) { $('<li></li>').text(line).appendTo(traffic); });
     }
+    // 使用聲明 (js/notice.js), also shown once on first use
+    if (typeof JJPTT_NOTICE !== 'undefined') $('#about_notice').empty().append(JJPTT_NOTICE.listEl());
 
     var latest = JJPTT_CHANGELOG[0];
     $('#about_version').text('JJptt ' + latest.version + '（' + latest.date + '）');

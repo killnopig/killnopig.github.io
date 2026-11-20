@@ -995,6 +995,9 @@ locale.en_US = {
   "about_kofiPost": {
     "message": " (optional; every feature works either way)"
   },
+  "about_notice_title": {
+    "message": "Notice"
+  },
   "about_traffic_title": {
     "message": "Data usage"
   },
