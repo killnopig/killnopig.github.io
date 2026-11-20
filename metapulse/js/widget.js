@@ -6,7 +6,7 @@ import { fastInfo } from './ui/fasting.js';
 import { FASTING } from './config.js';
 import { stageStarts } from './fasting.js';
 import { WIDGET_MESSAGES, WIDGET_EATING } from './messages.js';
-import { fuelText, soupText, eatingText, runSets, RUN_EVERY, RUN_PERIOD, STEP as STEP30 } from './lines.js';
+import { fuelText, soupText, eatingText, runSets, pixelSets, RUN_EVERY, RUN_PERIOD, STEP as STEP30 } from './lines.js';
 
 /* 小工具翻頁的速度寫在 APK 裡：1.1.0 起每 30 秒翻一格，更早的 APK（1.0.x，包括測試版 1.0.10、1.0.11）每 2 分鐘。
  * 先問 APK 的版本再決定時間表一格多久（舊 APK 取樣 30 秒句庫裡的句子，一樣不重複） */
@@ -26,7 +26,9 @@ export function widgetData(now = Date.now()) {
   let run = null;
   if (!fi.fasting) {
     const wide = runSets(36), narrow = runSets(25), k = Math.floor(now / RUN_PERIOD) % wide.length;
-    run = { every: RUN_EVERY, period: RUN_PERIOD, wide: wide[k], narrow: narrow[k], sets: wide.map((w, i) => ({ wide: w, narrow: narrow[i] })) };
+    // term／termNarrow：終端機版和 3×2 小版用的點陣小人（兩行高，APK 1.4.0 起）
+    const term = pixelSets(36), termNarrow = pixelSets(25);
+    run = { every: RUN_EVERY, period: RUN_PERIOD, wide: wide[k], narrow: narrow[k], sets: wide.map((w, i) => ({ wide: w, narrow: narrow[i], term: term[i], termNarrow: termNarrow[i] })) };
   }
   return { ...base, fasting: !!fi.fasting, start: fi.start, end: fi.end || 0, ...(run ? { run } : {}),
     stages: starts.map((at, i) => ({ at, text: FASTING.stages[i].short + '｜' + FASTING.stages[i].fuel })),
