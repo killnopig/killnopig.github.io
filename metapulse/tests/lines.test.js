@@ -53,3 +53,16 @@ test('跑步小人：每格不超過一行的寬度，最後舉手加油', async
   const n = runFrames(12, ['加油！'], 1);
   for (const t of n.filter(x => x.includes('(>_<)'))) assert.ok(t.length <= 12, t);
 });
+
+test('五個版本的小人：每一格都不超過寬度，紅綠燈最後倒數到 0', async () => {
+  const { runSets, walkerFrames } = await import('../js/lines.js');
+  for (const W of [25, 36]) {
+    const sets = runSets(W);
+    assert.equal(sets.length, 5);
+    sets.forEach((f, k) => { assert.ok(f.length >= 10, 'set ' + k); for (const t of f) assert.ok(t.length <= W, k + ':' + t); });
+  }
+  const w = walkerFrames(25);
+  assert.ok(w[0].includes('🚶') && w[0].length > w[5].length);   // 從右往左走
+  assert.ok(w.some(t => t.includes('🏃')));                        // 最後小跑步
+  assert.ok(w[w.length - 1].startsWith(' 0 '));
+});

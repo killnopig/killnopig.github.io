@@ -6,7 +6,7 @@ import { fastInfo } from './ui/fasting.js';
 import { FASTING } from './config.js';
 import { stageStarts } from './fasting.js';
 import { WIDGET_MESSAGES, WIDGET_EATING } from './messages.js';
-import { fuelText, soupText, eatingText, runFrames, RUN_EVERY, STEP as STEP30 } from './lines.js';
+import { fuelText, soupText, eatingText, runSets, RUN_EVERY, RUN_PERIOD, STEP as STEP30 } from './lines.js';
 
 /* 小工具翻頁的速度寫在 APK 裡：1.1.0 起每 30 秒翻一格，更早的 APK（1.0.x，包括測試版 1.0.10、1.0.11）每 2 分鐘。
  * 先問 APK 的版本再決定時間表一格多久（舊 APK 取樣 30 秒句庫裡的句子，一樣不重複） */
@@ -22,7 +22,12 @@ export function widgetData(now = Date.now()) {
   if (!fi.start) return { ...base, fasting: false, start: 0 };
   const starts = stageStarts(fi.shift || 0).map(h => fi.start + h * H);
   // 進食中：中間進度條的位置換成跑步小人（APK 1.2.0 起才會顯示；舊 APK 不看這個欄位）
-  const run = fi.fasting ? null : { every: RUN_EVERY, wide: runFrames(36), narrow: runFrames(25) };
+  // sets：五個版本，APK 1.3.0 起每 period 換一個；wide／narrow 給 1.2.0（只顯示現在這個版本）
+  let run = null;
+  if (!fi.fasting) {
+    const wide = runSets(36), narrow = runSets(25), k = Math.floor(now / RUN_PERIOD) % wide.length;
+    run = { every: RUN_EVERY, period: RUN_PERIOD, wide: wide[k], narrow: narrow[k], sets: wide.map((w, i) => ({ wide: w, narrow: narrow[i] })) };
+  }
   return { ...base, fasting: !!fi.fasting, start: fi.start, end: fi.end || 0, ...(run ? { run } : {}),
     stages: starts.map((at, i) => ({ at, text: FASTING.stages[i].short + '｜' + FASTING.stages[i].fuel })),
     timeline: timeline(fi, starts, now, step) };

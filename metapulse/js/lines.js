@@ -124,3 +124,55 @@ export function runFrames(W = 18, cheers = RUN_CHEERS, loops = 3) {
   }
   return out;
 }
+
+/* 五個版本，小工具每 RUN_PERIOD 換下一個（APK 1.3.0 起；更舊的 APK 只顯示 runFrames）
+ * 寬度用字串長度估：emoji 算 2 格、其他符號算 1 格 */
+export const RUN_PERIOD = 5 * 60000;
+const sp = n => ' '.repeat(Math.max(0, n));
+
+/** ② 紅綠燈小綠人：從右往左走，左邊倒數秒數，最後幾秒變小跑步（一次跨兩格） */
+export function walkerFrames(W = 18, every = RUN_EVERY) {
+  const field = W - 3, P = field - 2, out = [];
+  const pos = [];
+  for (let p = P; p > 0;) { const walk = p > P * 0.35; pos.push(p); if (walk) pos.push(p); p -= walk ? 1 : 2; }   // 走路時一格停兩下，小跑時一次兩格
+  pos.push(0);
+  pos.forEach((p, i) => {
+    const left = Math.ceil((pos.length - i) * every / 1000);
+    const fast = p <= P * 0.35;
+    out.push(String(left).padStart(2, ' ') + ' ' + sp(p) + (fast && i % 2 ? '🏃' : '🚶'));
+  });
+  const end = ['過馬路囉！', '慢慢吃，不用趕', '綠燈了，去吃飯'];
+  for (const t of end) out.push(' 0 ' + t, ' 0 ' + t, ' 0 ' + t);
+  return out;
+}
+
+/** ③ 追飯糰：小人追著右邊的 🍙，追到了喊開動 */
+export function chaseFrames(W = 18) {
+  const R = '(ﾉ>ω<)ﾉ', L = R.length, out = [], cheers = ['開動！', '先吃蛋白質！', '慢慢嚼～'];
+  for (const c of cheers) {
+    for (let i = 0; i + L + 3 <= W; i++) out.push(sp(i) + R + sp(W - 2 - i - L) + '🍙');
+    out.push(sp(W - L - 2) + R + '🍙', sp(W - L - 2) + '(*^ω^*)🍙', c, c, c);
+  }
+  return out;
+}
+
+/** ④ 舉啞鈴：在中間原地舉，旁邊數次數，數完喊肌力也要練 */
+export function liftFrames(W = 18) {
+  const UP = 'ᕦ(ò_óˇ)ᕤ', DN = 'ᕙ(ò_ó )ᕗ', pad = sp(Math.floor((W - UP.length - 4) / 2)), out = [];
+  for (let n = 1; n <= 10; n++) out.push(pad + DN + ' ×' + (n - 1), pad + UP + ' ×' + n);
+  out.push('肌力也要練！', '肌力也要練！', '肌力也要練！', '吃夠蛋白質！', '吃夠蛋白質！');
+  return out;
+}
+
+/** ⑤ 搖擺走路：一左一右晃著走到右邊 */
+export function swayFrames(W = 18) {
+  const A = 'ᕕ( ᐛ )ᕗ', B = 'ᕗ( ᐛ )ᕕ', L = A.length, out = [];
+  for (let k = 0; k < 2; k++) {
+    for (let i = 0; i + L <= W; i++) out.push(sp(i) + (i % 2 ? B : A));
+    out.push('吃飽散散步～', '吃飽散散步～', '吃飽散散步～');
+  }
+  return out;
+}
+
+/** 五個版本（順序固定）；小工具照時間輪流 */
+export const runSets = W => [runFrames(W), walkerFrames(W), chaseFrames(W), liftFrames(W), swayFrames(W)];
