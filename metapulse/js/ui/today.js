@@ -124,7 +124,7 @@ export function renderToday(root) {
           h('div.small.num.one', { style: { marginTop: '6px' } }, pGap > 0 ? '蛋白質還差 ' + pGap + ' g' : '蛋白質已達標 ✓', h('span.mu.tiny', '（目標 ' + Math.round(b.proteinTarget) + ' g）')),
           h('div.bar', h('i', { style: { width: (b.proteinTarget > 0 ? Math.min(100, td.protein / b.proteinTarget * 100) : 0) + '%' } }))),
         h('div.ring', ring(total ? Math.max(0, bal) / total : 0, bal < 0),
-          h('div.c', h('span.mu.tiny.one', bal < 0 ? '存摺透支' : label), h('b.num', fmtPts(Math.abs(bal))), h('span.mu.tiny.num', '/ ' + fmtPts(total) + ' 點')))));
+          h('div.c', h('span.mu.tiny.one', bal < 0 ? '存摺透支' : label), h('b.num', fmtPts(Math.abs(bal))), h('span.mu.tiny.num', '/ ' + fmtPts(total))))));
       const low = new Date().getHours() >= 20 && td.eaten > 0 && td.eaten < b.floorPoints;
       top.append(h('div.mu.tiny.num.one', { style: { marginTop: '6px', color: low ? 'var(--warn)' : '' } },
         low ? '今天只吃 ' + fmtPts(td.eaten) + ' 點，少於基本需要的 ' + b.floorPoints + ' 點，記得吃夠'
