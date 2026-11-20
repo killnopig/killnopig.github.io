@@ -22,7 +22,7 @@ export function widgetData(now = Date.now()) {
   if (!fi.start) return { ...base, fasting: false, start: 0 };
   const starts = stageStarts(fi.shift || 0).map(h => fi.start + h * H);
   // 進食中：中間進度條的位置換成跑步小人（APK 1.2.0 起才會顯示；舊 APK 不看這個欄位）
-  const run = fi.fasting ? null : { every: RUN_EVERY, wide: runFrames(26), narrow: runFrames(12) };
+  const run = fi.fasting ? null : { every: RUN_EVERY, wide: runFrames(36), narrow: runFrames(25) };
   return { ...base, fasting: !!fi.fasting, start: fi.start, end: fi.end || 0, ...(run ? { run } : {}),
     stages: starts.map((at, i) => ({ at, text: FASTING.stages[i].short + '｜' + FASTING.stages[i].fuel })),
     timeline: timeline(fi, starts, now, step) };
