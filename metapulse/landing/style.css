@@ -1,24 +1,27 @@
-/* MetaPulse 廣宣頁：顏色沿用 App 的設計變數；手機（412px）優先重新排版 */
+/* MetaPulse 廣宣頁：品牌配色（暖米白、鼠尾草綠、森林綠、陶土橘）；手機（412px）優先重新排版 */
 :root{
-  --bg:#f6f7f6;--card:#fff;--tx:#17201c;--mu:#5f6b65;--ln:#e3e7e4;--ac:#0f7b5f;
-  --cream:#f6f2e9;--glow:#9ff0c4;--ac-soft:rgba(15,123,95,.1);--ring-off:#d5dbd7;
-  --deep:#13201b;--deep-tx:#eef4f0;--deep-mu:#a9bab1;
-  --shadow:0 1px 2px rgba(23,32,28,.04),0 8px 28px rgba(23,32,28,.07);
-  --r:20px;--max:1120px;
+  --bg:#F3F0E8;--card:#FFFDF8;--tx:#263D32;--mu:#5A6B5F;--ln:#E2DDD1;--ac:#405B49;
+  --cream:#FAF8F2;--glow:#A8B9A0;--clay:#C98E70;--ac-soft:rgba(64,91,73,.1);--ring-off:#DAD5C9;
+  --deep:#263D32;--deep-tx:#FAF8F2;--deep-mu:#C5D0C0;
+  --shadow:0 1px 2px rgba(38,61,50,.04),0 10px 30px rgba(38,61,50,.08);
+  --r:24px;--max:1120px;
   --font:system-ui,-apple-system,"Noto Sans TC","PingFang TC",sans-serif;
+  --serif:"Noto Serif TC","Noto Serif CJK TC","Songti TC",serif;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){:root{
-  --bg:#0f1311;--card:#171c19;--tx:#e7ece9;--mu:#9aa89f;--ln:#26302b;--ac:#3ccf9a;
-  --cream:#141a16;--glow:#3ccf9a;--ac-soft:rgba(60,207,154,.12);--ring-off:#2c3631;
-  --deep:#0b0f0d;--deep-tx:#e7ece9;--deep-mu:#9aa89f;
+  --bg:#18211C;--card:#202B25;--tx:#EDEAE2;--mu:#A9B3A8;--ln:#2F3B34;--ac:#A8B9A0;
+  --cream:#1C2620;--glow:#A8B9A0;--clay:#D9A285;--ac-soft:rgba(168,185,160,.14);--ring-off:#35423A;
+  --deep:#111915;--deep-tx:#EDEAE2;--deep-mu:#A9B3A8;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
   color-scheme:dark;
 }}
+h1,h2{font-family:var(--serif);font-weight:700!important}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.7 var(--font);overflow-x:hidden}
 img,svg{display:block;max-width:100%}
+img{height:auto}
 a{color:var(--ac)}
 h1,h2,h3{line-height:1.25;margin:0;letter-spacing:.01em}
 p{margin:0}
@@ -69,8 +72,15 @@ h1,h2,.lead,.aux{text-wrap:balance}
 .hero .sub{font-size:clamp(19px,4.4vw,24px);font-weight:700;margin-top:14px}
 .hero .aux{color:var(--mu);margin-top:12px;font-size:16px;max-width:520px}
 .cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:26px}
-.hero-art{position:relative;width:min(100%,420px);margin:0 auto;aspect-ratio:1}
-.hero-art svg{width:100%;height:100%}
+.hero-art{position:relative;width:min(100%,480px);margin:0 auto}
+.hero-art .photo{width:100%;aspect-ratio:1;object-fit:cover;object-position:30% center;border-radius:28px;box-shadow:var(--shadow);background:var(--ln)}
+.hero-tag{position:absolute;right:-6px;bottom:22px;background:var(--card);border-radius:20px;padding:14px 16px;box-shadow:var(--shadow);display:flex;align-items:center;gap:12px}
+.hero-tag svg{width:52px;height:52px;flex:none}
+.hero-tag b{display:block;font-size:15px}
+.hero-tag span{display:block;font-size:13px;color:var(--mu)}
+@media (min-width:520px){.hero-tag{right:-18px}}
+.banner{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:24px;margin-top:32px;box-shadow:var(--shadow);background:var(--ln)}
+@media (min-width:720px){.banner{aspect-ratio:21/8;object-position:center 28%}}
 .flow{animation:dash 14s linear infinite}
 @keyframes dash{to{stroke-dashoffset:-600}}
 .spin{transform-origin:200px 200px;animation:spin 18s linear infinite}
@@ -179,7 +189,10 @@ h1,h2,.lead,.aux{text-wrap:balance}
 .privacy{border:1px solid var(--ln);background:var(--deep);color:var(--deep-tx);border-radius:32px;padding:56px 24px;position:relative;overflow:hidden}
 .privacy .eyebrow{color:var(--glow)}
 .privacy .lead{color:var(--deep-mu)}
-.privacy::after{content:"";position:absolute;width:520px;height:520px;right:-180px;top:-200px;border-radius:50%;border:60px solid rgba(60,207,154,.08)}
+.privacy::after{content:"";position:absolute;width:520px;height:520px;right:-180px;top:-200px;border-radius:50%;border:60px solid rgba(168,185,160,.08)}
+.priv-head{display:grid;gap:28px;position:relative;z-index:1}
+.priv-photo{width:100%;aspect-ratio:4/3;object-fit:cover;object-position:35% 30%;border-radius:22px;background:rgba(255,255,255,.06)}
+@media (min-width:820px){.priv-head{grid-template-columns:1.1fr .9fr;align-items:center}.priv-photo{aspect-ratio:1}}
 .p-grid{display:grid;gap:14px;margin-top:36px;position:relative;z-index:1}
 .p-item{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:20px}
 .p-item svg{color:var(--glow);width:28px;height:28px}
@@ -200,6 +213,8 @@ h1,h2,.lead,.aux{text-wrap:balance}
 .end{text-align:center;padding:100px 0}
 .end h2{font-size:clamp(30px,7vw,52px);font-weight:850}
 .end h2 + h2{color:var(--ac)}
+.btn.pri{color:#FAF8F2}
+@media (prefers-color-scheme:dark){.btn.pri{color:#18211C}}
 .end .cta{justify-content:center;margin-top:34px}
 .end .ios{font-size:14px;color:var(--mu);margin-top:18px}
 
