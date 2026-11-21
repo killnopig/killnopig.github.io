@@ -458,7 +458,9 @@ JJMobile.prototype.postSheet = function(screen) {
         try { store.removeItem(JJMobile.DRAFT_KEY + board.toLowerCase()); } catch (e2) {}
         self.closeSheet();
         if (self.app.showToast) self.app.showToast('已發表文章', 2000);
-        if (self.stack[self.stack.length - 1] === screen) self.reload(screen);
+        if (self.stack[self.stack.length - 1] === screen) {
+          self.reloadAfterArticle(screen, { author: self.ptt.user, title: title.value });
+        }
       }).catch(function(e2) {
         go.disabled = false;
         go.textContent = '發表文章';
@@ -524,6 +526,38 @@ JJMobile.prototype.showPendingPush = function(screen, article, pushList) {
   }
   pushList.appendChild(this.pendingPushRow(mine));
   return pushList;
+};
+
+// A list row that is the article just posted ({ author, title }: the title
+// as typed, without the [類別]).
+JJMobile.isMyArticle = function(e, mine) {
+  var t = String(mine.title || '').replace(/\s+/g, ' ').trim();
+  return !!e && !!t && String(e.author || '').toLowerCase() === String(mine.author || '').toLowerCase() &&
+    String(e.title || '').replace(/\s+/g, ' ').indexOf(t) >= 0;
+};
+JJMobile.POST_TRIES = 8;
+JJMobile.POST_RETRY_MS = 2500;
+
+// After 發表文章: www.ptt.cc shows a new article some seconds after PTT has
+// it, and the list loaded at once did not have it yet (the post looked
+// lost). The list is loaded again until it is there, a few times at most.
+JJMobile.prototype.reloadAfterArticle = function(screen, mine) {
+  var self = this, tries = 0;
+  var token = screen.postToken = {};
+  var here = function() { return screen.postToken === token && self.stack[self.stack.length - 1] === screen; };
+  var look = function() {
+    if (!here()) return;
+    if (screen.loadingMore) return setTimeout(look, 300);
+    if ((screen.entries || []).some(function(e) { return JJMobile.isMyArticle(e, mine); })) return;
+    if (++tries > JJMobile.POST_TRIES) return;
+    setTimeout(function() {
+      if (!here()) return;
+      self.reload(screen);
+      setTimeout(look, 300);
+    }, JJMobile.POST_RETRY_MS);
+  };
+  this.reload(screen);
+  setTimeout(look, 300);
 };
 
 JJMobile.prototype.reloadAfterPost = function(screen, mine) {
