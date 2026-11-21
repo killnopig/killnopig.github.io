@@ -58,6 +58,8 @@ h1,h2,.lead,.aux{text-wrap:balance}
 .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;color:var(--tx);text-decoration:none}
 .brand img{width:30px;height:30px;border-radius:8px}
 .top .btn{min-height:40px;padding:0 16px;font-size:14px}
+.top-btns{display:flex;gap:8px}
+@media (max-width:400px){.top .btn{padding:0 12px;font-size:13px}.brand{font-size:16px}}
 
 /* 進場動畫 */
 /* 只有 JS 有跑的時候才先藏起來，JS 壞掉時內容照樣看得到 */
