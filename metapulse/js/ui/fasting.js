@@ -55,6 +55,13 @@ const clock = hours => { const a = Math.abs(hours), h0 = Math.floor(a), m = Math
 const MODE_NAME = Object.fromEntries(MODES);
 
 /** 依模式決定目標時數（手動改過的結束時間會在 fastEnd 裡優先） */
+/** 目前方案的斷食時數（16:8＝16、依施打週期＝當天建議、自由＝目標時數），修改斷食時帶預計結束用 */
+function planHours(now) {
+  const P = S.prefs, mode = P.fastMode || 'PURE_DYNAMIC';
+  if (mode === 'STRICT_MANUAL') return eatingWindow(P.strictPlan || '16:8', P.windowStart || '12:00', now).fastHours;
+  return targetOf(mode, { start: now }, now).hours;
+}
+
 function targetOf(mode, f, now) {
   const P = S.prefs;
   if (mode === 'STRICT_MANUAL') {
@@ -333,10 +340,16 @@ export function openFastEditor(rec, onDone, overlap = false) {
   openSheet(sh => {
     sh.append(h('div.sheet-h', h('b', !rec ? '補記一段斷食' : isOpen ? '修改這次斷食' : '修改斷食記錄'), h('button.link', { type: 'button', onclick: () => closeSheet() }, '關閉')));
     const sIn = h('input', { type: 'datetime-local', value: toInput(rec ? new Date(rec.start).getTime() : now - 16 * H) });
-    const eIn = h('input', { type: 'datetime-local', value: toInput(rec && rec.end ? new Date(rec.end).getTime() : isOpen && rec.goalEnd ? new Date(rec.goalEnd).getTime() : now) });
+    // 進行中且沒自訂預計結束：預計結束＝開始＋方案時數（16:8 帶 16 小時），改開始時跟著動
+    const planH = isOpen ? planHours(now) : 0;
+    let follow = isOpen && !rec.goalEnd;
+    const eIn = h('input', { type: 'datetime-local', value: toInput(rec && rec.end ? new Date(rec.end).getTime() : isOpen && rec.goalEnd ? new Date(rec.goalEnd).getTime() : isOpen ? new Date(rec.start).getTime() + planH * H : now) });
+    const autoEnd = () => { const a = new Date(sIn.value).getTime(); return Number.isFinite(a) ? toInput(a + planH * H) : ''; };
     const lens = h('div.mu.small.num', { style: { marginTop: '8px' } });
     const drawLen = () => { const a = new Date(sIn.value).getTime(), b = new Date(eIn.value).getTime(); lens.textContent = Number.isFinite(a) && Number.isFinite(b) && b > a ? (isOpen ? '預計 ' : '共 ') + dur((b - a) / H) : ''; };
-    sIn.oninput = drawLen; eIn.oninput = drawLen; drawLen();
+    sIn.oninput = () => { if (follow) eIn.value = autoEnd(); drawLen(); };
+    eIn.oninput = () => { if (isOpen) follow = eIn.value === autoEnd(); drawLen(); };
+    drawLen();
     const save = h('button.pri.full', { type: 'button', style: { marginTop: '12px' } }, '儲存');
     save.onclick = () => {
       const s = new Date(sIn.value).getTime(), e = new Date(eIn.value).getTime();
@@ -345,7 +358,7 @@ export function openFastEditor(rec, onDone, overlap = false) {
         if (err) { toast(err, true); return; }
         if (Number.isFinite(e) && e <= s) { toast('預計結束要晚於開始', true); return; }
         rec.start = new Date(s).toISOString();
-        if (Number.isFinite(e)) rec.goalEnd = new Date(e).toISOString(); else delete rec.goalEnd;
+        if (Number.isFinite(e) && !follow) rec.goalEnd = new Date(e).toISOString(); else delete rec.goalEnd;
       } else {
         const err = checkFast(S.fasts, s, e, Date.now(), rec ? rec.id : null);
         if (err) { toast(err, true); return; }
