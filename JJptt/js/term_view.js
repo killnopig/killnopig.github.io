@@ -1121,6 +1121,12 @@ TermView.prototype = {
   // listMap.rowOf[slot] = buffer row shown on screen row.
   updateListMap: function() {
     this.listMap = null;
+    // The app never shows its terminal: the hidden session is JJPtt's, and
+    // keys sent from here (PageUp, a row of ↓ to fill the newest-first
+    // window) went into what JJPtt had open -- ↓ in PTT's push input brings
+    // back an earlier input (a list number), and pushes came out as
+    // 「26851JJptt」.
+    if (typeof lib !== 'undefined' && lib.isApp && lib.isApp()) return;
     var pref = this.bbscore && this.bbscore.pref;
     if (!pref || this.buf.pageState != 2) return;
     var reverse = !!pref.values.listNewestFirst;
