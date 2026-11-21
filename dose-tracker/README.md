@@ -1,5 +1,7 @@
 # 注射與體重記錄 Dose Tracker
 
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-%E8%AB%8B%E6%88%91%E5%96%9D%E6%9D%AF%E5%92%96%E5%95%A1-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/jjptt1980)
+
 一個在手機上使用的單頁網頁 app，用來記錄每週注射劑量、注射部位與體重，並畫出圖表。所有功能都在一個 `index.html` 檔案裡，不需要安裝、不需要伺服器。
 
 **線上使用：** https://jjptt1980.github.io/dose-tracker/
