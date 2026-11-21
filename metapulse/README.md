@@ -1,5 +1,7 @@
 # MetaPulse — 飲食、斷食與用藥記錄
 
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-%E8%AB%8B%E6%88%91%E5%96%9D%E6%9D%AF%E5%92%96%E5%95%A1-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/jjptt1980)
+
 個人用的飲食點數、斷食與用藥記錄網頁 app。純前端、不需要伺服器，資料存在你自己的裝置。
 
 **線上使用：** https://killnopig.github.io/metapulse/
