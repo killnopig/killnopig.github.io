@@ -762,8 +762,8 @@ JJPtt.prototype.push = function(url, kind, text) {
       return k;
     }).then(function(k) {
       if (k === 'no') throw new Error('這篇文章不能用這種方式推文');
-      var before = self.screen();
-      self.type(text + '\r');
+      return self.typePush(text);
+    }).then(function(before) {
       // the list header says 看板《…》 all along: only its footer coming
       // back (文章選讀) or the 確定 question is PTT's answer
       return self.wait({ confirm: /確定.*\[y\/n\]|確定要/i, done: /文章選讀|文章列表|系列文章/ }, 8000, before, '送出推文');
@@ -774,6 +774,68 @@ JJPtt.prototype.push = function(url, kind, text) {
       return JJPtt.sleep(300);
     });
   });
+};
+
+// Types the push into PTT's input and checks the input holds exactly that
+// before Enter: pushes came out as 「26851JJptt」 (digits ending in the 推
+// key 1). Anything else in it is erased and typed again; still wrong: the
+// push is cancelled (Enter on an empty input) and nothing is sent. The
+// screen is kept for 設定 → 帳號 → 最後一次 PTT 畫面.
+JJPtt.prototype.typePush = function(text) {
+  var self = this;
+  var same = function(a, b) { return String(a).replace(/\s+/g, '') === String(b).replace(/\s+/g, ''); };
+  var erase = function(s) { return new Array(JJPtt.big5Length(s) + 3).join('\b'); };
+  var note = function(message) {
+    self.lastFailure = { at: Date.now(), message: message, screen: self.screen() };
+  };
+  var tries = 0;
+  var go = function() {
+    var left = JJPtt.pushInputLeft(self.screen(), self.user);
+    if (left) {
+      note('推文欄原本有「' + left + '」，已清掉再打');
+      self.send(erase(left));
+    }
+    var before = self.screen();
+    self.type(text);
+    var until = Date.now() + 5000;
+    var echoed = function() {  // PTT shows what was typed: in pieces, maybe slowly
+      return self.settle(before, 1500).then(function() {
+        var got = JJPtt.pushInputLeft(self.screen(), self.user);
+        if (got === '' && Date.now() < until) return echoed();
+        return got;
+      });
+    };
+    return echoed().then(function(got) {
+      if (got === '') throw new Error('PTT 的推文欄沒有出現打的字，這次沒有送出');
+      if (got === null || same(got, text)) {  // null: no input line to read, as before
+        var beforeEnter = self.screen();
+        self.send('\r');
+        return beforeEnter;  // what PTT answers is what changes after this
+      }
+      note('推文欄變成「' + got + '」，和打的「' + text + '」不同');
+      self.send(erase(got));
+      if (++tries >= 2) {
+        return JJPtt.sleep(300).then(function() {
+          self.send('\r');  // an empty push is cancelled
+          throw new Error('PTT 的推文欄多了「' + got.replace(text, '') + '」，這次沒有送出（設定 → 帳號 → 最後一次 PTT 畫面）');
+        });
+      }
+      return JJPtt.sleep(300).then(go);
+    });
+  };
+  return go();
+};
+
+// What PTT's push input line (「推 ID: …」, the last one for this ID) holds;
+// null when there is no such line.
+JJPtt.pushInputLeft = function(screen, user) {
+  var id = String(user || '').toLowerCase();
+  var lines = String(screen || '').split('\n'), left = null;
+  lines.forEach(function(line) {
+    var m = /^\s*(?:推|噓|→)\s*(\w+)\s*[:：](.*)$/.exec(line);
+    if (m && (!id || m[1].toLowerCase() === id)) left = m[2].trim();
+  });
+  return left;
 };
 
 // The bottom line with something on it.
