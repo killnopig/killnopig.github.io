@@ -537,24 +537,36 @@ JJMobile.isMyArticle = function(e, mine) {
 };
 JJMobile.POST_WAIT_MS = 30000;
 
-// After 發表文章: www.ptt.cc shows a new article some seconds after PTT has
+// After 發表文章: www.ptt.cc lists a new article some seconds after PTT has
 // it, and the list loaded at once did not have it yet (the post looked
-// lost). The list is loaded again as soon as each load is done, until the
-// article is there (POST_WAIT_MS at most).
+// lost). The board's page is read again as soon as each read is done,
+// while the list on screen stays as it was, until the article is on it
+// (POST_WAIT_MS at most); then the list is drawn from that page. Reloading
+// the list itself each time left the screen blank (載入中…) all along.
 JJMobile.prototype.reloadAfterArticle = function(screen, mine) {
   var self = this, until = Date.now() + JJMobile.POST_WAIT_MS;
   var token = screen.postToken = {};
   var here = function() { return screen.postToken === token && self.stack[self.stack.length - 1] === screen; };
-  var look = function() {
+  if (screen.query) { this.reload(screen); return; }  // a search: as before
+  var url = JJMobile.WEB + '/bbs/' + encodeURIComponent(screen.board) + '/index.html';
+  var draw = function() {  // from the page just read (listDocs), not again
     if (!here()) return;
-    if (screen.loadingMore) return setTimeout(look, 100);
-    if ((screen.entries || []).some(function(e) { return JJMobile.isMyArticle(e, mine); })) return;
-    if (Date.now() > until) return;
-    self.reload(screen);
-    setTimeout(look, 100);
+    screen.view.innerHTML = '';
+    screen.view.scrollTop = 0;
+    self.render(screen);
   };
-  this.reload(screen);
-  setTimeout(look, 100);
+  var read = function() {
+    if (!here()) return;
+    self.listDoc(url, true).then(function(doc) {
+      var page = JJMobile.parseIndex(doc, true);
+      if (page.entries.some(function(e) { return JJMobile.isMyArticle(e, mine); }) || Date.now() > until) return draw();
+      read();
+    }, function() {
+      if (Date.now() > until) return draw();
+      setTimeout(read, 500);
+    });
+  };
+  read();
 };
 
 JJMobile.prototype.reloadAfterPost = function(screen, mine) {
