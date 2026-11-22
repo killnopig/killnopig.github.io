@@ -3,7 +3,7 @@ import { S, L, commit, commitLocal, uid } from '../state.js';
 import { h, toast, section, sumLine, tip, timePick, fold, openSheet, closeSheet, startClosed } from './common.js';
 import { localDate, addDays } from '../points.js';
 import { canNotify, schedule, notifyStatus, openExactSetting, testNotify, askNotify } from '../notify.js';
-import { apkVersion, liveApk, updateWidgetSoon } from '../widget.js';
+import { apkVersion, liveApk, timerApk, updateWidgetSoon } from '../widget.js';
 
 const minOf = t => +t.slice(0, 2) * 60 + +t.slice(3, 5);
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
@@ -185,6 +185,11 @@ export function medsSettings() {
     sel.value = N.live ? '1' : '';
     sel.onchange = async () => { N.live = !!sel.value || undefined; commitLocal(); if (N.live && !(await askNotify())) toast('手機沒有允許 MetaPulse 發通知', true); updateWidgetSoon(); toast(N.live ? '已開啟，通知最上面會出現常駐卡' : '已關閉常駐卡'); };
     liveRow.append(nrow('常駐提醒卡', sel));
+    if (!timerApk(v)) return;
+    const tsel = h('select', { style: { flex: '1 1 0', minWidth: '0' } }, h('option', { value: '' }, '關閉'), h('option', { value: '1' }, '開啟'));
+    tsel.value = N.sysTimer ? '1' : '';
+    tsel.onchange = () => { N.sysTimer = !!tsel.value || undefined; commitLocal(); toast(N.sysTimer ? '之後按「開始斷食」會開手機時鐘的計時器' : '已關閉'); };
+    liveRow.append(nrow('斷食開計時器', tsel));
   });
   const notifyBox = h('div', { style: { marginTop: '10px', paddingTop: '6px', borderTop: '1px solid var(--ln)' } },
     nrow('斷食通知', freq),
@@ -193,5 +198,5 @@ export function medsSettings() {
     nrow('注射日提醒', timePick(N.doseRemindAt || '09:00', v => { N.doseRemindAt = v; saveN(); })), liveRow);
   draw(); drawSum(); drawStatus();
   return section('meds', '提醒與通知', sumEl, [list, add, msg, actions, notifyBox,
-    tip('勾「這是降血糖藥」：斷食中到了吃藥時間、或斷食超過 16 小時，斷食卡會提醒留意低血糖。還沒勾「空腹吃問過醫師了」時，會多提醒一句去問醫師或藥師。', h('br'), '到了吃藥時間，「飲食運動」頁最上面會出現服藥卡（往下捲也會貼在頂端），吃完按「已服用」。服藥卡下面的「服藥記錄」是月曆，每一天都可以點開修改。在 MetaPulse app 裡，時間到會跳手機通知（第一次會問你要不要允許通知）；網頁版不會通知，只會顯示卡片。斷食通知：在每個斷食階段開始和達標時通知（或每小時一次），「晚上不打擾」時段內不發。注射日當天在設定的時間提醒一次。「常駐提醒卡」：通知最上面固定一張卡，顯示現在該做什麼（斷食還剩多久、該斷食或可以吃了、快到吃藥時間、今天要注射），不會響。這只是提醒，吃藥的方式請照醫師或藥師的指示。')]);
+    tip('勾「這是降血糖藥」：斷食中到了吃藥時間、或斷食超過 16 小時，斷食卡會提醒留意低血糖。還沒勾「空腹吃問過醫師了」時，會多提醒一句去問醫師或藥師。', h('br'), '到了吃藥時間，「飲食運動」頁最上面會出現服藥卡（往下捲也會貼在頂端），吃完按「已服用」。服藥卡下面的「服藥記錄」是月曆，每一天都可以點開修改。在 MetaPulse app 裡，時間到會跳手機通知（第一次會問你要不要允許通知）；網頁版不會通知，只會顯示卡片。斷食通知：在每個斷食階段開始和達標時通知（或每小時一次），「晚上不打擾」時段內不發。注射日當天在設定的時間提醒一次。「常駐提醒卡」：通知最上面固定一張卡，顯示現在該做什麼（斷食還剩多久、該斷食或可以吃了、快到吃藥時間、今天要注射），不會響；被滑掉後，到下一個時段會再出現。「斷食開計時器」：按「開始斷食」時，順便在手機的時鐘開一個倒數計時器（vivo 會顯示在通知最上面和狀態列，到點會響）；計時器最多 24 小時，改結束時間或提早結束時，舊的計時器要自己到時鐘按 ✕。這只是提醒，吃藥的方式請照醫師或藥師的指示。')]);
 }

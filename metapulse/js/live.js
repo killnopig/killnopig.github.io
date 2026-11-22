@@ -40,7 +40,7 @@ export function liveTimeline(inp, now = Date.now()) {
     if (fast.fasting && fast.end > fast.start) {
       if (t < fast.end) {
         let st = ''; stages.forEach(s => { if (s.at <= t) st = s.text; });
-        return { title: '斷食中・還剩', text: st || '斷食中', chip: '斷食', at: fast.end, down: true };
+        return { title: '斷食中・還剩', text: st || '斷食中', chip: '斷食', at: fast.end, down: true, p0: fast.start };   // p0：進度條的起點（APK 1.6.0 起）
       }
       return { title: '可以吃了・超過目標', text: '準備吃東西時，到 MetaPulse 記一餐並結束斷食', chip: '可吃', at: fast.end, down: false };
     }

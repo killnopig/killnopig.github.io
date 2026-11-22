@@ -6,6 +6,7 @@ import { OMAD_DONE } from '../messages.js';
 import { fuelText, eatingText, soupText } from '../lines.js';
 import { hybridWeek, hybridCfg, hybridDaysOf, HYBRID_CHOICES, currentFast, openFast, checkFast, periods, mergeFasts, mergeTwoFasts, fastsBetween, targetHours, fastEnd, eatPending, pendingMeals, mealShift, stageAt, stageStarts, hybridSuggestion, eatingWindow, hm, dur } from '../fasting.js';
 import { openAddMeal } from './addMeal.js';
+import { fastTimer } from '../widget.js';
 import { timeStop, gears } from './fx.js';
 import { longTermIndex, weightTrend, longTermMessage, leanTrend, leanSummary } from '../longterm.js';
 import { usage, localDate, roundTo } from '../points.js';
@@ -198,7 +199,7 @@ export function fastingCard() {
   const row2 = h('div.row.between', { style: { marginTop: '4px' } },
     h('button.link.small', { type: 'button', onclick: () => openFastEditor(f.rec) }, '改時間'),
     journalLink(),
-    justNow < 30 * 60000 ? h('button.link.small', { type: 'button', onclick: () => { S.fasts = S.fasts.filter(x => x !== f.rec); commit(); toast('已取消這次斷食'); } }, '按錯了，取消') : null);
+    justNow < 30 * 60000 ? h('button.link.small', { type: 'button', onclick: () => { S.fasts = S.fasts.filter(x => x !== f.rec); commit(); fastTimer('end').then(m => toast('已取消這次斷食' + (m ? '；' + m : ''))); } }, '按錯了，取消') : null);
   card.append(row2);
   card.append(stagesFold(f.hours, shift, st.index));
   return card;
@@ -292,7 +293,7 @@ function endFastBtn(f) {
       if (n) S.meals.sort((a, b) => a.at < b.at ? -1 : a.at > b.at ? 1 : 0);
       commit();
       gears();
-      if (n) toast('先存的餐點已記為現在吃');
+      fastTimer('end').then(m => { if (m || n) toast([n ? '先存的餐點已記為現在吃' : '', m].filter(Boolean).join('；')); });
     },
   }, '結束斷食');
 }
@@ -335,6 +336,7 @@ function startBtn() {
       S.fasts.push({ id: uid('f'), start: new Date().toISOString(), end: null, at: Date.now(), mode: S.prefs.fastMode || 'PURE_DYNAMIC' });
       commit();
       timeStop();
+      fastTimer('start').then(m => { if (m) toast(m); });
     },
   }, '開始斷食');
 }
@@ -360,6 +362,7 @@ export function openFastEditor(rec, onDone, overlap = false) {
     drawLen();
     const save = h('button.pri.full', { type: 'button', style: { marginTop: '12px' } }, '儲存');
     save.onclick = () => {
+      const oldGoal = rec && rec.goalEnd, oldStart = rec && rec.start;
       const s = new Date(sIn.value).getTime(), e = new Date(eIn.value).getTime();
       if (isOpen) {
         const err = checkFast(S.fasts, s, null, Date.now(), rec.id);
@@ -373,7 +376,9 @@ export function openFastEditor(rec, onDone, overlap = false) {
         if (rec) { rec.start = new Date(s).toISOString(); rec.end = new Date(e).toISOString(); delete rec.endedBy; }
         else S.fasts.push({ id: uid('f'), start: new Date(s).toISOString(), end: new Date(e).toISOString(), mode: S.prefs.fastMode || 'PURE_DYNAMIC', added: true });
       }
+      const endChanged = isOpen && (rec.goalEnd || '') !== (oldGoal || '');
       commit(); closeSheet(); toast(rec ? '已修改' : '已補記');
+      if (endChanged || (isOpen && rec.start !== oldStart)) fastTimer('edit').then(m => { if (m) setTimeout(() => toast(m), 1800); });
     };
     sh.append(h('label', { style: { marginTop: 0 } }, '開始時間'), sIn, h('label', isOpen ? '預計結束（只用來倒數）' : '結束時間'), eIn, lens, save);
     if (isOpen && rec.goalEnd) sh.append(h('button.link.small', { type: 'button', onclick: () => { delete rec.goalEnd; commit(); closeSheet(); toast('預計結束改回照目標算'); } }, '預計結束改回照目標算'));

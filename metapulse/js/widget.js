@@ -77,6 +77,25 @@ export async function apkVersion() {
   return apkVer;
 }
 export const liveApk = v => { const [a, b] = String(v || '0').split('.').map(Number); return a > 1 || (a === 1 && b >= 5); };
+export const timerApk = v => { const [a, b] = String(v || '0').split('.').map(Number); return a > 1 || (a === 1 && b >= 6); };
+
+/** 斷食開手機時鐘的計時器（APK 1.6.0 起、設定裡打開才會做）：vivo 的時鐘計時器會上原子島和通知最上面。
+ *  start＝按「開始斷食」、edit＝改了預計結束（重開一個）、end＝結束斷食。舊的計時器程式關不掉，只能提醒使用者自己關。
+ *  回傳要顯示的提示（沒有就是空字串） */
+export const TIMER_LABEL = 'MetaPulse 斷食', TIMER_MAX = 24 * 3600;
+export async function fastTimer(kind) {
+  if (!(L.notify && L.notify.sysTimer)) return '';
+  const P = capPlugin('MapleWidget');
+  if (!P || !P.setTimer || !timerApk(await apkVersion())) return '';
+  if (kind === 'end') return '記得到時鐘把「' + TIMER_LABEL + '」計時器關掉';
+  const fi = fastInfo();
+  if (!fi.fasting || !fi.end) return '';
+  const sec = Math.round((fi.end - Date.now()) / 1000);
+  if (sec < 60) return '';
+  try { await P.setTimer({ seconds: Math.min(sec, TIMER_MAX), label: TIMER_LABEL }); } catch (e) { return '時鐘計時器開不起來'; }
+  const over = sec > TIMER_MAX ? '計時器最多 24 小時，先設 24 小時' : '';
+  return kind === 'edit' ? '已重開計時器，舊的請到時鐘按 ✕' + (over ? '；' + over : '') : over;
+}
 
 let timer = null;
 export function updateWidgetSoon() { clearTimeout(timer); timer = setTimeout(() => { updateWidget().catch(() => {}); }, 1200); }
