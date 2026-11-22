@@ -81,6 +81,10 @@ export async function schedule() {
     list.push({ id: FAST_BASE + i, ...n, schedule: { at: new Date(x.at), allowWhileIdle: true } });
   });
   if (list.length) await P.schedule({ notifications: list });
+  // 今天已經按「已服用」的藥：把已經跳出來的「該吃藥了」通知收掉（排程不動，明天照常提醒）
+  const today = localDate(new Date());
+  const done = meds.slice(0, 50).map((m, i) => ((S.medLog || []).some(x => x.med === m.id && x.date === today) ? { id: MED_BASE + i } : null)).filter(Boolean);
+  if (done.length && P.removeDeliveredNotifications) { try { await P.removeDeliveredNotifications({ notifications: done }); } catch (e) { /* 舊版外掛 */ } }
   scheduled = list.length > 0;
   return { ok: true, count: list.length };
 }
