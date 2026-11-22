@@ -25,6 +25,9 @@ async function allowed(P) {
   } catch (e) { return false; }
 }
 
+/** 要求通知權限（常駐提醒卡開啟時用） */
+export async function askNotify() { const P = plugin(); return P ? allowed(P) : false; }
+
 /** 通知狀態（設定頁顯示用）：web＝網頁版；display＝是否允許通知；exact＝是否允許準時鬧鐘（Android 12 以上） */
 export async function notifyStatus() {
   const P = plugin(); if (!P) return { web: true };

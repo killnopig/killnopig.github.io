@@ -1,8 +1,11 @@
 /* 桌面小工具（只有 MetaPulse app）：把斷食開始、預計結束、各階段時間與熱血雞湯交給原生小工具
  * 原生端（MapleWidget 外掛）存進 SharedPreferences，小工具自己倒數，不必開 app */
-import { S } from './state.js';
+import { S, L } from './state.js';
 import { capPlugin } from './health.js';
-import { fastInfo } from './ui/fasting.js';
+import { fastInfo, eatUntil } from './ui/fasting.js';
+import { liveTimeline } from './live.js';
+import { nextDose } from './records.js';
+import { localDate } from './points.js';
 import { FASTING } from './config.js';
 import { stageStarts } from './fasting.js';
 import { WIDGET_MESSAGES, WIDGET_EATING } from './messages.js';
@@ -17,8 +20,9 @@ export const fastApk = v => { const [a, b] = String(v || '0').split('.').map(Num
 const H = 3600000;
 export function widgetData(now = Date.now()) {
   const fi = fastInfo(now);
+  const live = liveData(fi, now);
   // termBar：終端機小工具進度條的符號（滿／空／前後括號），改這裡就好，不用重裝 APK
-  const base = { msgs: WIDGET_MESSAGES, eating: WIDGET_EATING, updated: now, termBar: { full: '■', empty: '□', open: '[', close: ']' } };
+  const base = { ...live, msgs: WIDGET_MESSAGES, eating: WIDGET_EATING, updated: now, termBar: { full: '■', empty: '□', open: '[', close: ']' } };
   if (!fi.start) return { ...base, fasting: false, start: 0 };
   const starts = stageStarts(fi.shift || 0).map(h => fi.start + h * H);
   // 進食中：中間進度條的位置換成跑步小人（APK 1.2.0 起才會顯示；舊 APK 不看這個欄位）
@@ -33,6 +37,19 @@ export function widgetData(now = Date.now()) {
   return { ...base, fasting: !!fi.fasting, start: fi.start, end: fi.end || 0, ...(run ? { run } : {}),
     stages: starts.map((at, i) => ({ at, text: FASTING.stages[i].short + '｜' + FASTING.stages[i].fuel })),
     timeline: timeline(fi, starts, now, step) };
+}
+
+/** 常駐提醒卡（APK 1.5.0 起）：liveOn＝設定頁的開關（只存在這支手機）；live＝接下來 24 小時每段要顯示的內容 */
+export function liveData(fi, now = Date.now()) {
+  if (!(L.notify && L.notify.live)) return { liveOn: false };
+  const today = localDate(new Date(now));
+  const meds = (S.prefs.meds || []).filter(m => m && m.name).map(m => ({ name: m.name, time: m.time, taken: (S.medLog || []).some(x => x.med === m.id && x.date === today) }));
+  const nd = nextDose(S.entries || [], today);
+  const dose = nd && nd.left <= 0 ? { today: true, site: nd.site, remindAt: L.notify.doseRemindAt || '09:00' } : null;
+  const starts = fi.start ? stageStarts(fi.shift || 0).map(h => fi.start + h * H) : [];
+  const stages = starts.map((at, i) => ({ at, text: '身體現在：' + FASTING.stages[i].short + '｜' + FASTING.stages[i].fuel }));
+  const live = liveTimeline({ fast: { start: fi.start || 0, end: fi.end || 0, fasting: !!fi.fasting }, eatUntil: fi.fasting ? 0 : eatUntil(now), stages, meds, dose }, now);
+  return { liveOn: true, live };
 }
 
 /** 一格 STEP 的文字（燃料那一行＋熱血雞湯）：2 分鐘一格排到斷食第 30 小時；30 秒一格排接下來 6 小時（資料才不會太大，
@@ -50,6 +67,16 @@ export function timeline(fi, starts, now, STEP = OLD_STEP) {
   }
   return { t0, step: STEP, fuel, msg };
 }
+
+/** APK 的版本（問一次記住）；常駐提醒卡要 1.5.0 起 */
+let apkVer = null;
+export async function apkVersion() {
+  const P = capPlugin('MapleWidget');
+  if (!P || !P.version) return '';
+  if (apkVer === null) { try { apkVer = (await P.version()).version || ''; } catch (e) { apkVer = ''; } }
+  return apkVer;
+}
+export const liveApk = v => { const [a, b] = String(v || '0').split('.').map(Number); return a > 1 || (a === 1 && b >= 5); };
 
 let timer = null;
 export function updateWidgetSoon() { clearTimeout(timer); timer = setTimeout(() => { updateWidget().catch(() => {}); }, 1200); }

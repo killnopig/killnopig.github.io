@@ -122,6 +122,14 @@ export function fastInfo(now = Date.now()) {
   return { fasting: f.fasting, reached: f.fasting && e.left <= 0, hours: f.hours, left: e.left, start: f.start, end: e.end, shift: mealShift(f.lastMeal) };
 }
 
+/** 進食中：進食時間到幾點（照方案；斷食中或還沒有記錄回傳 0）。常駐提醒卡用 */
+export function eatUntil(now = Date.now()) {
+  const mode = S.prefs.fastMode || 'PURE_DYNAMIC';
+  const f = currentFast(S.meals, S.fasts, now);
+  if (!f.start || f.fasting) return 0;
+  return f.start + eatHoursOf(mode, targetOf(mode, f, now)) * H;
+}
+
 /** 進食窗口可以吃幾小時（依模式與目標：16:8 → 8 小時） */
 function eatHoursOf(mode, tg) {
   if (mode === 'STRICT_MANUAL') return eatingWindow(S.prefs.strictPlan || '16:8', S.prefs.windowStart || '12:00').eatHours;

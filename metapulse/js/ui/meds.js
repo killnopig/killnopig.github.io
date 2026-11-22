@@ -2,7 +2,8 @@
 import { S, L, commit, commitLocal, uid } from '../state.js';
 import { h, toast, section, sumLine, tip, timePick, fold, openSheet, closeSheet, startClosed } from './common.js';
 import { localDate, addDays } from '../points.js';
-import { canNotify, schedule, notifyStatus, openExactSetting, testNotify } from '../notify.js';
+import { canNotify, schedule, notifyStatus, openExactSetting, testNotify, askNotify } from '../notify.js';
+import { apkVersion, liveApk, updateWidgetSoon } from '../widget.js';
 
 const minOf = t => +t.slice(0, 2) * 60 + +t.slice(3, 5);
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
@@ -170,18 +171,27 @@ export function medsSettings() {
   add.onclick = () => { meds().push({ id: uid('rx'), name: '降血糖藥', time: '19:00', since: localDate(new Date()) }); commit(); draw(); resched(); };
   // 斷食與注射通知（只有 MetaPulse app 會發）
   const N = (L.notify = L.notify || {});
-  const saveN = () => { commitLocal(); resched(); };
+  const saveN = () => { commitLocal(); resched(); updateWidgetSoon(); };
   const freq = h('select', h('option', { value: 'phase' }, '換階段和達標時'), h('option', { value: 'hourly' }, '每小時'), h('option', { value: 'off' }, '不通知'));
   freq.value = N.freq || 'phase'; freq.onchange = () => { N.freq = freq.value; saveN(); };
   // 一列一個設定：左邊名稱、右邊選項（不用滑很久）
   const nrow = (label, ...ctl) => h('div.row', { style: { gap: '8px', marginTop: '6px' } }, h('span.small.one', { style: { flex: '0 0 5.5em' } }, label), ...ctl);
   freq.style.flex = '1 1 0'; freq.style.minWidth = '0';
+  // 常駐提醒卡（APK 1.5.0 起才有）：通知最上面固定一張，顯示現在該做什麼
+  const liveRow = h('div');
+  apkVersion().then(v => {
+    if (!liveApk(v)) return;
+    const sel = h('select', { style: { flex: '1 1 0', minWidth: '0' } }, h('option', { value: '' }, '關閉'), h('option', { value: '1' }, '開啟'));
+    sel.value = N.live ? '1' : '';
+    sel.onchange = async () => { N.live = !!sel.value || undefined; commitLocal(); if (N.live && !(await askNotify())) toast('手機沒有允許 MetaPulse 發通知', true); updateWidgetSoon(); toast(N.live ? '已開啟，通知最上面會出現常駐卡' : '已關閉常駐卡'); };
+    liveRow.append(nrow('常駐提醒卡', sel));
+  });
   const notifyBox = h('div', { style: { marginTop: '10px', paddingTop: '6px', borderTop: '1px solid var(--ln)' } },
     nrow('斷食通知', freq),
     h('div.row', { style: { gap: '4px', marginTop: '6px' } }, h('span.small', { style: { flex: '0 0 auto', marginRight: '4px' } }, '不打擾'), timePick(N.quietStart || '23:00', v => { N.quietStart = v; saveN(); }), h('span.small.mu', '到'),
       timePick(N.quietEnd || '07:00', v => { N.quietEnd = v; saveN(); })),
-    nrow('注射日提醒', timePick(N.doseRemindAt || '09:00', v => { N.doseRemindAt = v; saveN(); })));
+    nrow('注射日提醒', timePick(N.doseRemindAt || '09:00', v => { N.doseRemindAt = v; saveN(); })), liveRow);
   draw(); drawSum(); drawStatus();
   return section('meds', '提醒與通知', sumEl, [list, add, msg, actions, notifyBox,
-    tip('勾「這是降血糖藥」：斷食中到了吃藥時間、或斷食超過 16 小時，斷食卡會提醒留意低血糖。還沒勾「空腹吃問過醫師了」時，會多提醒一句去問醫師或藥師。', h('br'), '到了吃藥時間，「飲食運動」頁最上面會出現服藥卡（往下捲也會貼在頂端），吃完按「已服用」。服藥卡下面的「服藥記錄」是月曆，每一天都可以點開修改。在 MetaPulse app 裡，時間到會跳手機通知（第一次會問你要不要允許通知）；網頁版不會通知，只會顯示卡片。斷食通知：在每個斷食階段開始和達標時通知（或每小時一次），「晚上不打擾」時段內不發。注射日當天在設定的時間提醒一次。這只是提醒，吃藥的方式請照醫師或藥師的指示。')]);
+    tip('勾「這是降血糖藥」：斷食中到了吃藥時間、或斷食超過 16 小時，斷食卡會提醒留意低血糖。還沒勾「空腹吃問過醫師了」時，會多提醒一句去問醫師或藥師。', h('br'), '到了吃藥時間，「飲食運動」頁最上面會出現服藥卡（往下捲也會貼在頂端），吃完按「已服用」。服藥卡下面的「服藥記錄」是月曆，每一天都可以點開修改。在 MetaPulse app 裡，時間到會跳手機通知（第一次會問你要不要允許通知）；網頁版不會通知，只會顯示卡片。斷食通知：在每個斷食階段開始和達標時通知（或每小時一次），「晚上不打擾」時段內不發。注射日當天在設定的時間提醒一次。「常駐提醒卡」：通知最上面固定一張卡，顯示現在該做什麼（斷食還剩多久、該斷食或可以吃了、快到吃藥時間、今天要注射），不會響。這只是提醒，吃藥的方式請照醫師或藥師的指示。')]);
 }
