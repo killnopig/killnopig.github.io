@@ -28,12 +28,12 @@ export function exerciseCard(bare = false) {
     h('div.grow', h('div.one', NAME[x.type] || '運動'), h('div.mu.tiny.num', hm(x.at) + ' · ' + x.minutes + ' 分鐘 · ' + x.kcal + ' 大卡')),
     h('span.pts.num', { style: { color: 'var(--ac-tx)' } }, '+' + fmtPts(pts(x.kcal)), h('span.mu.tiny', ' 點'))));
   if (watch) list.append(h('div.mu.tiny.one', { style: { marginTop: '6px' } }, 'Health Connect 自動匯入：今天 ' + Math.round(watch) + ' 大卡，+' + fmtPts(pts(watch)) + ' 點'));
-  if (!mine.length && !watch) list.append(h('div.empty', '打球、走路都可以記，消耗會換成可以多吃的點數'));
-  if ((S.exercise || []).length || (S.activity || []).length) list.append(h('button.link.small', { type: 'button', style: { marginTop: '6px' }, onclick: () => openExerciseLog() }, '運動記錄 ›'));
+  const hint = !mine.length && !watch ? h('div.mu.small.one', '打球、走路都能記，換成可多吃的點數') : null;
+  const logLink = (S.exercise || []).length || (S.activity || []).length ? h('button.link.small', { type: 'button', onclick: () => openExerciseLog() }, '運動記錄 ›') : null;
   const sc = strengthCount(S.exercise, today), goal = SAFETY.strengthGoal;
   const head = h('div.row.between.grow', { style: { gap: '10px' } }, h('div.small.one', { style: { fontWeight: 600 } }, sum),
     h('span.tiny.num', { style: { flex: '0 0 auto', color: sc >= goal ? 'var(--ac-tx)' : 'var(--mu)', fontWeight: 600 } }, '肌力 ' + sc + '/' + goal));
-  return h(bare ? 'div' : 'div.card', bare ? { style: { marginTop: '6px' } } : null, fold('ex-card', head, [list, tip('「肌力 1/2」＝近 7 天做了幾次肌力訓練（重量訓練、彈力帶、徒手深蹲或伏地挺身），建議每週至少 2 次，減重時比較能保住肌肉。記運動時選這幾種就會算進去。', h('br'), '加回點數＝消耗熱量 × 0.75 ÷ 40（手機 App 和估算常常算多，所以打 75 折）。消耗用「運動強度（MET）× 體重 × 時間」估算，估得不準可以直接改大卡數。Health Connect 已經自動匯入的運動，不要再手動記一次，不然會算兩次。')]));
+  return h(bare ? 'div' : 'div.card', bare ? { style: { marginTop: '6px' } } : null, fold('ex-card', head, [list, h('div.tiprow', logLink || hint, tip('「肌力 1/2」＝近 7 天做了幾次肌力訓練（重量訓練、彈力帶、徒手深蹲或伏地挺身），建議每週至少 2 次，減重時比較能保住肌肉。記運動時選這幾種就會算進去。', h('br'), '加回點數＝消耗熱量 × 0.75 ÷ 40（手機 App 和估算常常算多，所以打 75 折）。消耗用「運動強度（MET）× 體重 × 時間」估算，估得不準可以直接改大卡數。Health Connect 已經自動匯入的運動，不要再手動記一次，不然會算兩次。'))]));
 }
 
 /** 記運動／修改運動 */

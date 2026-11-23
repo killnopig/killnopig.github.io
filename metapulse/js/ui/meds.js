@@ -24,8 +24,8 @@ export function medCard() {
   const list = medStatus();
   if (!list.length) return null;
   const urgent = list.some(x => x.due);
-  const card = h('div.card.med', urgent ? { style: { borderColor: 'var(--warn)', borderWidth: '2px', position: 'sticky', top: document.documentElement.classList.contains('native') ? '36px' : '6px', zIndex: 6, boxShadow: '0 4px 14px rgba(0,0,0,.12)' } } : null);
-  card.append(h('h2', { style: { margin: '0 0 4px' } }, urgent ? '該吃藥了' : '今天的藥'));
+  const card = !urgent ? h('div.medrow') : h('div.card.med', { style: { borderColor: 'var(--warn)', borderWidth: '2px', position: 'sticky', top: document.documentElement.classList.contains('native') ? '36px' : '6px', zIndex: 6, boxShadow: '0 4px 14px rgba(0,0,0,.12)' } });
+  if (urgent) card.append(h('h2', { style: { margin: '0 0 4px' } }, '該吃藥了'));
   for (const x of list) {
     const m = x.med;
     if (x.log) {
@@ -44,7 +44,7 @@ export function medCard() {
         commit(); toast('✓ 已記錄：' + m.name);
       };
       card.append(h('div.row.between', { style: { padding: '3px 0', gap: '10px' } },
-        h('span.one', { style: { fontWeight: x.due ? 650 : 400, color: x.late ? 'var(--warn)' : '' } }, m.time + ' ' + m.name + (x.late ? '・還沒吃' : '')), take));
+        h('span.one' + (urgent ? '' : '.small'), { style: { fontWeight: x.due ? 650 : 400, color: x.late ? 'var(--warn)' : '' } }, (urgent ? '' : '吃藥 ') + m.time + ' ' + m.name + (x.late ? '・還沒吃' : '')), take));
     }
   }
   startClosed('med-cal');   // 服藥日曆每次打開 app 都先收起來，要看再點開

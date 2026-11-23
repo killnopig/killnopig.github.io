@@ -151,8 +151,8 @@ export function renderToday(root) {
   if (b.ok) top.append(exerciseCard(true));
   const adv = latestAdviceCard(true);
   if (adv) top.append(adv);
+  if (mc && !mc.urgent) top.append(mc.card);   // 不急的藥：放在這張卡底部一列，不另開卡
   root.append(top);
-  if (mc && !mc.urgent) root.append(mc.card);
 
   /* ---- ③ 記錄：近 7 天一行＋「斷食與飲食記錄」入口（以前的列表不放在這頁） ---- */
   const past = h('div.card.tight');
@@ -163,7 +163,7 @@ export function renderToday(root) {
     if (cands.length) past.append(h('div.notice', { style: { marginTop: '6px', cursor: 'pointer' }, onclick: () => openGuessSheet(cands) },
       h('div.small.one', { style: { fontWeight: 600 } }, '以前有 ' + cands.length + ' 段斷食是猜的，點這裡勾選 ›')));
   }
-  past.append(h('button.ghost.full', { type: 'button', style: { marginTop: wk ? '8px' : 0 }, onclick: () => openJournal() }, '斷食與飲食記錄 ›'));
+  if (!wk) past.append(h('button.ghost.full', { type: 'button', style: { marginTop: 0 }, onclick: () => openJournal() }, '斷食與飲食記錄 ›'));   // 有週報時不放：斷食卡上已經有這個連結
   root.append(past);
   showAllMeals = false; // 下次重畫回到只顯示最近幾筆
 }

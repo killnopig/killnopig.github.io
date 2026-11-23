@@ -107,7 +107,7 @@ function fastRing(hours, totalH, shift, stIndex, center) {
   // 目前位置
   const [cx, cy] = pt(R, deg(done));
   el('circle', { cx, cy, r: 9, fill: 'var(--card)', stroke: cols[stIndex], 'stroke-width': 4 });
-  const wrap = h('div', { style: { position: 'relative', width: '200px', maxWidth: '64vw', margin: '6px auto 0' } });
+  const wrap = h('div', { style: { position: 'relative', width: '148px', flex: '0 0 148px' } });
   svg.style.width = '100%'; svg.style.height = 'auto'; svg.style.display = 'block';
   wrap.append(svg, h('div', { style: { position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', lineHeight: 1.15 } }, ...center));
   return wrap;
@@ -174,14 +174,17 @@ export function fastingCard() {
   const shortStage = FASTING.stages[st.index].short || st.text.split('，')[0];
   card.append(h('div.row.between', h('h2', { style: { margin: 0 } }, '斷食中'), h('span.mu.small.num', tg.label)));
   const totalH = (e.end - f.start) / H;
-  card.append(fastRing(f.hours, totalH, shift, st.index, [
-    h('span.small', { style: { fontWeight: 600, color: over ? 'var(--warn)' : 'var(--mu)' } }, over ? '已超過' : '還剩'),
-    h('b.num', { style: { fontSize: '36px', color: over ? 'var(--warn)' : 'var(--tx)' } }, clock(e.left)),
-    h('b.num', { style: { fontSize: '17px', color: 'var(--ac-tx)', marginTop: '2px' } }, pct + '%'),
-    h('span.mu.tiny', { style: { marginTop: '4px' } }, '已斷食 ' + clock(f.hours))]));
-  card.append(h('div.mu.small.num', { style: { textAlign: 'center', marginTop: '6px' } }, hm(f.start) + ' 開始 → ' + hm(e.end) + ' 預計' + (e.custom ? '（自己設的）' : '')),
-    h('div.small.one', { style: { marginTop: '8px', fontWeight: 650 } }, '身體現在：' + shortStage),
-    h('div.small.one.ln-fuel', { 'data-i': st.index, 'data-ss': f.start + stageStarts(shift)[st.index] * H, 'data-s': f.start, style: { fontWeight: 600 } }, fuelText(st.index, f.start + stageStarts(shift)[st.index] * H, now, f.start)),
+  // 圓環放左邊、時間和身體狀態放右邊，用滿整個寬度（v0.9.72）
+  const ringEl = fastRing(f.hours, totalH, shift, st.index, [
+    h('span.tiny', { style: { fontWeight: 600, color: over ? 'var(--warn)' : 'var(--mu)' } }, over ? '已超過' : '還剩'),
+    h('b.num', { style: { fontSize: '30px', color: over ? 'var(--warn)' : 'var(--tx)' } }, clock(e.left)),
+    h('b.num', { style: { fontSize: '15px', color: 'var(--ac-tx)', marginTop: '1px' } }, pct + '%')]);
+  card.append(h('div.row', { style: { gap: '14px', marginTop: '4px', alignItems: 'center' } }, ringEl,
+    h('div.grow', { style: { lineHeight: 1.35 } },
+      h('div.mu.tiny', '已斷食'), h('div.num', { style: { fontWeight: 650 } }, clock(f.hours)),
+      h('div.mu.tiny', { style: { marginTop: '6px' } }, '開始 → 預計' + (e.custom ? '（自己設的）' : '')), h('div.num.small', hm(f.start) + ' → ' + hm(e.end)),
+      h('div.mu.tiny', { style: { marginTop: '6px' } }, '身體現在'), h('div.small', { style: { fontWeight: 650 } }, shortStage))));
+  card.append(h('div.small.one.ln-fuel', { 'data-i': st.index, 'data-ss': f.start + stageStarts(shift)[st.index] * H, 'data-s': f.start, style: { fontWeight: 600, marginTop: '6px' } }, fuelText(st.index, f.start + stageStarts(shift)[st.index] * H, now, f.start)),
     h('div.two.ln-soup', { 'data-s': f.start, style: { margin: '8px 0 2px', color: 'var(--ac-tx)', fontWeight: 650 } }, soupText(now, f.start)));   // 雞湯：每 30 秒換一句、整次不重複，最多兩行
   const hy = hypoAlert(P.meds, { fasting: true, start: f.start, hours: f.hours }, now);
   if (hy) card.append(h('div.notice', { style: { marginTop: '8px', padding: '6px 10px' } },
