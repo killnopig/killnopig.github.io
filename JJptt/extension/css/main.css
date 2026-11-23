@@ -1622,6 +1622,8 @@ body.jj-mobile {
   --id: #ffd54f; --down: #ef5350;
   --r-pill: 999px; --r-lg: 14px; --r-md: 10px; --r-xs: 6px;
   --f-xs: 12px; --f-sm: 14px; --f-md: 15px; --f-lg: 17px; --f-xl: 20px; --f-2xl: 22px;
+  /* JJ Sans: only the app has it (mobile/build.js, @font-face); 400 and 700 */
+  --jjm-font: "JJ Sans", "Noto Sans TC", "Roboto", sans-serif;
 }
 .jjm { display: none; }
 body.jj-mobile #BBSWindow, body.jj-mobile #connectionAlert, body.jj-mobile #sideMenus,
@@ -1630,10 +1632,11 @@ body.jj-mobile { background: #111; overflow: hidden; }
 body.jj-mobile .jjm {
   --jjm-fs: 17px;
   position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--bg); color: var(--text);
-  font-family: -apple-system, "Noto Sans TC", "PingFang TC", "Roboto", sans-serif;
+  font-family: var(--jjm-font);
   -webkit-tap-highlight-color: transparent;
 }
 .jjm button { font: inherit; color: inherit; background: none; border: 0; padding: 0; text-align: left; }
+.jjm input, .jjm textarea, .jjm select, .jjm-sheet input, .jjm-sheet textarea, .jjm-sheet select { font-family: var(--jjm-font); }
 
 /* top bar */
 .jjm-bar {
@@ -1950,7 +1953,7 @@ body.jj-mobile .jjm-fail-btn {
 .jjm-sheet {
   width: 100%; box-sizing: border-box; max-height: 85vh; overflow-y: auto;
   padding: 8px 16px calc(18px + env(safe-area-inset-bottom)); border-radius: var(--r-lg) var(--r-lg) 0 0;
-  background: var(--sheet); color: var(--text); font-family: -apple-system, "Noto Sans TC", "Roboto", sans-serif;
+  background: var(--sheet); color: var(--text); font-family: var(--jjm-font);
 }
 .jjm-sheet-grip { width: 40px; height: 5px; border-radius: var(--r-pill); background: #444; margin: 4px auto 10px; }
 .jjm-sheet-title { font-size: var(--f-xl); font-weight: 700; padding: 4px 4px 12px; }
@@ -2173,3 +2176,4 @@ body.jj-mobile .jjm-load-time {
   opacity: .8; pointer-events: none;
 }
 body.jj-mobile .jjm-load-time.jjm-slow { color: var(--warn); }
+.jjm-license { white-space: pre-wrap; font-size: var(--f-xs); line-height: 1.5; color: var(--sub); padding-bottom: 8px; }

@@ -249,9 +249,24 @@ JJMobile.prototype.renderSettings = function(screen) {
   if (typeof JJPTT_NOTICE !== 'undefined') {
     ab.appendChild(this.setRow('使用聲明', '有必要時會多開連線加快速度…', function() { self.noticeSheet(true); }));
   }
+  ab.appendChild(this.setRow('字型：JJ Sans（Inter＋Noto Sans JP）', 'SIL Open Font License 1.1', function() {
+    self.fontLicenseSheet();
+  }));
   ab.appendChild(this.setRow('原始碼與回報問題', 'GitHub', function() {
     window.open('https://github.com/JJptt1980/JJptt', '_blank');
   }));
+};
+
+// the font's license, full text (mobile/build.js puts it in the app)
+JJMobile.prototype.fontLicenseSheet = function() {
+  var box = JJMobile.el('div', 'jjm-license', '讀取中…');
+  this.showSheet('字型授權', box);
+  fetch('jjsans/JJSans-OFL.txt').then(function(r) {
+    if (!r.ok) throw new Error(r.status);
+    return r.text();
+  }).then(function(t) { box.textContent = t; }, function() {
+    box.textContent = 'JJ Sans 以 SIL Open Font License 1.1 授權（https://openfontlicense.org）。';
+  });
 };
 
 // ---- 版面: sub-tabs, each with a live demo on top -------------------------------------
