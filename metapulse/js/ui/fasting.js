@@ -4,7 +4,7 @@ import { h, fold, pills, toast, tip, info3, timePick, openSheet, closeSheet } fr
 import { FASTING } from '../config.js';
 import { OMAD_DONE } from '../messages.js';
 import { fuelText, eatingText, soupText } from '../lines.js';
-import { hybridWeek, hybridCfg, hybridDaysOf, HYBRID_CHOICES, currentFast, openFast, checkFast, periods, mergeFasts, mergeTwoFasts, fastsBetween, targetHours, fastEnd, eatPending, pendingMeals, mealShift, stageAt, stageStarts, hybridSuggestion, eatingWindow, hm, dur } from '../fasting.js';
+import { hybridWeek, hybridCfg, hybridDaysOf, HYBRID_CHOICES, currentFast, openFast, checkFast, periods, mergeFasts, mergeTwoFasts, fastsBetween, targetHours, fastEnd, eatPending, pendingMeals, mealShift, stageAt, stageStarts, daySlices, hybridSuggestion, eatingWindow, hm, dur } from '../fasting.js';
 import { openAddMeal } from './addMeal.js';
 import { fastTimer } from '../widget.js';
 import { timeStop, gears } from './fx.js';
@@ -397,24 +397,70 @@ export function openFastEditor(rec, onDone, overlap = false) {
 
 /** 以前沒按按鈕的日子：用「兩餐之間」猜出來的斷食，勾選要留下的才變成記錄 */
 export function openGuessSheet(cands) {
+  const WD = '日一二三四五六';
+  const short = hrs => { const t = Math.round(hrs * 60), hh = Math.floor(t / 60), mm = t % 60; return hh + 'h' + (mm ? String(mm).padStart(2, '0') : ''); };
   openSheet(sh => {
     sh.append(h('div.sheet-h', h('b', '整理以前的斷食'), h('button.link', { type: 'button', onclick: () => closeSheet() }, '關閉')));
-    sh.append(h('div.small', { style: { lineHeight: 1.7 } }, '下面是用「兩餐之間」猜的，勾選真的有斷食的才會留下（12 小時以上的先幫你勾好）。留下的之後都可以再改。'));
-    const boxes = cands.map(c => {
-      const cb = h('input', { type: 'checkbox' }); cb.checked = c.hours >= 12;
-      return [c, cb, h('label.row', { style: { gap: '10px', margin: '8px 0 0', fontWeight: 400 } }, cb, h('span.small.num', md(localDate(new Date(c.start))) + ' ' + hm(c.start) + ' → ' + md(localDate(new Date(c.end))) + ' ' + hm(c.end) + '・' + dur(c.hours)))];
+    sh.append(tip('點長條勾選真的有斷食的', h('br'), '這些是用「兩餐之間」猜的：上一餐吃完到下一餐開始，中間隔 8 小時以上就列出來，12 小時以上的先幫你勾好。勾選的才會變成斷食記錄，之後都可以再改，也可以到「設定 → 斷食」整批復原。'));
+    const picked = cands.map(c => c.hours >= 12);
+    const keep = h('button.pri.full', { type: 'button', style: { marginTop: '12px' } });
+    const rows = [];
+    const draw = () => {
+      rows.forEach((paint, i) => paint(picked[i]));
+      const n = picked.filter(Boolean).length;
+      keep.textContent = n ? '留下 ' + n + ' 段' : '一段都沒勾';
+      keep.disabled = !n;
+    };
+    const quick = (label, fn) => h('button.ghost', { type: 'button', style: { padding: '3px 12px', fontSize: '13px', borderRadius: '99px' }, onclick: () => { cands.forEach((c, i) => { picked[i] = fn(c); }); draw(); } }, label);
+    sh.append(h('div.row', { style: { gap: '8px', margin: '10px 0 6px' } }, quick('12 小時以上全選', c => c.hours >= 12), quick('全不選', () => false)));
+    const grid = { display: 'grid', gridTemplateColumns: '46px 1fr', gap: '0 8px', alignItems: 'center' };
+    sh.append(h('div.mu.num', { style: { ...grid, fontSize: '11px' } }, h('span'),
+      h('div', { style: { display: 'flex', justifyContent: 'space-between' } }, ...[0, 6, 12, 18, 24].map(x => h('span', String(x))))));
+    const list = h('div', { style: { maxHeight: '52vh', overflowY: 'auto' } });
+    cands.forEach((c, i) => {
+      const sl = daySlices(c.start, c.end);
+      const main = sl.reduce((m, x) => (x.b - x.a > m.b - m.a ? x : m), sl[0]);
+      const bars = [];
+      const block = h('div', { role: 'checkbox', tabindex: 0, style: { cursor: 'pointer', padding: '6px 0', borderBottom: '1px solid var(--ln)' } });
+      for (const x of sl) {
+        const d = new Date(x.day0);
+        const bar = h('div', { style: { position: 'absolute', left: (x.a * 100) + '%', width: ((x.b - x.a) * 100) + '%', top: '3px', bottom: '3px', borderRadius: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, overflow: 'hidden', whiteSpace: 'nowrap', boxSizing: 'border-box' } });
+        bar.dataset.label = x === main ? short(c.hours) : '';
+        bars.push(bar);
+        const track = h('div', { style: { position: 'relative', height: '24px', background: 'var(--bg)', borderRadius: '6px' } }, bar);
+        const dot = t => h('span', { style: { position: 'absolute', left: 'calc(' + ((t - x.day0) / x.len * 100) + '% - 4px)', top: '8px', width: '8px', height: '8px', borderRadius: '50%', background: 'var(--warn)' } });
+        if (c.start >= x.day0 && c.start < x.day0 + x.len) track.append(dot(c.start));
+        if (c.end > x.day0 && c.end <= x.day0 + x.len) track.append(dot(c.end));
+        block.append(h('div', { style: { ...grid, margin: '2px 0' } }, h('span.small.num', { style: { lineHeight: 1.2 } }, (d.getMonth() + 1) + '/' + d.getDate(), h('span.mu.tiny', ' 週' + WD[d.getDay()])), track));
+      }
+      block.append(h('div.mu.tiny.one.num', { style: { paddingLeft: '54px' } }, hm(c.start) + ' 吃完 → ' + hm(c.end) + ' 再吃・' + dur(c.hours)));
+      rows.push(on => {
+        block.setAttribute('aria-checked', on ? 'true' : 'false');
+        for (const b of bars) {
+          b.style.background = on ? 'var(--ac)' : 'transparent';
+          b.style.color = on ? '#fff' : 'var(--mu)';
+          b.style.border = on ? '0' : '1.5px dashed var(--mu)';
+          b.textContent = b.dataset.label ? (on ? '✓ ' : '') + b.dataset.label : '';
+        }
+      });
+      block.onclick = () => { picked[i] = !picked[i]; draw(); };
+      block.onkeydown = e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); block.onclick(); } };
+      list.append(block);
     });
-    const keep = h('button.pri.full', { type: 'button', style: { marginTop: '14px' } }, '留下勾選的');
+    sh.append(list);
+    sh.append(h('div.mu.tiny.one', { style: { marginTop: '6px' } }, h('span', { style: { color: 'var(--warn)' } }, '●'), ' 吃東西　',
+      h('span', { style: { color: 'var(--ac)' } }, '■'), ' 已勾（算斷食）　┅ 沒勾'));
     keep.onclick = () => {
       const ids = [];
-      for (const [c, cb] of boxes) if (cb.checked) { const id = uid('f'); ids.push(id); S.fasts.push({ id, start: new Date(c.start).toISOString(), end: new Date(c.end).toISOString(), mode: S.prefs.fastMode || 'PURE_DYNAMIC', guess: true }); }
+      cands.forEach((c, i) => { if (picked[i]) { const id = uid('f'); ids.push(id); S.fasts.push({ id, start: new Date(c.start).toISOString(), end: new Date(c.end).toISOString(), mode: S.prefs.fastMode || 'PURE_DYNAMIC', guess: true }); } });
       S.prefs.fastGuessDone = true;
       L.fastGuessUndo = ids; commitLocal(); commit(); closeSheet();
       toast('已留下 ' + ids.length + ' 段；可以到「設定 → 斷食」復原');
     };
     const none = h('button.ghost.full', { type: 'button', style: { marginTop: '8px' } }, '都不要');
     none.onclick = () => { S.prefs.fastGuessDone = true; L.fastGuessUndo = []; commitLocal(); commit(); closeSheet(); toast('好，以前的都不算斷食'); };
-    sh.append(...boxes.map(b => b[2]), keep, none);
+    sh.append(keep, none);
+    draw();
   });
 }
 

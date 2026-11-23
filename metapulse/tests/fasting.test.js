@@ -347,3 +347,13 @@ test('依施打週期可以自訂每天用哪一種', async () => {
   assert.equal(hybridSuggestion(es, '2026-11-25', {}, hybridCfg(prefs)).plan, '16:8', '超過第 7 天用預設');
   assert.deepEqual(hybridDaysOf({ hybridDays: ['20:4'] }), hybridDaysOf({}), '格式不對就用預設');
 });
+
+import { daySlices } from '../js/fasting.js';
+test('daySlices：跨夜的斷食切成兩天', () => {
+  const s = new Date(2026, 10, 20, 18).getTime(), e = new Date(2026, 10, 21, 10).getTime();
+  const out = daySlices(s, e);
+  assert.equal(out.length, 2);
+  assert.equal(out[0].a, 0.75); assert.equal(out[0].b, 1);
+  assert.equal(out[1].a, 0); assert.ok(Math.abs(out[1].b - 10 / 24) < 1e-9);
+  assert.equal(daySlices(e, s).length, 0);
+});

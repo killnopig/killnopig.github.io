@@ -420,3 +420,16 @@ export function hybridCfg(prefs = {}, cfg = FASTING) {
   const days = hybridDaysOf(prefs, cfg);
   return { ...cfg, hybrid: { ...cfg.hybrid, rules: days.map((plan, i) => ({ fromDay: i + 1, toDay: i + 1, plan })) } };
 }
+
+/** 把一段時間切成每天一段（畫時間軸用）：[{ day0（當天 0 點的毫秒）, len（當天毫秒數）, a, b }]，a、b 是當天 0–1 的位置 */
+export function daySlices(start, end) {
+  const out = [];
+  if (!(end > start)) return out;
+  const d = new Date(start); d.setHours(0, 0, 0, 0);
+  for (let day0 = d.getTime(); day0 < end;) {
+    const n = new Date(day0); n.setDate(n.getDate() + 1); const next = n.getTime(), len = next - day0;   // 用日期加一天，避開日光節約
+    out.push({ day0, len, a: Math.max(0, (start - day0) / len), b: Math.min(1, (end - day0) / len) });
+    day0 = next;
+  }
+  return out;
+}
