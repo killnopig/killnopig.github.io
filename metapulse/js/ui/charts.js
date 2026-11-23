@@ -13,6 +13,7 @@ import { ledgerSeries, activityByDay, allActivity } from '../ledger.js';
 import { longTermStatusCard, leanParts, longTermStatus, leanStatus, openJournal } from './fasting.js';
 import { leanSummary, longTermRows } from '../longterm.js';
 import { weightTrendLine, trendAt } from '../adaptive.js';
+import { theoryCard } from './theory.js';
 
 const CHART_URL = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
 let loading = null;
@@ -552,6 +553,7 @@ export async function renderCharts(root, keep = false) {
 async function drawCharts(root) {
   live.forEach(c => c && c.destroy()); live = [];
   root.textContent = '';
+  root.append(theoryCard());   // 瘦身循環：理論說明（預設收起）
   const any = S.entries.some(e => e.wt > 0 || e.dose > 0 || e.sys > 0 || e.fat > 0 || e.mus > 0 || e.vis > 0 || e.bage > 0 || e.bmr > 0)
     || S.meals.length || (S.exercise || []).length || (S.activity || []).length || (S.medLog || []).length;
   if (!any) {
