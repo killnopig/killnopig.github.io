@@ -1,0 +1,3 @@
+/* JJ Sans（SIL OFL 1.1，見 OFL.txt）：內文字型，缺的字由後面的系統字型補 */
+@font-face{font-family:"JJ Sans";src:url("jj-sans-400.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"JJ Sans";src:url("jj-sans-700.woff2") format("woff2");font-weight:700;font-display:swap}

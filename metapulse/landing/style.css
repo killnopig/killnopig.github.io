@@ -5,7 +5,7 @@
   --deep:#263D32;--deep-tx:#FAF8F2;--deep-mu:#C5D0C0;
   --shadow:0 1px 2px rgba(38,61,50,.04),0 10px 30px rgba(38,61,50,.08);
   --r:24px;--max:1120px;
-  --font:system-ui,-apple-system,"Noto Sans TC","PingFang TC",sans-serif;
+  --font:"JJ Sans",system-ui,-apple-system,"Noto Sans TC","PingFang TC",sans-serif;
   --serif:"Noto Serif TC","Noto Serif CJK TC","Songti TC",serif;
   color-scheme:light;
 }
