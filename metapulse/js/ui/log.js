@@ -143,10 +143,14 @@ export function doseCard(compact) {
   const ob = ds.length ? onBoard(es, dn(today), +S.profile.halfLife || 120) : 0;
   const body = h('div', { style: { marginTop: '10px' } },
     h('div.grid3',
-      stat('建議部位', nd.site),
+      stat(due ? '建議部位' : '下次部位', nd.site),
       stat('最近一次 · ' + md(nd.last.date), nd.last.dose, 'mg'),
       stat('預估體內藥量', r1(ob), 'mg')),
-    h('button' + (due ? '.pri' : '.ghost') + '.full', { type: 'button', onclick: () => openEntry({ type: 'dose' }) }, '記錄這次注射'),
+    // 還沒到注射日（已經記過這一次）：顯示「已記錄」，不要再叫使用者記一次；記錯了可以點「修改」
+    due ? h('button.pri.full', { type: 'button', onclick: () => openEntry({ type: 'dose' }) }, '記錄這次注射')
+      : h('div.row.between', { style: { marginTop: '10px', gap: '8px' } },
+        h('span.small.one', { style: { color: 'var(--ac-tx)', fontWeight: 600 } }, '✓ 已記錄・' + md(nd.last.date) + ' ' + nd.last.dose + ' mg' + (nd.last.site ? '・' + nd.last.site : '')),
+        h('button.link.small', { type: 'button', style: { flex: '0 0 auto' }, onclick: () => openEntry({ entry: nd.last }) }, '修改')),
     tip('體內藥量是用藥物半衰期粗略算的，只用來看變化，不是驗血結果，不能用來決定劑量。'));
   let force = false;
   if (due && L.doseForced !== nd.due + (compact ? 't' : 'l')) { force = true; L.doseForced = nd.due + (compact ? 't' : 'l'); commitLocal(); }
