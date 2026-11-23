@@ -4,7 +4,7 @@
 import { h, fold, openSheet, closeSheet } from './common.js';
 
 const STEPS = [
-  { id:'core', verb:'能量', lab:'平衡', kicker:'圓心・所有計算的根據', title:'能量平衡：吃進 − 用掉',
+  { id:'core', meme:'能量不會憑空消失，只會轉移到你的肚子', verb:'能量', lab:'平衡', kicker:'圓心・所有計算的根據', title:'能量平衡：吃進 − 用掉',
     lead:'體重長期怎麼變，取決於吃進的熱量和身體用掉的熱量差多少。這一圈的每一站，都是在把這兩個數字算得更準。',
     secs:[
       ['理論', '<p>熱力學第一定律：能量不會憑空出現或消失。吃進來沒用掉的，存起來（多半變成脂肪）；用掉比吃進多，就從存糧拿。</p>'],
@@ -14,7 +14,7 @@ const STEPS = [
     ],
     limit:'7,700 是平均值。瘦下來之後，身體用掉的熱量會跟著變少（代謝適應），所以第 6 站每天都用你最近 28 天的真實記錄重新校正。' },
 
-  { id:'budget', verb:'算', lab:'7 天存摺', kicker:'第 1 站', title:'算：每天預算和 7 天存摺',
+  { id:'budget', meme:'今天吃多不要慌，存摺幫你扛一扛', verb:'算', lab:'7 天存摺', kicker:'第 1 站', title:'算：每天預算和 7 天存摺',
     lead:'先估你一天用掉多少熱量，扣掉為了變瘦要少吃的量，換成點數。預算用一整週算，今天吃多一點，其他天省回來就好。',
     secs:[
       ['理論', '<p><b>基礎代謝</b>用 Mifflin-St Jeor 公式估，乘上活動量就是一天的總消耗。預算看一週，因為人本來就有吃多吃少的日子，有彈性的計畫比每天死守一個數字更容易持續。</p>'],
@@ -24,7 +24,7 @@ const STEPS = [
     ],
     limit:'公式對個人常常差 10～20%。所以要靠第 5、6 站用真實的體重變化來校正。' },
 
-  { id:'eat', verb:'吃', lab:'記錄餐點', kicker:'第 2 站', title:'吃：每一餐換成點數',
+  { id:'eat', meme:'蛋白質打折，油炸加價', verb:'吃', lab:'記錄餐點', kicker:'第 2 站', title:'吃：每一餐換成點數',
     lead:'拍照或打字記下來，App 依蛋白質、醣類、脂肪、纖維換算成點數。1 點大約 40 大卡。',
     secs:[
       ['理論', '<p><b>食物熱效應</b>（熱力學第二定律的日常版：轉換一定有損耗）：消化蛋白質本身就要花掉它約 20～30% 的熱量，醣類約 5～10%，脂肪 0～3%。蛋白質和纖維也比較耐餓。所以同樣的熱量，蛋白質算得比較便宜，脂肪算得比較貴。</p>'],
@@ -33,7 +33,7 @@ const STEPS = [
     ],
     limit:'照片和 AI 估的營養素常常差 10～20%。看的是一週的總和，不是單一餐準不準。' },
 
-  { id:'fast', verb:'等', lab:'斷食時間窗', kicker:'第 3 站', title:'等：斷食，讓能吃的時間變短',
+  { id:'fast', meme:'肝醣先下班，脂肪再上班', verb:'等', lab:'斷食時間窗', kicker:'第 3 站', title:'等：斷食，讓能吃的時間變短',
     lead:'按「開始斷食」和「結束斷食」，App 告訴你身體現在大概在用哪一種燃料。',
     secs:[
       ['理論', '<p><b>限時進食</b>。研究顯示，效果主要來自能吃的時間變短，自然就吃得比較少；其次是飯後血糖、作息比較規律。</p>'],
@@ -43,7 +43,7 @@ const STEPS = [
     ],
     limit:'斷食不會讓熱量消失，斷完大吃一樣會補回來。有吃降血糖藥的人，斷食前先問醫師。' },
 
-  { id:'move', verb:'動', lab:'運動與肌力', kicker:'第 4 站', title:'動：運動加回點數，肌力保住肌肉',
+  { id:'move', meme:'運動加分打七五折，手錶很會灌水', verb:'動', lab:'運動與肌力', kicker:'第 4 站', title:'動：運動加回點數，肌力保住肌肉',
     lead:'記運動，或讓 Health Connect 自動匯入。消耗會換成可以多吃的點數，但會打折。',
     secs:[
       ['理論', '<p>運動消耗用<b>運動強度（MET）× 體重 × 時間</b>估。手錶和估算通常算多，所以只加回 75%。減重時，肌力訓練是保住肌肉最有效的方法。</p>'],
@@ -53,7 +53,7 @@ const STEPS = [
     ],
     limit:'運動燒掉的比想像少，靠運動換吃的很容易吃回來，所以只算 75%。' },
 
-  { id:'weigh', verb:'量', lab:'趨勢體重', kicker:'第 5 站', title:'量：看趨勢體重，不看單日',
+  { id:'weigh', meme:'體重不會說謊，只是很愛灌水', verb:'量', lab:'趨勢體重', kicker:'第 5 站', title:'量：看趨勢體重，不看單日',
     lead:'每天的體重會因為水分、鹽分、排便差 1～2 kg，那些不是脂肪。App 把跳動抹平，畫成一條趨勢線。',
     secs:[
       ['理論', '<p><b>雙重指數平滑</b>：每天只往新的體重靠近一點，同時記住最近是往下還是往上走，所以穩定變瘦時線不會一直落後。</p>'],
@@ -63,7 +63,7 @@ const STEPS = [
     ],
     limit:'剛開始量的前兩週，趨勢線還在暖身，參考就好。' },
 
-  { id:'calib', verb:'校', lab:'反推消耗', kicker:'第 6 站', title:'校：用你的記錄反推真正的消耗',
+  { id:'calib', meme:'公式猜你，記錄懂你', verb:'校', lab:'反推消耗', kicker:'第 6 站', title:'校：用你的記錄反推真正的消耗',
     lead:'你吃了多少知道，體重怎麼變也知道，就能反過來算出你本人一天真正用掉多少。App 每天都用最近 28 天的記錄重算一次；你在設定選了「依我的記錄」，第 1 站的預算就會改用這個數字。',
     secs:[
       ['理論', '<p>把能量平衡<b>倒過來用</b>。這比任何公式都更貼近你本人，也能抓到瘦下來之後消耗變少（代謝適應）。</p>'],
@@ -95,7 +95,7 @@ function fill(sh, i) {
   const s = ALL[i], prev = (i - 1 + ALL.length) % ALL.length, next = (i + 1) % ALL.length;
   sh.querySelectorAll(':scope > :not(.grab)').forEach(x => x.remove());
   const body = h('div.th-body');
-  body.innerHTML = '<div class="th-kicker">' + s.kicker + '</div><p class="th-lead">' + s.lead + '</p>'
+  body.innerHTML = '<div class="th-kicker">' + s.kicker + '</div>' + (s.meme ? '<p class="th-meme">「' + s.meme + '」</p>' : '') + '<p class="th-lead">' + s.lead + '</p>'
     + s.secs.map(([t, b]) => '<div class="th-sec"><h3>' + t + '</h3>' + b + '</div>').join('')
     + '<div class="th-sec"><h3>限制</h3><div class="th-limit">' + s.limit + '</div></div>';
   sh.append(h('div.sheet-h', h('b.one', s.title), h('button.link', { type: 'button', onclick: () => closeSheet() }, '關閉')), body,
@@ -110,6 +110,7 @@ export function theoryCard() {
   const chips = h('div.th-chips', ...ALL.map((s, i) => h('button', { type: 'button', onclick: () => openStep(i) }, chipOf(s))));
   const d = fold('chart-theory', h('div.grow', h('h2', { style: { margin: 0 } }, '瘦身循環'), h('div.mu.small.one', { style: { marginTop: '2px' } }, '每個動作的理論根據和算法')), [
     h('img.th-img', { src: 'assets/loop.jpg', alt: '瘦身循環圖：圓心能量平衡，外圈算、吃、等、動、量、校六站', loading: 'lazy', width: 1122, height: 1402 }),
+    h('div.th-motto', h('div.one', '先算再吃，能等就等，有動有量，天天一校'), h('div.one.mu', '蒜（算）吃（吃），等（等）凍（動）涼（量），笑（校）')),
     h('div.mu.tiny', { style: { margin: '6px 0' } }, '點下面的按鈕看每一站的理論和算法（範例是虛構的人）'),
     chips]);
   return h('div.card', d);
