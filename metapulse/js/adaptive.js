@@ -82,9 +82,9 @@ export function adaptiveTdee(S, bmr, formulaTdee, today, now = Date.now(), cfg =
   const w = dailyWeights(S.entries), wd = Object.keys(w).filter(d => d >= from && d <= to).sort();
   const span = wd.length ? dn(wd[wd.length - 1]) - dn(wd[0]) : 0;
   const out = { ready: false, foodDays: food.length, weighDays: wd.length, span, need: [], formula: formulaTdee };
-  if (food.length < cfg.minFoodDays) out.need.push('完整飲食記錄 ' + food.length + '／' + cfg.minFoodDays + ' 天');
-  if (wd.length < cfg.minWeighDays) out.need.push('量體重 ' + wd.length + '／' + cfg.minWeighDays + ' 天');
-  else if (span < cfg.minWeighSpan) out.need.push('體重記錄要跨 ' + cfg.minWeighSpan + ' 天（目前 ' + span + ' 天）');
+  if (food.length < cfg.minFoodDays) out.need.push('飲食 ' + (cfg.minFoodDays - food.length) + ' 天');
+  if (wd.length < cfg.minWeighDays) out.need.push('體重 ' + (cfg.minWeighDays - wd.length) + ' 天');
+  else if (span < cfg.minWeighSpan) out.need.push('體重再跨 ' + (cfg.minWeighSpan - span) + ' 天');
   if (out.need.length || !(formulaTdee > 0)) return out;
   const intake = food.reduce((a, b) => a + b, 0) / food.length;
   const kgPerDay = slope(wd.map(d => [dn(d), w[d]]));            // 負的＝變輕

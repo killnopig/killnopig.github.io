@@ -97,13 +97,12 @@ function profileCard() {
     const a = tdeeFromLog(b0), mode = S.prefs.tdeeMode || 'formula';
     tdeeBox.append(h('label', '每天消耗用'),
       pills([['formula', '公式估算'], ['adaptive', '依我的記錄']], mode, v => { S.prefs.tdeeMode = v; save(); }, 'seg'),
-      h('div.small.num', { style: { marginTop: '4px', color: a.ready ? '' : 'var(--mu)' } }, a.ready
-        ? '依記錄約 ' + a.tdee.toLocaleString() + ' 大卡' + (a.clamped ? '（已限制在公式 ±25%）' : '') + '，公式 ' + a.formula.toLocaleString() + ' 大卡'
-        : '依記錄：資料還不夠（' + a.need.join('、') + '）'),
+      h('div.small.num.one', { style: { marginTop: '4px', color: a.ready ? '' : 'var(--mu)' } }, a.ready
+        ? '依記錄 ' + a.tdee.toLocaleString() + (a.clamped ? '（已限 ±25%）' : '') + '・公式 ' + a.formula.toLocaleString() + ' 大卡'
+        : (mode === 'adaptive' ? '先用公式・' : '') + '還要記：' + a.need.join('、')),
       tip('依我的記錄＝用最近 28 天的資料反推：平均每天吃進 ' + (a.ready ? a.intake.toLocaleString() + ' 大卡' : '多少') + '，加上體重的變化（' + (a.ready ? '每週' + (a.kgPerWeek >= 0 ? '掉 ' : '增加 ') + Math.abs(a.kgPerWeek).toFixed(2) + ' kg' : '每週掉多少') + '，每公斤約 7700 大卡），算出你實際一天用掉多少' + (a.ready && a.exercise ? '；已扣掉加回點數的運動（每天約 ' + a.exercise + ' 大卡），免得算兩次' : '') + '。',
-        h('br'), '條件：28 天裡至少 21 天有完整飲食記錄（當天熱量到基礎代謝的 30%，或整天斷食），而且至少 10 天量過體重。漏記餐點會讓結果偏低，所以最多只跟公式差 ±25%。',
+        h('br'), '資料不夠時，選了「依我的記錄」也會先用公式，夠了才自動換。條件：28 天裡至少 21 天有完整飲食記錄（當天熱量到基礎代謝的 30%，或整天斷食），而且至少 10 天量過體重。漏記餐點會讓結果偏低，所以最多只跟公式差 ±25%。',
         h('br'), '剛開始用藥或減重的前幾週，體重會因為水分掉得比較快，反推的數字可能偏高；記得越久越準。這只是估算，飲食調整請和醫師討論。'));
-    if (mode === 'adaptive' && !a.ready) tdeeBox.append(h('div.mu.tiny.one', '資料夠了才會換，現在先用公式'));
   }
   const weeksIn = bind(numIn(P.targetWeeks, { inputmode: 'numeric', placeholder: '可留空' }), 'targetWeeks');
   const pctField = field('每週減重 %（沒填週數時用）', pctIn, '預設 ' + BUDGET.defaultWeeklyLossPct + '%，上限 ' + BUDGET.maxWeeklyLossPct + '%。');
