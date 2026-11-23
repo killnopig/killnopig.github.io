@@ -6,6 +6,8 @@ import { localDate } from '../points.js';
 import { weeklySummary } from '../gemini.js';
 import { dailyFastDetail } from '../summary.js';
 import { targetHours } from '../fasting.js';
+import { weeklyTrend } from '../adaptive.js';
+import { ADAPT } from '../config.js';
 
 const fmt = x => (Math.round(x * 2) / 2).toString();
 const sgn = x => (x > 0 ? '+' : x < 0 ? '−' : '') + fmt(Math.abs(x));
@@ -85,18 +87,19 @@ export function weeklyCard(bare = false) {
   if (L.weekAI && L.weekAI.key === key) showAI(L.weekAI);
   else if (L.geminiKey) auto = gen;                      // 點開週報時自動產生
   else ai.append(h('div.notice', { style: { cursor: 'pointer' }, onclick: () => document.querySelector('nav.tabs button[data-t="set"]').click() }, '到「設定 → AI 辨識食物」貼上 Gemini 金鑰後，這裡會有 AI 總結 ›'));
-  const wc = r.weightChange;
+  const wt = weeklyTrend(S.entries, today);   // 趨勢體重：跟 7 天前比
+  const wNote = !wt ? h('span.mu.tiny', '沒量') : wt.pct == null ? h('span.mu.tiny', '剛開始') : h('span.tiny', { style: { color: wt.pct > ADAPT.fastWeekPct ? 'var(--warn)' : wt.pct >= 0 ? 'var(--ac-tx)' : 'var(--mu)' } }, (wt.pct >= 0 ? '▼' : '▲') + Math.abs(wt.pct).toFixed(1) + '%／週');
   const body = [h('div.wbody', { style: { marginTop: '6px' } },
     ai,
     h('div.wtiles',
       tile('有記錄', r.cur.logged, '天', cmp(r.cur.logged, r.prev.logged, '', r.hasPrev)),
       tile('沒超吃', r.cur.healthy, '天', cmp(r.cur.healthy, r.prev.healthy, '', r.hasPrev)),
       tile('運動賺', fmt(r.cur.refund), '點', cmp(Math.round(r.cur.refund), Math.round(r.prev.refund), '', r.hasPrev)),
-      tile('平均體重', r.weight != null ? r.weight.toFixed(1) : '--', 'kg', wc != null ? h('span.tiny', { style: { color: wc <= 0 ? 'var(--ac-tx)' : 'var(--warn)' } }, (wc <= 0 ? '▼' : '▲') + Math.abs(wc).toFixed(1)) : h('span.mu.tiny', '沒量'))),
+      tile('趨勢體重', wt ? wt.trend.toFixed(1) : '--', 'kg', wNote)),
     h('div.small.one', { style: { marginTop: '12px', fontWeight: 650 } }, '每天剩下的點數・' + title),
     bars(r.days, today, r.first),
     h('div.mu.tiny.one', sw('var(--ac)'), ' 有剩　', sw('var(--warn)'), ' 超吃（用存摺補）　淡色＝今天'),
-    h('div.tiprow', { style: { marginTop: '6px' } }, h('div.small.num.one', few ? '存摺：過完的日子記滿 3 天才算（目前 ' + r.cur.logged + ' 天）' : '存摺 ' + sgn(r.cur.balance) + ' 點（只算有記錄的日子）'), tip('格子裡的 ▲▼ 是跟上一段比多或少；「沒超吃」＝那天剩下的點數 ≥ 0。', h('br'), '長條上的數字是那天剩下的點數，正的是有剩、負的是超吃；「沒記」的日子不算；開始記錄以前的日子不會算成沒記。存摺要等已經過完的日子記滿 3 天才算，今天還沒結束，先另外顯示。只算有記錄的日子：沒記的日子不算預算，也不算省下來。整天都在斷食的日子算「有記錄、吃 0 點」。斷食達標＝那天結束的最長一段斷食到了目標 ' + goal + ' 小時。'))),
+    h('div.tiprow', { style: { marginTop: '6px' } }, h('div.small.num.one', few ? '存摺：過完的日子記滿 3 天才算（目前 ' + r.cur.logged + ' 天）' : '存摺 ' + sgn(r.cur.balance) + ' 點（只算有記錄的日子）'), tip('格子裡的 ▲▼ 是跟上一段比多或少；「沒超吃」＝那天剩下的點數 ≥ 0。趨勢體重＝把每天的體重平滑過（水分造成的跳動會被抹平），下面寫的是跟 7 天前比、每週變化體重的幾 %；超過 ' + ADAPT.fastWeekPct + '% 變橘色（一般建議每週 0.5～1%）。', h('br'), '長條上的數字是那天剩下的點數，正的是有剩、負的是超吃；「沒記」的日子不算；開始記錄以前的日子不會算成沒記。存摺要等已經過完的日子記滿 3 天才算，今天還沒結束，先另外顯示。只算有記錄的日子：沒記的日子不算預算，也不算省下來。整天都在斷食的日子算「有記錄、吃 0 點」。斷食達標＝那天結束的最長一段斷食到了目標 ' + goal + ' 小時。'))),
     few ? h('div.mu.tiny.num.one', '今天先算 ' + sgn(tLeft) + ' 點（還沒結束）') : null].filter(Boolean);
   const d = fold('week-card', h('div.small.one', { style: { fontWeight: 600 } }, sum), body);
   if (auto) { if (d.open) auto(); d.addEventListener('toggle', () => { if (d.open && auto) { const f = auto; auto = null; f(); } }); }

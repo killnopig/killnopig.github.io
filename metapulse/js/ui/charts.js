@@ -12,6 +12,7 @@ import { sortEntries, onBoard, dn, fromDn, md, wdOf, medAdherence } from '../rec
 import { ledgerSeries, activityByDay, allActivity } from '../ledger.js';
 import { longTermStatusCard, leanParts, longTermStatus, leanStatus, openJournal } from './fasting.js';
 import { leanSummary, longTermRows } from '../longterm.js';
+import { weightTrendLine, trendAt } from '../adaptive.js';
 
 const CHART_URL = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
 let loading = null;
@@ -85,6 +86,7 @@ export function chartSpecs(pal, range = 'all', bpv = 'all') {
   const fade = (c, a) => { const m = /^#([0-9a-f]{6})$/i.exec(String(c).trim()); if (!m) return c; const n = parseInt(m[1], 16); return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')'; };
   const dots = (label, data, color, extra) => Object.assign({ label, data, borderColor: fade(color, 0.5), backgroundColor: fade(color, 0.5), showLine: false, pointRadius: data.length > 120 ? 1.5 : 2.5, pointHoverRadius: 5 }, extra || {});
   const trend = (label, data, color, extra) => Object.assign({ label, data, borderColor: color, backgroundColor: color, borderWidth: 3, pointRadius: 0, pointHoverRadius: 4, tension: 0.35, spanGaps: true }, extra || {});
+  const wLine = weightTrendLine(S.entries || []), wTrend = axis => axis.map(x => { const t = trendAt(wLine, x); return t == null ? null : +t.toFixed(2); });   // 趨勢體重（adaptive.js）
   const ma7 = (mapAll, axis, d = 1) => { const ks = Object.keys(mapAll).sort(); return axis.map(x => { const from = fromDn(dn(x) - 6); const v = ks.filter(k => k >= from && k <= x).map(k => mapAll[k]); return v.length >= 3 ? +(v.reduce((a, b) => a + b, 0) / v.length).toFixed(d) : null; }); };
   const allAvg = f => dayAvg(all, f);
   const sp = [];
@@ -94,11 +96,11 @@ export function chartSpecs(pal, range = 'all', bpv = 'all') {
   const showTW = TW > 0 && TW >= wMin - 3;                      // 目標在畫面附近才畫線，否則體重線會被壓扁
   if (wAxis.length) {
     sp.push({
-      id: 'w', title: '體重', dates: wAxis,
+      id: 'w', title: '體重', dates: wAxis, note: '點是每天量的體重（水分、鹽分會讓它一天差 1～2 kg）；實線是趨勢體重：每天只往新的體重移 10%，一天多 1 kg 水分只讓趨勢動 0.1 kg。看有沒有變瘦請看實線。',
       sub: (() => { const mxW = Math.max(...Object.values(allAvg(e => e.wt))); const lost = mxW - lastW; return [lost >= 0.5 ? '最高 ' + mxW.toFixed(1) + ' → ' + lastW.toFixed(1) + '・已瘦 ' + lost.toFixed(1) + ' kg' : '', TW > 0 && lastW ? (lastW > TW ? '還差 ' + (lastW - TW).toFixed(1) : '已達目標') : ''].filter(Boolean).join('・'); })(),
       extra: i => { const d = wAxis[i]; if (wd[d] == null) return NONE; const x = []; if (H) x.push('BMI ' + (wd[d] / m2).toFixed(1)); const ts = ws.filter(e => e.date === d && e.time).map(e => e.time); if (ts.length) x.push('時間 ' + ts.join('、')); return x; },
       cfg: {
-        type: 'line', data: { labels: wAxis.map(md), datasets: [dots('每天', on(wd, wAxis), wc), trend('7 天平均', ma7(allAvg(e => e.wt), wAxis), wc)].concat(showTW ? [{ label: '目標 ' + TW + ' kg', data: wAxis.map(() => TW), borderColor: mu, backgroundColor: mu, borderDash: [6, 4], borderWidth: 1.5, pointRadius: 0 }] : []) },
+        type: 'line', data: { labels: wAxis.map(md), datasets: [dots('每天', on(wd, wAxis), wc), trend('趨勢', wTrend(wAxis), wc)].concat(showTW ? [{ label: '目標 ' + TW + ' kg', data: wAxis.map(() => TW), borderColor: mu, backgroundColor: mu, borderDash: [6, 4], borderWidth: 1.5, pointRadius: 0 }] : []) },
         options: { maintainAspectRatio: false, plugins: { legend: leg() }, scales: { x: { grid: grid(), ticks: tk() }, y: { grid: grid() } } },
       },
     });
@@ -221,7 +223,7 @@ export function chartSpecs(pal, range = 'all', bpv = 'all') {
       extra: i => (wd[wAxis[i]] != null ? ['體重 ' + wd[wAxis[i]].toFixed(1) + ' kg'] : NONE),
       cfg: {
         type: 'line', data: { labels: wAxis.map(md), datasets: [
-          dots('BMI', wAxis.map(d => (wd[d] != null ? +(wd[d] / m2).toFixed(1) : null)), wc), trend('7 天平均', ma7(allAvg(e => e.wt), wAxis).map(v => (v == null ? null : +(v / m2).toFixed(1))), wc)] },
+          dots('BMI', wAxis.map(d => (wd[d] != null ? +(wd[d] / m2).toFixed(1) : null)), wc), trend('趨勢', wTrend(wAxis).map(v => (v == null ? null : +(v / m2).toFixed(1))), wc)] },
         options: { maintainAspectRatio: false, plugins: { legend: leg() }, scales: { x: { grid: grid(), ticks: tk() }, y: { grid: grid() } } },
       },
     });

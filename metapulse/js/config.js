@@ -89,6 +89,18 @@ export const SAFETY = {
   abwFactor: 0.4,           // 調整體重＝理想體重 + 0.4 ×（實際 − 理想）
 };
 
+// 依記錄反推每日消耗（adaptive.js）與趨勢體重
+export const ADAPT = {
+  weightAlpha: 0.1,          // 趨勢體重：每天往當天體重移 10%
+  slopeBeta: 0.1,            // 趨勢體重的斜率也慢慢跟（消掉穩定變瘦時的落後）
+  window: 28,                // 看最近 28 天（不含今天）
+  minFoodDays: 21,           // 至少 21 天有完整飲食記錄
+  minWeighDays: 10,          // 至少 10 天有量體重
+  minWeighSpan: 21,          // 第一次和最後一次量體重至少隔 21 天
+  clamp: 0.25,               // 反推結果最多和公式差 ±25%（漏記會讓結果偏低）
+  fastWeekPct: 1,            // 週報：趨勢體重每週掉超過 1% 變橘色
+};
+
 export const LONGTERM = {
   alpha: 0.05,               // 長期指數 = 前一天 × (1 − α) + 當日比例 × α
   minDayRatio: 0.3,          // 當天記錄熱量低於基礎代謝的 30% → 記錄不完整，跳過

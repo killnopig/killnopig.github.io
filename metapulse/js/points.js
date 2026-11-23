@@ -53,7 +53,8 @@ export function budget(p, now = new Date()) {
   if (!bmr) { bmr = bmrMifflin({ weight, height: +p.height, age, sex: p.sex }); bmrSource = 'estimate'; }
   if (!bmr) return { ok: false };
   const activity = +p.activity || BUDGET.activityDefault;
-  const tdee = Math.round(bmr * activity);
+  const tdeeFormula = Math.round(bmr * activity);
+  const tdee = +p.tdeeOverride > 0 ? Math.round(+p.tdeeOverride) : tdeeFormula;   // 「依我的記錄」：用 adaptive.js 反推的消耗
 
   const toLose = Math.max(0, weight - (+p.targetWeight || weight));
   let weeklyLossKg, wantedPct;
@@ -73,7 +74,7 @@ export function budget(p, now = new Date()) {
   const floorPoints = +p.floorPoints > 0 ? +p.floorPoints : roundTo(bmr / BUDGET.kcalPerPoint);
   const proteinTarget = proteinGoal(weight, +p.height, +p.proteinPerKg || BUDGET.proteinPerKgDefault).target;
   return {
-    ok: true, bmr, bmrSource, tdee, weeklyLossKg, weeklyLossPct: weight ? weeklyLossKg / weight * 100 : 0,
+    ok: true, bmr, bmrSource, tdee, tdeeFormula, tdeeSource: +p.tdeeOverride > 0 ? 'adaptive' : 'formula', weeklyLossKg, weeklyLossPct: weight ? weeklyLossKg / weight * 100 : 0,
     wantedPct, capped, deficitKcal, poolPoints, floorPoints, proteinTarget,
     dailyPoints: roundTo(poolPoints / 7),
   };

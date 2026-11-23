@@ -29,7 +29,7 @@ export function windowStart(today, mode = 'roll') {
 }
 
 /** 每天吃了幾點、運動加回幾點（activity 可以混 Health Connect 的每日消耗與手動記的運動，都用 date＋kcal） */
-function perDay(meals, activity, fasts, now) {
+export function perDay(meals, activity, fasts, now) {
   const eat = {}, ref = {}, kcal = {}, prot = {}, cnt = {};
   for (const f of fasts || []) {                                       // 整天都在斷食：那天算有記錄
     if (!f || !f.start) continue;
