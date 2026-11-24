@@ -140,6 +140,10 @@ flowchart LR
 
 安裝教學、第一次使用、怎麼更新、常見問題、為什麼要有閱讀模式，都在 [擴充功能版說明](docs/desktop.md)。
 
+## 問題回報
+
+用起來有問題、看到奇怪的畫面，或想要什麼新功能，都可以到 [JJptt 的 Facebook 粉絲專頁](https://www.facebook.com/1466948699840024) 留言或私訊反應。回報時寫上你用的是哪一版（Android App、擴充功能版或網頁版）、在哪個畫面、做了什麼，附上截圖會更快找到問題。
+
 ## 開發（寫程式的人才需要看）
 
 JJptt fork 自 [iamchucky/PttChrome](https://github.com/iamchucky/PttChrome)（GPL-2.0）。原版要靠已停用的 Chrome App 開 TCP 連線；JJptt 的擴充功能版改用本機小程式直接連線，另外也有網頁版，透過自己的 Cloudflare Worker 轉接站（`worker/`）連到 PTT。兩種都預設走 SSH，加密在瀏覽器裡完成。

@@ -137,6 +137,10 @@ Reading mode downloads the images in articles, so it uses more data. On a hotspo
 
 The install guide, first use, updating, FAQ and why there's a reading mode are all in the [Chrome extension guide](docs/desktop.en.md).
 
+## Reporting problems
+
+Something not working, a screen that looks wrong, or a feature you'd like? Tell us on [JJptt's Facebook page](https://www.facebook.com/1466948699840024) — leave a comment or send a message. Say which version you use (Android app, Chrome extension or web version), which screen you were on and what you did; a screenshot helps a lot.
+
 ## Development (only for people who write code)
 
 JJptt is a fork of [iamchucky/PttChrome](https://github.com/iamchucky/PttChrome) (GPL-2.0). The original opened TCP connections through the discontinued Chrome Apps; JJptt's extension connects through the local helper instead, and there is also a web version that connects to PTT through your own Cloudflare Worker relay (`worker/`). Both use SSH by default, with the encryption done in the browser.
