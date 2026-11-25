@@ -86,6 +86,7 @@ JJMobile.prototype.renderBoard = function(screen) {
         page.pinned.forEach(function(e) { self.appendEntry(screen, e); });
       }
       page.entries.forEach(function(e) { self.appendEntry(screen, e); });
+      if (first && screen.pendingArticle) self.showPendingArticle(screen);  // just sent, not on the web yet
       if (first) self.loaded(screen, doc.jjFromTerm ? 'BBS' : ahead ? '預讀' : '網頁');
       more.textContent = screen.older ? '' : (screen.entries.length ? '沒有更早的文章了' : '沒有文章');
       screen.loadingMore = false;

@@ -565,6 +565,11 @@ JJMobile.prototype.back = function() {
     this.reload(top);
   }
   this.setBar(top);
+  if (top.type === 'board' && top.redrawOnShow) {  // an article sent from above it is on the web now
+    top.redrawOnShow = false;
+    this.redrawList(top);
+    return;
+  }
   if (top.type === 'board' && top.listNode) this.markRead(top);
 };
 

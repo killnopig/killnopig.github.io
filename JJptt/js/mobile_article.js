@@ -347,6 +347,12 @@ JJMobile.prototype.replySheet = function(screen) {
       self.ptt.reply(screen.url, area.value, quote.checked).then(function() {
         self.closeSheet();
         if (self.app.showToast) self.app.showToast('已發表回文', 2000);
+        // the board's list under this article had no idea: the reply was
+        // not there on going back. It is put there at once (剛送出) and
+        // followed like a new article (reloadAfterArticle).
+        var orig = String((screen.article && screen.article.meta['標題']) || '').replace(/^\s*(Re|Fw):\s*/i, '');
+        var list = self.boardScreenFor(screen);
+        if (list && orig) self.reloadAfterArticle(list, { author: self.ptt.user, title: orig, shown: 'Re: ' + orig });
       }).catch(function(e2) {
         go.disabled = false;
         go.textContent = '發表回文';
@@ -537,33 +543,101 @@ JJMobile.isMyArticle = function(e, mine) {
 };
 JJMobile.POST_WAIT_MS = 30000;
 
-// After 發表文章: www.ptt.cc lists a new article some seconds after PTT has
-// it, and the list loaded at once did not have it yet (the post looked
-// lost). The board's page is read again as soon as each read is done,
-// while the list on screen stays as it was, until the article is on it
-// (POST_WAIT_MS at most); then the list is drawn from that page. Reloading
-// the list itself each time left the screen blank (載入中…) all along.
+// After 發表文章 / 回文: www.ptt.cc lists a new article some seconds after
+// PTT has it (Gossiping: a minute and more), and the list loaded at once
+// did not have it yet (the post looked lost). As with a push: the article
+// is put on the list at once from what was sent, marked 剛送出 (under the
+// 置底 rows, where the newest goes), and the board's page is read again
+// quietly while the list on screen stays as it was, until the article is
+// on it (POST_WAIT_MS at most); then the list is drawn from that page --
+// at once if the list is on show, else when going back to it (a 回文 is
+// sent from the article above the list). Reloading the list itself each
+// time left the screen blank (載入中…) all along.
+JJMobile.isMyArticle = function(e, mine) {
+  var t = String(mine.title || '').replace(/\s+/g, ' ').trim();
+  return !!e && !!t && String(e.author || '').toLowerCase() === String(mine.author || '').toLowerCase() &&
+    String(e.title || '').replace(/\s+/g, ' ').indexOf(t) >= 0 &&
+    (!mine.reply || /^\s*Re:/i.test(e.title || ''));
+};
+JJMobile.POST_WAIT_MS = 90000;
+
+// The board's own list (not a search) for an article screen: the one it was
+// opened from, else one further down with the same board.
+JJMobile.prototype.boardScreenFor = function(screen) {
+  var board = String((screen.list && screen.list.board) ||
+    (screen.article && screen.article.meta['看板']) || '').toLowerCase();
+  for (var i = this.stack.length - 1; i >= 0; --i) {
+    var s = this.stack[i];
+    if (s.type === 'board' && !s.query && String(s.board || '').toLowerCase() === board) return s;
+  }
+  return null;
+};
+
+JJMobile.prototype.pendingArticleRow = function(mine) {
+  var el = JJMobile.el;
+  var row = el('div', 'jjm-row jjm-article jjm-pending-article');
+  row.appendChild(el('div', 'jjm-article-title', mine.shown || mine.title));
+  var meta = el('div', 'jjm-article-meta');
+  meta.appendChild(el('span', 'jjm-pchip jjm-pchip-grey jjm-pending-chip', mine.late ? '網頁版還沒出現' : '剛送出'));
+  meta.appendChild(el('span', 'jjm-author', mine.author));
+  var d = new Date(mine.at);
+  meta.appendChild(el('span', 'jjm-date', (d.getMonth() + 1) + '/' + (d.getDate() < 10 ? '0' : '') + d.getDate()));
+  row.appendChild(meta);
+  return row;
+};
+
+// The article just sent on its board's list, under the 置底 rows (newest
+// first), while the list read from the web does not have it yet.
+JJMobile.prototype.showPendingArticle = function(screen) {
+  var mine = screen.pendingArticle;
+  if (!mine || !screen.listNode) return;
+  var old = screen.listNode.querySelector('.jjm-pending-article');
+  if (old) old.remove();
+  if ((screen.entries || []).some(function(e) { return JJMobile.isMyArticle(e, mine); })) {
+    screen.pendingArticle = null;
+    return;
+  }
+  var row = this.pendingArticleRow(mine);
+  var first = null;
+  for (var n = screen.listNode.firstChild; n; n = n.nextSibling) {
+    if (!n.classList.contains('jjm-pinned')) { first = n; break; }
+  }
+  screen.listNode.insertBefore(row, first);
+};
+
+JJMobile.prototype.redrawList = function(screen) {
+  screen.view.innerHTML = '';
+  screen.view.scrollTop = 0;
+  this.render(screen);  // from the page just read (listDocs), not again
+};
+
 JJMobile.prototype.reloadAfterArticle = function(screen, mine) {
   var self = this, until = Date.now() + JJMobile.POST_WAIT_MS;
   var token = screen.postToken = {};
-  var here = function() { return screen.postToken === token && self.stack[self.stack.length - 1] === screen; };
+  var alive = function() { return screen.postToken === token && self.stack.indexOf(screen) >= 0; };
   if (screen.query) { this.reload(screen); return; }  // a search: as before
+  mine.at = Date.now();
+  mine.reply = !!mine.shown;
+  screen.pendingArticle = mine;
+  this.showPendingArticle(screen);
   var url = JJMobile.WEB + '/bbs/' + encodeURIComponent(screen.board) + '/index.html';
-  var draw = function() {  // from the page just read (listDocs), not again
-    if (!here()) return;
-    screen.view.innerHTML = '';
-    screen.view.scrollTop = 0;
-    self.render(screen);
+  var draw = function(found) {
+    if (!alive()) return;
+    if (found) screen.pendingArticle = null;
+    else mine.late = true;  // still not there: the row stays, saying so
+    if (self.stack[self.stack.length - 1] === screen) self.redrawList(screen);
+    else screen.redrawOnShow = true;
   };
   var read = function() {
-    if (!here()) return;
+    if (!alive()) return;
     self.listDoc(url, true).then(function(doc) {
       var page = JJMobile.parseIndex(doc, true);
-      if (page.entries.some(function(e) { return JJMobile.isMyArticle(e, mine); }) || Date.now() > until) return draw();
-      read();
+      if (page.entries.some(function(e) { return JJMobile.isMyArticle(e, mine); })) return draw(true);
+      if (Date.now() > until) return draw(false);
+      setTimeout(read, 1000);
     }, function() {
-      if (Date.now() > until) return draw();
-      setTimeout(read, 500);
+      if (Date.now() > until) return draw(false);
+      setTimeout(read, 1500);
     });
   };
   read();
@@ -605,12 +679,23 @@ JJMobile.prototype.reloadAfterPost = function(screen, mine) {
       var top = v.scrollTop;
       v.innerHTML = '';
       self.fillArticle(screen, article);
-      var rows = v.querySelectorAll('.jjm-pushes > .jjm-push');
+      // also inside a 連推 / 連續回覆 run: several pushes in a row are drawn
+      // folded as one line, and the push just sent looked gone -- open it
+      var rows = v.querySelectorAll('.jjm-pushes .jjm-push:not(.jjm-run-row)');
       var id = String(mine.id).toLowerCase(), text = String(mine.text).slice(0, 6);
       for (var i = rows.length - 1; i >= 0 && i >= rows.length - 30; --i) {
         var who = ((rows[i].querySelector('.jjm-push-id') || {}).textContent || '').trim().toLowerCase();
         var said = (rows[i].querySelector('.jjm-push-text') || {}).textContent || '';
-        if (who === id && said.indexOf(text) >= 0) { rows[i].classList.add('jjm-push-new'); break; }
+        if (who === id && said.indexOf(text) >= 0) {
+          rows[i].classList.add('jjm-push-new');
+          var run = rows[i].closest('.jjm-run');
+          if (run && !run.classList.contains('jjm-run-open')) {
+            run.classList.add('jjm-run-open');
+            var tg = run.querySelector('.jjm-run-toggle');
+            if (tg) tg.textContent = '▾ 收起';
+          }
+          break;
+        }
       }
       if (atBottom) {
         var box2 = v.querySelector('.jjm-compose');
