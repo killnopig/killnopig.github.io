@@ -65,6 +65,8 @@ Release APKs are signed by `mobile/android/sign-release.sh` with APK Signature S
 
 `README.md` / `.en.md` / `.ja.md` are short front pages; details live in `docs/desktop*.md` and `docs/android*.md`. Every doc exists in three languages (`x.md` zh, `x.en.md`, `x.ja.md`, also `fact`, `settings-file`, `missing-features`): change all three together. The README keeps `<a name>` anchors for the old section links. Promo images in `docs/images/android-*.png` (zh / en / ja) are rendered from screenshots of a made-up demo article — use fictional accounts, not real PTT users, in anything published.
 
+Some README text is also shown in the apps: `js/pitch.js` (`JJPTT_PITCH`, top of 設定 → 關於) repeats the README's pitch, and `js/notice.js` (`JJPTT_NOTICE`, the 使用聲明 shown on first run) needs its `version` raised when a point everyone should see again is added. The extension runs unpacked from the user's git checkout; `js/updater.js` tells them to `git pull` when GitHub has a newer version.
+
 `landing/` is a standalone promo page (plain HTML/CSS/JS, no CDN or tracking) served by GitHub Pages at `/JJptt/landing/`. It is not part of the grunt build and shares nothing with `js/` except the icons it links from the repo root.
 
 ## Project commands
