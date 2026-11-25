@@ -12,7 +12,7 @@ A single-page web app for your phone that records weekly injection doses, inject
 
 > This app is a personal logging and trend-viewing tool. It is not a medical device and gives no diagnosis, treatment or dosing advice. Please read the Disclaimer below first.
 
-**Language:** this app is available in Traditional Chinese only. There is no English interface. The project is MIT licensed, so you are free to fork it, translate the interface and build your own version (see the build and deploy notes in the [Chinese README](README.md)).
+**Language:** this app is available in Traditional Chinese only. There is no English interface. The source is open (free for noncommercial use), so you can fork it, translate the interface and build your own version for personal use (see the build and deploy notes in the [Chinese README](README.md)).
 
 This page is a translation of the main README. The full changelog and a few advanced sections are only in the Chinese README.
 
@@ -150,4 +150,6 @@ residual = Σ dose × 2^(−days elapsed ÷ (half-life hours ÷ 24))
 
 ## License
 
-MIT License. See the LICENSE file.
+Starting 2026-11-26, new versions are licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE): free for personal, educational and other noncommercial use. Commercial use requires a paid commercial license; please contact us via this project's GitHub Issues.
+
+Versions released before that date remain under the MIT License.
