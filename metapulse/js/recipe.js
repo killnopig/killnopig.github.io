@@ -5,7 +5,7 @@ import { localDate, addDays } from './points.js';
 /** 推薦時可以勾的選項（key、按鈕文字、給 AI 的說明） */
 export const RECIPE_OPTS = [
   ['often', '常吃的', '多用使用者常吃的組合，可以稍微調整份量'],
-  ['new', '沒吃過的', '加入使用者沒吃過的食物（避開「吃過的食物」清單），每天至少一餐'],
+  ['new', '沒吃過的', '推薦使用者沒吃過的食物，不可以用「吃過的食物」清單裡的任何一樣'],
   ['protein', '補蛋白質', '每一餐蛋白質盡量 20～30 g，讓每天接近蛋白質目標'],
   ['out', '外食／超商', '可以有台灣外食或便利商店買得到的組合'],
   ['cook', '自己煮', '可以有自己在家簡單煮的菜，how 欄寫 1～2 句做法'],
@@ -28,18 +28,28 @@ export function mealsPerDay(meals, todayStr, days = 14) {
   return Math.max(1, Math.min(3, Math.round(avg)));
 }
 
+/** 吃過的食物名稱：食物庫＋所有餐點（去重，最多 400 個） */
+export function eatenNames(st) {
+  const all = [...(st.foodLibrary || []), ...(st.meals || [])].map(f => String(f.name || '').trim()).filter(Boolean);
+  return [...new Set(all)].slice(0, 400);
+}
+
 /** 給 AI 的資料：只放食物名稱、點數和目標，不放日期與身體數據 */
 export function recipeContext(st, b, opts, todayStr, now = Date.now()) {
   const n = mealsPerDay(st.meals, todayStr);
-  const often = frequentMeals(st.meals, now, 12).map(s => ({ 組合: s.label, 點數: half(s.points), 次數: s.count }));
   const ctx = {
     天數: DAYS, 每天餐數: n,
     每日點數: b.dailyPoints, 每日蛋白質目標g: Math.round(b.proteinTarget),
     每餐大約點數: half(b.dailyPoints / n),
     選項: RECIPE_OPTS.filter(o => opts.includes(o[0])).map(o => o[1] + '：' + o[2]),
-    常吃組合: often,
   };
-  if (opts.includes('new')) ctx.吃過的食物 = [...new Set((st.foodLibrary || []).map(f => String(f.name || '').trim()).filter(Boolean))].slice(0, 300);
+  if (opts.includes('often')) ctx.常吃組合 = frequentMeals(st.meals, now, 12).map(s => ({ 組合: s.label, 點數: half(s.points), 次數: s.count }));
+  if (opts.includes('new')) {
+    ctx.吃過的食物 = eatenNames(st);
+    ctx.新食物規定 = opts.includes('often')
+      ? '每天至少一餐是沒吃過的，那一餐 tag 填「新的」，裡面每樣食物都不可以出現在「吃過的食物」清單，名稱相近的也不行'
+      : '每一餐都要是沒吃過的，tag 一律填「新的」；每樣食物都不可以出現在「吃過的食物」清單，名稱相近的也不行（例如吃過「水煮雞胸肉」就不要再排雞胸肉）';
+  }
   return ctx;
 }
 

@@ -33,7 +33,10 @@ test('給 AI 的資料：沒勾「沒吃過的」就不送食物清單', () => {
   assert.equal(c.吃過的食物, undefined);
   assert.ok(c.常吃組合.some(x => x.組合.includes('雞胸便當')));
   const c2 = recipeContext(st, b, ['new'], today, now);
-  assert.deepEqual(c2.吃過的食物, ['茶葉蛋', '無糖豆漿', '雞胸便當']);
+  assert.deepEqual(c2.吃過的食物, ['茶葉蛋', '無糖豆漿', '雞胸便當', '香蕉', '還沒吃的']);
+  assert.equal(c2.常吃組合, undefined);   // 只勾「沒吃過的」就不給常吃組合
+  assert.match(c2.新食物規定, /每一餐/);
+  assert.match(recipeContext(st, b, ['new', 'often'], today, now).新食物規定, /至少一餐/);
 });
 
 test('沒有 AI：用常吃組合排滿 7 天', () => {
