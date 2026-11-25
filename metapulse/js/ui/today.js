@@ -15,6 +15,7 @@ import { latestAdviceCard } from './advice.js';
 import { fastingCard, longTermCard, fastInfo, openGuessSheet, openJournal } from './fasting.js';
 import { guessFasts } from '../fasting.js';
 import { lowProteinMeal } from '../safety.js';
+import { recipeButton } from './recipe.js';
 
 const r1 = x => Math.round(x * 10) / 10;
 
@@ -132,7 +133,8 @@ export function renderToday(root) {
     }
     top.append(h('div.cta-row' + (fi.fasting ? '.sm' : ''),
       h('button.pri.cta', { type: 'button', onclick: () => openAddMeal() }, icon('camera'), '記一餐'),
-      h('button.ghost.cta', { type: 'button', onclick: () => openExercise() }, icon('run'), '記運動')));
+      h('button.ghost.cta', { type: 'button', onclick: () => openExercise() }, icon('run'), '記運動')),
+      recipeButton());
   }
   // 今天吃了：只列食物（斷食在「斷食與飲食記錄」裡）
   const todays = groups.filter(g => !g.pending && localDate(g.at) === todayStr).reverse();

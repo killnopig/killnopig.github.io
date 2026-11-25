@@ -200,6 +200,50 @@ export async function weeklySummary(o, stats) {
   return { summary: String(p.summary || ''), tip: String(p.tip || '') };
 }
 
+/** 推薦這週吃什麼：7 天、每天幾餐，每餐菜名＋估算點數與蛋白質 */
+export const RECIPE_SCHEMA = {
+  type: 'object',
+  properties: {
+    days: {
+      type: 'array', description: '從今天起連續 7 天，依序排列',
+      items: {
+        type: 'object',
+        properties: {
+          meals: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: '這一餐吃什麼，例如「鮭魚飯糰＋茶葉蛋＋無糖豆漿」，最多 20 個字' },
+                points: num('這一餐估算點數（約 40 大卡＝1 點）'),
+                protein: num('這一餐估算蛋白質 g'),
+                tag: { type: 'string', description: '常吃、新的、外食、超商、自己煮 其中一個' },
+                how: { type: 'string', description: '自己煮的菜寫 1～2 句簡單做法，其他留空字串' },
+              },
+              required: ['name', 'points', 'protein', 'tag', 'how'],
+            },
+          },
+        },
+        required: ['meals'],
+      },
+    },
+    note: { type: 'string', description: '一句整體提醒，可為空字串' },
+  },
+  required: ['days'],
+};
+const RECIPE_RULES = `你是溫和的飲食安排小幫手，用台灣繁體中文、國中生看得懂的口語。
+依照資料排出接下來 7 天的餐點建議，每天的餐數照「每天餐數」。
+規則：
+1. 每天的點數合計接近「每日點數」，不要少於它的 8 成，也不要多於它；每餐大約是「每餐大約點數」。點數約 40 大卡＝1 點。
+2. 依「選項」安排；有「吃過的食物」清單時，標成「新的」的那一餐不可以用清單裡的食物。
+3. 用台灣常見、買得到的食物，7 天不要每天都一樣。
+4. 只是建議，不要用命令句；不要提藥物、劑量、斷食時數或減重效果；不要建議極端少吃。
+5. 不要用簡體字，不要加表情符號。`;
+export async function recipePlan(o, ctx) {
+  const r = await callJSON({ ...o, fast: false }, RECIPE_RULES + '\n\n以下是資料（JSON）：\n' + JSON.stringify(ctx), RECIPE_SCHEMA);
+  return { parsed: r.parsed, api: r.api, ms: r.ms };
+}
+
 /** 適合辨識餐點的預設模型清單（還沒向 Google 查詢時使用） */
 export const DEFAULT_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-4-hydrogen', 'gemini-4-argon'];
 

@@ -2,3 +2,4 @@ PROMPT.md
 .DS_Store
 node_modules/
 LANDING_PROMPT.md
+.preview/

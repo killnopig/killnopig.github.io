@@ -1,4 +1,4 @@
-/* MetaPulse 廣宣頁：進場動畫、正循環環形圖、示意畫面輪播、數字跳動
+/* MetaPulse 廣宣頁：進場動畫、MetaPulse 循環、示意畫面輪播、數字跳動
  * 不呼叫任何 API；開啟「減少動態」時直接顯示最後狀態 */
 (() => {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -9,6 +9,20 @@
   const top = $('#top');
   const onScroll = () => top.classList.toggle('scrolled', scrollY > 8);
   addEventListener('scroll', onScroll, { passive: true }); onScroll();
+
+  /* 首屏的大按鈕看得到時，頂列不重複放按鈕；捲過去才淡入 */
+  const heroCta = $('.hero .cta');
+  if (heroCta && 'IntersectionObserver' in window) new IntersectionObserver(([e]) => top.classList.toggle('btns-on', !e.isIntersecting)).observe(heroCta);
+  else top.classList.add('btns-on');
+
+  /* 心得超過兩段：先顯示兩段，按「看全文」展開 */
+  $$('.voice').forEach(v => {
+    const ps = $$('blockquote p', v); if (ps.length <= 2) return;
+    v.classList.add('clip');
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'voice-more'; b.textContent = '看全文';
+    b.addEventListener('click', () => { v.classList.toggle('clip', false); b.hidden = true; });
+    $('blockquote', v).after(b);
+  });
 
   /* 「了解怎麼運作」：平滑捲動並把焦點移過去 */
   $$('[data-scroll]').forEach(a => a.addEventListener('click', e => {
@@ -52,43 +66,9 @@
     $$('#tl li').forEach(li => li.classList.add('in'));
   }
 
-  /* 正循環：節點依序亮起，點節點看說明 */
-  const STEPS = [
-    ['記錄', '拍照或打字記下每一餐，記錄體重與血壓。'],
-    ['點數', '每餐換算成估算點數，用一週的額度來看，不用每天斤斤計較。'],
-    ['節奏', '斷食計時與進食窗口，找到自己適合的時間安排。'],
-    ['趨勢', '用 7 天平均看長期變化，不被單日數字左右。'],
-    ['調整', '看週報，自己決定下週要怎麼調整。'],
-  ];
-  const ring = $('#ring');
-  if (ring) {
-    const nodes = $$('.node', ring), lit = $('#lit'), center = $('#ringCenter'), C = 942.5;
-    let cur = 0, timer = null;
-    const show = i => {
-      cur = i;
-      nodes.forEach((n, j) => { n.classList.toggle('on', j <= i); n.classList.toggle('cur', j === i); n.setAttribute('aria-pressed', j === i ? 'true' : 'false'); });
-      lit.style.strokeDashoffset = String(C * (1 - (i + 1) / STEPS.length));
-      center.innerHTML = '';
-      const k = document.createElement('span'); k.className = 'k'; k.textContent = 'STEP ' + (i + 1);
-      const h = document.createElement('h3'); h.textContent = STEPS[i][0];
-      const p = document.createElement('p'); p.textContent = STEPS[i][1];
-      center.append(k, h, p);
-      if (!reduce) { center.classList.remove('swap'); void center.offsetWidth; center.classList.add('swap'); }
-    };
-    const stop = () => { clearInterval(timer); timer = null; };
-    nodes.forEach(n => n.addEventListener('click', () => { stop(); show(+n.dataset.i); }));
-    if (reduce) show(STEPS.length - 1);
-    else {
-      show(0);
-      // 看到環形圖才開始輪流亮
-      const ro = new IntersectionObserver(es => {
-        if (es[0].isIntersecting && !timer) timer = setInterval(() => show((cur + 1) % STEPS.length), 2600);
-        else if (!es[0].isIntersecting) stop();
-      }, { threshold: .35 });
-      ro.observe(ring);
-      ring.addEventListener('pointerenter', stop);
-    }
-  }
+  /* MetaPulse 循環：一次只展開一站 */
+  const stations = $$('.loop-list details');
+  stations.forEach(d => d.addEventListener('toggle', () => { if (d.open) stations.forEach(o => { if (o !== d) o.open = false; }); }));
 
   /* 示意畫面輪播 */
   const slides = $$('.slide'), dots = $$('.dots button'), label = $('#dotsLabel');
