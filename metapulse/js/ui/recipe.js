@@ -1,6 +1,6 @@
 /* 推薦這週吃什麼：底部面板。只看不記錄；上一次的結果存在這支手機（L.recipe），按「重新推薦」才再問 AI */
 import { S, L, plan, commitLocal } from '../state.js';
-import { h, fold, startClosed, tip, fmtPts, openSheet, toast, WD } from './common.js';
+import { h, fold, startClosed, tip, fmtPts, openSheet, closeSheet, toast, WD } from './common.js';
 import { localDate } from '../points.js';
 import { RECIPE_OPTS, recipeContext, fallbackPlan, cleanPlan } from '../recipe.js';
 import { recipePlan } from '../gemini.js';
@@ -86,10 +86,11 @@ export function openRecipe() {
     };
 
     drawChips(); drawOut();
-    sh.append(h('h2', '推薦這週吃什麼'),
+    sh.append(h('div.sheet-h', h('b', '推薦這週吃什麼'), h('button.link', { type: 'button', onclick: () => closeSheet() }, '關閉')),
       b.ok ? h('div.mu.small.num.one', '每天約 ' + fmtPts(b.dailyPoints) + ' 點・蛋白質目標 ' + Math.round(b.proteinTarget) + ' g') : null,
       tip('依你最近吃過的東西、每天的點數和蛋白質目標排 7 天的建議，只是參考，照自己的胃口調整就好。勾「沒吃過的」時，只會把食物名稱給 AI，請它避開。'),
-      h('div', { style: { marginTop: '8px' } }, chips), go, out);
+      h('div', { style: { marginTop: '8px' } }, chips), go, out,
+      h('button.ghost.full', { type: 'button', onclick: () => closeSheet() }, '關閉'));
   });
 }
 
