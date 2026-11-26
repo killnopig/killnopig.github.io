@@ -2,10 +2,31 @@
 import { S, L, commit, commitLocal, uid } from '../state.js';
 import { h, toast, section, sumLine, tip } from './common.js';
 import { latestText } from '../records.js';
-import { isNative, healthPlugin, diagnose, readHealth, buildRecords, planHealth, applyHealth } from '../health.js';
+import { isNative, healthPlugin, diagnose, readHealth, buildRecords, planHealth, applyHealth, autoDue, autoPlan, readHealthQuiet } from '../health.js';
 
 const UNDO_KEY = 'metapulse-v1-undo';
 const hasUndo = () => { try { return !!localStorage.getItem(UNDO_KEY); } catch (e) { return false; } };
+
+/** 打開 App、切回 App 時自動匯入 Omron 的新量測（只在 APK；10 分鐘內不重讀；設定可關） */
+let autoBusy = false;
+export async function autoHealth() {
+  if (autoBusy || !isNative() || !healthPlugin() || !autoDue(L)) return;
+  autoBusy = true;
+  try {
+    L.hcAutoAt = Date.now(); commitLocal();
+    const raw = await readHealthQuiet(7);
+    if (!raw) return;
+    const p = autoPlan(raw, S);
+    const n = p.add.length + p.merge.length;
+    if (!n) return;
+    try { localStorage.setItem(UNDO_KEY, JSON.stringify({ entries: S.entries, activity: S.activity || [] })); } catch (e) { /* 空間不足時不保留復原 */ }
+    applyHealth(S, p, uid);
+    L.lastHC = { at: Date.now(), added: n }; commitLocal();
+    commit();
+    toast('已從 Omron 匯入 ' + n + ' 筆（設定可復原）');
+  } catch (e) { /* 自動匯入失敗不打擾，手動同步還能用 */ }
+  finally { autoBusy = false; }
+}
 
 export function healthCard() {
   const sumEl = sumLine();
@@ -28,6 +49,8 @@ export function healthCard() {
   days.onchange = () => { L.hcDays = days.value; commitLocal(); };
   const all = h('input', { type: 'checkbox', checked: !!L.hcAll });
   all.onchange = () => { L.hcAll = all.checked; commitLocal(); };
+  const auto = h('input', { type: 'checkbox', checked: L.hcAuto !== false });
+  auto.onchange = () => { L.hcAuto = auto.checked; commitLocal(); };
   const out = h('div', { style: { marginTop: '10px' } });
   const undo = h('button.ghost.full', { type: 'button', style: { display: hasUndo() ? '' : 'none' } }, '復原上次同步');
   let last = null; // {raw, ...}
@@ -86,6 +109,7 @@ export function healthCard() {
     } catch (e) { toast('復原失敗', true); }
   };
   return section('hc', 'Health Connect 同步', sumEl, [
+    h('label.row.one', { style: { color: 'var(--tx)', margin: '0 0 6px', fontSize: '14px' } }, auto, '打開 App 時自動匯入 Omron'),
     h('div.grid2', { style: { alignItems: 'center' } }, days, h('label.row.one', { style: { color: 'var(--tx)', margin: 0, fontSize: '14px' } }, all, '也讀其他 app')),
     btn, out, undo,
     tip('預設只讀 Omron 的血壓和體重，避免別的 app 的資料混進來。選「最近 1 年」時，要在權限畫面允許讀取 30 天以前的資料。'),

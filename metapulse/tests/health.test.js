@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildRecords, planHealth, applyHealth, editActivity, restoreActivity } from '../js/health.js';
+import { buildRecords, planHealth, applyHealth, editActivity, restoreActivity, autoPlan, autoDue, AUTO_GAP } from '../js/health.js';
 import { exerciseRefund } from '../js/points.js';
 import { defaultState } from '../js/storage.js';
 
@@ -77,4 +77,24 @@ test('運動回補：80 kcal ≈ 1.5 點', () => {
   const r = exerciseRefund([{ date: '2026-11-17', kcal: 80 }, { date: '2026-11-10', kcal: 800 }], '2026-11-17');
   assert.equal(r.today, 1.5);
   assert.equal(r.rolling, 1.5);
+});
+
+test('自動匯入：只匯入 Omron 量測、不動運動消耗；第二次沒有新的', () => {
+  const S = defaultState();
+  const p = autoPlan(raw, S);
+  assert.equal(p.add.length, 2);                 // 血壓一筆、體重（含體脂、基礎代謝）一筆，不含其他 app 的 99 kg
+  assert.equal(p.act.add.length + p.act.update.length, 0);
+  applyHealth(S, p, x => x + Math.random());
+  assert.equal(S.entries.length, 2);
+  assert.equal((S.activity || []).length, 0);
+  const p2 = autoPlan(raw, S);
+  assert.equal(p2.add.length + p2.merge.length, 0);
+});
+
+test('自動匯入：預設開啟、10 分鐘內不重讀、關掉就不讀', () => {
+  const now = 1_800_000_000_000;
+  assert.equal(autoDue({}, now), true);
+  assert.equal(autoDue({ hcAutoAt: now - AUTO_GAP + 1000 }, now), false);
+  assert.equal(autoDue({ hcAutoAt: now - AUTO_GAP - 1 }, now), true);
+  assert.equal(autoDue({ hcAuto: false }, now), false);
 });

@@ -14,6 +14,7 @@ import { scheduleSoon } from './notify.js';
 import { preloadSounds } from './sounds.js';
 import { updateWidgetSoon } from './widget.js';
 import { isNative, capPlugin } from './health.js';
+import { autoHealth } from './ui/health.js';
 if (isNative()) document.documentElement.classList.add('native');   // 保險：頁面開頭沒偵測到 app 時補上（狀態列留白）
 
 const APP_VERSION = window.APP_VERSION;
@@ -98,11 +99,14 @@ function askBackup() {
 }
 onAdviceState(() => { renderToday($('p-today')); });
 
+setTimeout(autoHealth, 1500);   // 打開 App：自動匯入 Omron 的新量測（APK 才有）
+
 /* 跨日或從背景切回來時重畫 */
 let lastDay = new Date().toDateString();
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
   checkUpdate();
+  autoHealth();
   if (new Date().toDateString() !== lastDay) { lastDay = new Date().toDateString(); if (tab === 'today') renderToday($('p-today')); }
 });
 

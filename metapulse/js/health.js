@@ -135,3 +135,37 @@ export async function readHealth(days) {
   }
   return { raw, denied, errs, historyDenied: days > 30 && au && au.historyAccessAuthorized === false };
 }
+
+/* 自動匯入 Omron（打開 App、切回 App 時）：只讀已經允許的項目，不跳權限視窗；只匯入量測，不動運動消耗 */
+export const AUTO_TYPES = ['weight', 'bodyFat', 'bloodPressure', 'basalCalories', 'heartRate'];
+export const AUTO_GAP = 10 * 60 * 1000;   // 最多每 10 分鐘讀一次
+
+/** 現在要不要自動讀（純函數） */
+export function autoDue(L, now = Date.now()) {
+  return L.hcAuto !== false && !(now - (+L.hcAutoAt || 0) < AUTO_GAP);
+}
+
+/** 自動匯入的規劃：只看 Omron 的量測（新增＋補體組成），運動消耗留給手動同步 */
+export function autoPlan(raw, S) {
+  const b = buildRecords(raw, { allSources: false });
+  const m = planMeasurements(b.recs, S.entries);
+  return { ...m, act: { add: [], update: [], same: 0 } };
+}
+
+/** 安靜地讀最近 days 天（沒有允許的項目就跳過；完全沒允許回傳 null） */
+export async function readHealthQuiet(days = 7) {
+  const H = healthPlugin();
+  if (!H) return null;
+  const av = await H.isAvailable();
+  if (!av || !av.available || !H.checkAuthorization) return null;
+  const au = await H.checkAuthorization({ read: AUTO_TYPES, write: [] });
+  const ok = (au && au.readAuthorized) || [];
+  if (!ok.length) return null;
+  const start = new Date(Date.now() - days * 864e5).toISOString(), end = new Date().toISOString(), raw = {};
+  for (const t of AUTO_TYPES) {
+    if (!ok.includes(t)) { raw[t] = []; continue; }
+    try { const r = await H.readSamples({ dataType: t, startDate: start, endDate: end, limit: 2000, ascending: true }); raw[t] = r.samples || []; }
+    catch (e) { raw[t] = []; }
+  }
+  return raw;
+}
