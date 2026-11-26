@@ -85,3 +85,12 @@ export function cleanPlan(p, todayStr) {
   }));
   return { days, note: String(p?.note || '').trim() };
 }
+
+/** 整理 AI 寫的菜色說明：材料一行、做法最多 6 步、哪裡買最多 5 種店 */
+export function cleanDetail(p) {
+  const list = (a, n) => (Array.isArray(a) ? a : []).map(x => String(x || '').trim()).filter(Boolean).slice(0, n);
+  return { ingredients: String(p?.ingredients || '').trim(), steps: list(p?.steps, 6), where: list(p?.where, 5) };
+}
+
+/** 上網查價格：Google 搜尋「菜名 價格」 */
+export const priceSearchUrl = name => 'https://www.google.com/search?q=' + encodeURIComponent(String(name || '').trim() + ' 價格');

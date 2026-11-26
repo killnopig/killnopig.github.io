@@ -244,6 +244,27 @@ export async function recipePlan(o, ctx) {
   return { parsed: r.parsed, api: r.api, ms: r.ms };
 }
 
+/** 推薦菜色的說明：材料、做法（外食寫怎麼點）、哪裡買得到（店的類型） */
+export const DISH_SCHEMA = {
+  type: 'object',
+  properties: {
+    ingredients: { type: 'string', description: '材料，一行，用頓號分開；外食或超商可以留空字串' },
+    steps: { type: 'array', items: { type: 'string' }, description: '自己煮：3～5 步做法；外食或超商：2～4 句怎麼點、怎麼搭比較好' },
+    where: { type: 'array', items: { type: 'string' }, description: '哪裡買得到，寫店的類型（例如 超商、便當店、自助餐、麵店、傳統市場、超市），2～4 個' },
+  },
+  required: ['ingredients', 'steps', 'where'],
+};
+const DISH_RULES = `你是溫和的飲食小幫手，用台灣繁體中文、國中生看得懂的口語，說明一道推薦的餐點。
+規則：
+1. 每句話簡短；做法用家裡常見的廚具，不要太難。
+2. 「哪裡買得到」只寫店的類型，不要寫特定品牌或店名，也不要寫價格。
+3. 只是建議，不要用命令句；不要提藥物、斷食或減重效果。
+4. 不要用簡體字，不要加表情符號。`;
+export async function dishDetail(o, dish) {
+  const r = await callJSON(o, DISH_RULES + '\n\n餐點：' + dish.name + (dish.tag ? '（類型：' + dish.tag + '）' : ''), DISH_SCHEMA);
+  return { parsed: r.parsed, api: r.api };
+}
+
 /** 適合辨識餐點的預設模型清單（還沒向 Google 查詢時使用） */
 export const DEFAULT_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-4-hydrogen', 'gemini-4-argon'];
 

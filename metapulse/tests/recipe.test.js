@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mealsPerDay, recipeContext, fallbackPlan, cleanPlan } from '../js/recipe.js';
+import { mealsPerDay, recipeContext, fallbackPlan, cleanPlan, cleanDetail, priceSearchUrl } from '../js/recipe.js';
 
 const today = '2026-11-20';
 const now = new Date(2026, 10, 20, 12).getTime();
@@ -57,4 +57,14 @@ test('整理 AI 回覆：補日期、數字防呆', () => {
   assert.equal(p.days[0].meals[1].name, '未命名');
   assert.equal(p.days[0].meals[1].points, 0);
   assert.deepEqual(cleanPlan(null, today).days, []);
+});
+
+test('整理菜色說明、查價格網址', () => {
+  const d = cleanDetail({ ingredients: ' 鮭魚、白飯 ', steps: ['煎魚', '', '盛飯', 1, 2, 3, 4, 5], where: ['超市', '傳統市場'] });
+  assert.equal(d.ingredients, '鮭魚、白飯');
+  assert.equal(d.steps.length, 6);
+  assert.equal(d.steps[0], '煎魚');
+  assert.deepEqual(d.where, ['超市', '傳統市場']);
+  assert.deepEqual(cleanDetail(null), { ingredients: '', steps: [], where: [] });
+  assert.equal(priceSearchUrl(' 鮭魚飯糰 '), 'https://www.google.com/search?q=' + encodeURIComponent('鮭魚飯糰 價格'));
 });

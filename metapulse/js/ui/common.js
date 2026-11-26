@@ -50,6 +50,8 @@ export function toast(text, bad) {
 
 /** 底部面板 */
 let sheetClose = null;
+/** 面板裡的子畫面（例如推薦菜色的說明）：設定 fn 後，返回手勢先呼叫它回上一層，而不是關掉面板 */
+export const sheetBack = { fn: null };
 export function openSheet(build, onClose) {
   const sh = $('sheet'), bg = $('sheet-bg');
   sh.textContent = '';
@@ -57,7 +59,7 @@ export function openSheet(build, onClose) {
   build(sh);
   sh.classList.add('on'); bg.classList.add('on'); sh.scrollTop = 0;
   document.body.style.overflow = 'hidden';
-  sheetClose = onClose || null;
+  sheetClose = onClose || null; sheetBack.fn = null;
   history.pushState({ sheet: 1 }, '');
 }
 export function closeSheet(fromPop) {
@@ -65,6 +67,7 @@ export function closeSheet(fromPop) {
   if (!sh.classList.contains('on')) return;
   sh.classList.remove('on'); $('sheet-bg').classList.remove('on');
   document.body.style.overflow = '';
+  sheetBack.fn = null;
   const f = sheetClose; sheetClose = null; if (f) f();
   if (!fromPop && history.state && history.state.sheet) history.back();
 }
@@ -107,6 +110,7 @@ export function backLayer() {
     ds[0].querySelector('summary')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     return true;
   }
+  if (inSheet && sheetBack.fn) { sheetBack.fn(); return true; }
   if (inSheet) { closeSheet(); return true; }
   return false;
 }
