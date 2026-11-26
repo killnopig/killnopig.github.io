@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <script>
 /* 版本號：發布新版時改這裡。版本檢查會比對線上 index.html 的這一行。 */
-window.APP_VERSION = '0.9.87';
+window.APP_VERSION = '0.9.88';
 /* 載入失敗時不要只剩空白：記下錯誤，8 秒後程式還沒啟動就顯示原因與「重新載入」 */
 (function(){var errs=[];
 addEventListener('error',function(e){var t=e.target;if(t&&t!==window&&(t.src||t.href))errs.push('載入失敗：'+(t.src||t.href).split('/').slice(-2).join('/'));else errs.push((e.message||'程式檔載入失敗（網路或舊快取）')+(e.filename?'（'+e.filename.split('/').pop().split('?')[0]+':'+e.lineno+'）':''))},true);
@@ -190,7 +190,8 @@ details.tip>div *{white-space:normal}
 .jbox.drop{background:var(--ac-soft);outline:2px dashed var(--ac);outline-offset:2px}
 .mergebar{position:sticky;bottom:0;background:var(--card);border:2px solid var(--ac);border-radius:14px;padding:12px;margin-top:10px;box-shadow:0 -4px 18px rgba(0,0,0,.15)}
 .undobar{position:fixed;left:16px;right:16px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:70;max-width:528px;margin:0 auto;background:var(--tx);color:var(--bg);border-radius:12px;padding:8px 14px;display:flex;justify-content:space-between;align-items:center;font-size:14px}
-#ver.two{font-size:10px!important;line-height:1.15;align-self:center}
+#ver.two,#sync.two{font-size:10px!important;line-height:1.15;align-self:center}
+#sync.two{min-width:0;overflow:hidden}
 .updbadge{margin-left:auto;align-self:center;flex:0 0 auto;white-space:nowrap;overflow:visible;text-overflow:clip;max-width:none;background:var(--ac);color:var(--act);border:0;border-radius:99px;padding:3px 10px;font-size:12px;font-weight:700;animation:updpulse 1.6s ease-in-out infinite}
 .updbadge.ok{background:var(--soft);color:var(--mu);font-weight:500;animation:none}
 @keyframes updpulse{0%,100%{opacity:1}50%{opacity:.45}}
