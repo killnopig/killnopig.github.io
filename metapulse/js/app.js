@@ -19,10 +19,10 @@ if (isNative()) document.documentElement.classList.add('native');   // 保險：
 
 const APP_VERSION = window.APP_VERSION;
 $('ver').textContent = 'v' + APP_VERSION;
-/* APK 裡顯示 App 的版本（網頁版本放在括號裡）；舊版 APK 沒有這個功能就維持網頁版本 */
+/* APK 裡顯示 App 和網頁兩個版本，疊成兩行小字（放一行太長會被擠成 …）；舊版 APK 沒有這個功能就維持網頁版本 */
 try {
   const W = capPlugin('MapleWidget');
-  if (W && W.version) W.version().then(r => { if (r && r.version) $('ver').textContent = 'v' + r.version + '・網頁 ' + APP_VERSION; }).catch(() => {});
+  if (W && W.version) W.version().then(r => { if (r && r.version) { const v = $('ver'); v.textContent = ''; v.classList.add('two'); v.append(document.createTextNode('App ' + r.version), document.createElement('br'), document.createTextNode('網頁 ' + APP_VERSION)); } }).catch(() => {});
 } catch (e) { /* 不是 APK */ }
 applyTheme();
 

@@ -1,10 +1,11 @@
 # MetaPulse 進度
 
 ## 目前版本
-- 網頁：v0.9.85
+- 網頁：v0.9.86
 - Android APK：正式版 1.4.1（2026-11-20 發布，已自動貼 FB）；測試版 1.6.6 已裝（2026-11-23 11:24；斷食中每 15 分鐘重算小工具進度、提醒卡改回常駐）
 
 ## 最近完成
+- v0.9.86：APK 標題旁的版本改成兩行小字「App 1.6.6／網頁 0.9.86」，不再被截成「0.9…」，右邊「✓ 最新」也照樣完整。
 - v0.9.85：身體頁「📷 Omron 截圖匯入」（有 AI 金鑰才顯示，在血壓計下面）：選 OMRON connect 的截圖 → Gemini 讀血壓、脈搏、體重、體脂、骨骼肌、內臟脂肪、身體年齡、基礎代謝（`gemini.js` `readOmronShot`，截圖照寬度縮到 900px）→ 列出來按「確認存入」。超出合理範圍當讀錯（`js/omronShot.js` `RANGE`）；只有體組成時補到同一天最後一筆體重，其他照一般匯入規則略過重複（`planShot`）。存前存復原（`metapulse-v1-undo`）。截圖不存。
 - v0.9.84：自動接 Omron：APK 打開或從背景切回來時（最多每 10 分鐘一次），用 `checkAuthorization` 只讀已允許的項目（不跳權限視窗），讀最近 7 天 Health Connect 裡 Omron 的血壓、脈搏、體重、體脂、基礎代謝，有新的就直接匯入並跳「已從 Omron 匯入 N 筆（設定可復原）」。運動消耗不自動匯入，照舊手動同步。設定 → Health Connect 同步多一個勾選「打開 App 時自動匯入 Omron」（`L.hcAuto`，預設開）。程式：`health.js` `autoDue`／`autoPlan`／`readHealthQuiet`，`ui/health.js` `autoHealth`。OMRON connect 已在使用者手機上連好 Health Connect（2026-11-26 看過）。
 - v0.9.83：標題列右邊「✓ 最新」不再被擠成「✓ …」（APK 顯示「v1.6.6・網頁 0.9.82」太長）：更新標籤固定不縮，版本文字太長時改由它自己縮成 …。
