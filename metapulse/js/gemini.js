@@ -265,6 +265,38 @@ export async function dishDetail(o, dish) {
   return { parsed: r.parsed, api: r.api };
 }
 
+/** Omron 截圖判讀：讀出畫面上每一次量測的數字 */
+const n0 = d => ({ type: 'number', description: d + '；畫面上沒有就填 0' });
+export const SHOT_SCHEMA = {
+  type: 'object',
+  properties: {
+    readings: {
+      type: 'array', description: '畫面上的每一次量測（同一時間量的放同一筆）',
+      items: {
+        type: 'object',
+        properties: {
+          date: { type: 'string', description: '量測日期 YYYY-MM-DD；畫面上看不出來填空字串' },
+          time: { type: 'string', description: '量測時間 HH:MM（24 小時制）；看不出來填空字串' },
+          sys: n0('收縮壓（最高血壓）mmHg'), dia: n0('舒張壓（最低血壓）mmHg'), pul: n0('脈搏 次/分'),
+          wt: n0('體重 kg'), fat: n0('體脂肪率 %'), mus: n0('骨骼肌率 %'), vis: n0('內臟脂肪等級'),
+          bage: n0('身體年齡 歲'), bmr: n0('基礎代謝 kcal'),
+        },
+        required: ['date', 'time', 'sys', 'dia', 'pul', 'wt', 'fat', 'mus', 'vis', 'bage', 'bmr'],
+      },
+    },
+    note: { type: 'string', description: '看不清楚或不確定的地方，可為空字串' },
+  },
+  required: ['readings'],
+};
+const SHOT_RULES = `這是 OMRON connect App（歐姆龍血壓計、體重體脂計）的手機截圖。
+請只照畫面上清楚顯示的數字填寫，不要猜、不要換算；看不到的項目填 0。
+日期如果只有月日，年份用今天的年份（今天是 {TODAY}）；寫「今天」就用今天的日期。
+圖表上的刻度、目標值、平均值不是量測值，不要填。`;
+export async function readOmronShot(o, image, todayStr) {
+  const r = await callJSON({ ...o, image, fast: false }, SHOT_RULES.replace('{TODAY}', todayStr), SHOT_SCHEMA);
+  return { parsed: r.parsed, api: r.api };
+}
+
 /** 適合辨識餐點的預設模型清單（還沒向 Google 查詢時使用） */
 export const DEFAULT_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-4-hydrogen', 'gemini-4-argon'];
 
