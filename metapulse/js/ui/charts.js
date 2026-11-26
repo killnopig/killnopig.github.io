@@ -536,6 +536,14 @@ const byOrder = list => list.map((x, i) => [x, i]).sort((a, b) => {
 }).map(x => x[0]);
 
 let live = [];
+
+/* 點圖表以外的地方（空白處、別的卡片）就把細節框收起來；手機上 Chart.js 點過的細節框會一直留著 */
+document.addEventListener('pointerdown', ev => {
+  for (const c of live) {
+    if (!c || !c.canvas || c.canvas === ev.target) continue;
+    if (c.tooltip && c.tooltip.getActiveElements().length) { c.tooltip.setActiveElements([], { x: 0, y: 0 }); c.setActiveElements([]); c.update('none'); }
+  }
+}, true);
 const OPEN_DEFAULT = { w: true };
 
 /** keep = 按選項重畫：畫面停在原來的位置（重畫時頁面會暫時變短，瀏覽器會捲回最上面） */
