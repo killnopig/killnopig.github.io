@@ -297,6 +297,38 @@ export async function readOmronShot(o, image, todayStr) {
   return { parsed: r.parsed, api: r.api };
 }
 
+/** 健檢報告、抽血單照片 → 每個檢驗項目的名稱、數值、單位、參考範圍 */
+export const LAB_SCHEMA = {
+  type: 'object',
+  properties: {
+    date: { type: 'string', description: '報告上的採檢（抽血）日期 YYYY-MM-DD；民國年請換成西元；看不出來填空字串' },
+    items: {
+      type: 'array', description: '報告上的每一個檢驗項目',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: '項目名稱，照報告上寫的（例如 Glu-AC、HbA1c、總膽固醇）' },
+          value: { type: 'string', description: '檢驗結果，照報告上寫的（例如 5.7、<0.5、陰性）；不要加單位' },
+          unit: { type: 'string', description: '單位；沒有填空字串' },
+          ref: { type: 'string', description: '參考範圍／正常值，照報告上寫的（例如 70-100、<5.7）；沒有填空字串' },
+          date: { type: 'string', description: '這一項的日期（報告上有好幾次時才填，YYYY-MM-DD），否則填空字串' },
+        },
+        required: ['name', 'value', 'unit', 'ref', 'date'],
+      },
+    },
+    note: { type: 'string', description: '看不清楚或可能讀錯的地方，一句話；沒有填空字串' },
+  },
+  required: ['date', 'items', 'note'],
+};
+const LAB_RULES = `這是一張健康檢查報告或醫院抽血檢驗報告的照片。
+請逐項列出報告上的檢驗項目：名稱、結果、單位、參考範圍，全部照報告上寫的抄，不要換算、不要猜、不要判斷好壞。
+看不清楚的項目不要填。表頭、醫院名稱、病歷號、姓名等個人資料不要填。
+日期用採檢（抽血）日期；民國年換成西元（113 年 = 2024 年）；今天是 {TODAY}。`;
+export async function readLabShot(o, image, todayStr) {
+  const r = await callJSON({ ...o, image, fast: false }, LAB_RULES.replace('{TODAY}', todayStr), LAB_SCHEMA);
+  return { parsed: r.parsed, api: r.api };
+}
+
 /** 適合辨識餐點的預設模型清單（還沒向 Google 查詢時使用） */
 export const DEFAULT_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-4-hydrogen', 'gemini-4-argon'];
 

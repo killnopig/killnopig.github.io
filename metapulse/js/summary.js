@@ -2,6 +2,7 @@
 import { sortEntries, onBoard, dn, fromDn } from './records.js';
 import { localDate } from './points.js';
 import { leanTrend, leanSummary } from './longterm.js';
+import { labSummaryLines } from './labs.js';
 import { fastSegments } from './fasting.js';
 
 const f = (n, d = 1) => (+n).toFixed(d);
@@ -150,6 +151,10 @@ export function buildSummary(S, P, today, withPrompt = true) {
     const ls = leanSummary(lt);
     L.push('  判讀（±0.5% 以內算持平、超過 1.5% 算明顯）：' + ls.levelText + (ls.lost ? ' ' + ls.lost : ''));
   }
+
+  // 抽血
+  const lab = labSummaryLines(S.labs);
+  if (lab.length) { L.push(''); L.push('■ 抽血檢查'); lab.forEach(x => L.push(x)); }
 
   // 飲食：只算有記錄的日子（今天還沒結束，不算進平均）
   const fd = Object.keys(food).filter(d => d < today).sort();

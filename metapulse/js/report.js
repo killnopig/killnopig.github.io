@@ -5,6 +5,7 @@ import { fastSegments } from './fasting.js';
 import { dailyFood } from './summary.js';
 import { symptomStats, strengthCount, LEVELS } from './safety.js';
 import { SAFETY, STRENGTH } from './config.js';
+import { labReportLines } from './labs.js';
 
 const f = (n, d = 1) => (+n).toFixed(d);
 const sg = (n, d = 1) => { const r = +(+n).toFixed(d); return (r > 0 ? '+' : r < 0 ? '−' : '±') + Math.abs(r).toFixed(d); };
@@ -68,6 +69,10 @@ export function doctorReport(S, P, today, weeks = 8) {
     out.push(''); out.push('■ 血壓');
     out.push('- ' + bs.length + ' 次，平均 ' + f(avg(bs.map(e => e.sys)), 0) + '/' + f(avg(bs.map(e => e.dia)), 0) + ' mmHg' + (ps.length ? '，脈搏 ' + f(avg(ps.map(e => e.pul)), 0) : '') + '；最高 ' + hi.sys + '/' + hi.dia + '（' + md(hi.date) + '）。');
   }
+
+  // 抽血
+  const lab = labReportLines(S.labs, from, today);
+  if (lab.length) { out.push(''); out.push('■ 抽血檢查（照報告的數字）'); lab.forEach(x => out.push(x)); }
 
   // 飲食
   const food = dailyFood((S.meals || []).filter(m => !m.pending)), fd = Object.keys(food).filter(d => inR(d) && d < today).sort();

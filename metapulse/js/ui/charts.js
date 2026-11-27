@@ -14,6 +14,7 @@ import { longTermStatusCard, leanParts, longTermStatus, leanStatus, openJournal 
 import { leanSummary, longTermRows } from '../longterm.js';
 import { weightTrendLine, trendAt } from '../adaptive.js';
 import { theoryCard } from './theory.js';
+import { labHistory, labName, labUnit, labSort, refText } from '../labs.js';
 
 const CHART_URL = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
 let loading = null;
@@ -632,6 +633,7 @@ async function drawCharts(root) {
   if (more.length) { moreD.append(...more); list.append(moreD); moreDraw.forEach(f => f()); }
   list.append(ltCard(ltSp).firstChild);
   for (const [d, draw] of late) { list.append(d); draw(); }
+  const lf = labFold(pal); if (lf) list.append(lf);
   list.append(theoryCard().firstChild);   // 瘦身循環：理論說明放最後一行
 }
 
@@ -655,4 +657,42 @@ function ltCard(sp) {
   d.addEventListener('toggle', draw);
   requestAnimationFrame(draw);                    // 等卡片放進畫面再畫，才量得到大小
   return card;
+}
+
+/** 抽血：挑一個項目畫歷次數字；有報告參考範圍就畫上下限虛線（不跟著上面的範圍選項，抽血間隔很長） */
+function labFold(pal) {
+  const labs = [...(S.labs || [])].sort((a, b) => (a.date < b.date ? -1 : 1));
+  const keys = [...new Set(labs.flatMap(x => Object.keys(x.v)))].filter(k => labHistory(labs, k).some(p => typeof p.val === 'number')).sort(labSort);
+  if (!keys.length) return null;
+  if (!keys.includes(L.chartLab)) L.chartLab = keys.includes('hba1c') ? 'hba1c' : keys[0];
+  const sel = h('select', { 'aria-label': '項目', style: { marginTop: '8px' } }, ...keys.map(k => h('option', { value: k }, labName(k) + '（' + labHistory(labs, k).length + ' 次）')));
+  sel.value = L.chartLab;
+  const box = h('div', { style: { position: 'relative', height: '220px', marginTop: '8px' } });
+  const note = h('div.mu.tiny.one', { style: { marginTop: '4px' } });
+  const last = labs[labs.length - 1];
+  const d = fold('chart-labs', h('div.grow', h('h2', { style: { margin: 0 } }, '抽血'), h('div.mu.small.one', { style: { marginTop: '2px' } }, '最近 ' + last.date.replace(/-/g, '/') + '・' + keys.length + ' 個項目')),
+    [sel, box, note, tip('挑一個項目看歷次的數字。虛線是報告上寫的參考範圍（最近一次有讀到範圍才畫）。不跟著上面的「範圍」，抽血通常幾個月一次，所以全部畫出來。')]);
+  d.dataset.chart = 1;
+  let chart = null;
+  const draw = () => {
+    if (!d.open) return;
+    if (chart) { chart.destroy(); live = live.filter(c => c !== chart); chart = null; }
+    const k = sel.value, hs = labHistory(labs, k).filter(p => typeof p.val === 'number');
+    const rf = [...labs].reverse().map(x => (x.r || {})[k]).find(Boolean);
+    note.textContent = (labUnit(k) ? '單位 ' + labUnit(k) : '') + (rf ? (labUnit(k) ? '・' : '') + '參考範圍 ' + refText(rf) : '');
+    const labels = hs.map(p => p.date.slice(2).replace(/-/g, '/'));
+    const ds = [{ label: labName(k), data: hs.map(p => p.val), borderColor: pal.wc, backgroundColor: pal.wc, pointRadius: 4, tension: 0, spanGaps: true }];
+    if (rf && rf[1] != null) ds.push({ label: '上限', data: hs.map(() => rf[1]), borderColor: pal.rc, borderDash: [5, 4], borderWidth: 1, pointRadius: 0 });
+    if (rf && rf[0] != null) ds.push({ label: '下限', data: hs.map(() => rf[0]), borderColor: pal.mu, borderDash: [5, 4], borderWidth: 1, pointRadius: 0 });
+    box.textContent = '';
+    const cv = h('canvas', { style: { touchAction: 'pan-y' } }); box.append(cv);
+    try {
+      chart = new Chart(cv, { type: 'line', data: { labels, datasets: ds }, options: { maintainAspectRatio: false, animation: false, plugins: { legend: { display: ds.length > 1, labels: { boxWidth: 12 } } }, scales: { x: { grid: { display: false } } } } });
+      live.push(chart);
+    } catch (e) { box.append(h('div.notice', '圖表產生失敗：' + (e.message || e))); }
+  };
+  sel.onchange = () => { L.chartLab = sel.value; commitLocal(); draw(); };
+  d.addEventListener('toggle', draw);
+  requestAnimationFrame(draw);
+  return d;
 }
