@@ -6,6 +6,7 @@
  * - 今天還沒過完，不列入 */
 import { LONGTERM } from './config.js';
 import { localDate, addDays } from './points.js';
+import { weeklyTrend } from './adaptive.js';
 
 export function dailyKcal(meals) {
   const m = {};
@@ -55,22 +56,17 @@ export function longTermRows(series, from = '') {
 }
 
 /**
- * 體重下降速度：比較「最近 14 天平均」和「7 天前的 14 天平均」，換算每週下降佔體重幾 %
+ * 體重下降速度：和週報、圖表用同一條「趨勢體重」（adaptive.js），今天跟 7 天前比，換算每週下降佔體重幾 %
+ * （2026-11-27 統一：以前這裡用 14 天平均，跟週報的數字會差一點，新使用者對照會疑惑）
+ * 最近 14 天至少量 4 天才算，太久沒量就不判斷
  * @returns {{weeklyPct:number|null, fast:boolean}}
  */
 export function weightTrend(entries, todayStr, cfg = LONGTERM) {
-  const byDay = {};
-  for (const e of entries) if (e.wt > 0) (byDay[e.date] = byDay[e.date] || []).push(e.wt);
-  const avg = (from, to) => {
-    const v = []; for (const d in byDay) if (d >= from && d <= to) v.push(byDay[d].reduce((a, b) => a + b, 0) / byDay[d].length);
-    return v.length >= 4 ? v.reduce((a, b) => a + b, 0) / v.length : null;
-  };
-  const n = cfg.weightMaDays;
-  const now = avg(addDays(todayStr, -(n - 1)), todayStr);
-  const prev = avg(addDays(todayStr, -(n - 1) - 7), addDays(todayStr, -7));
-  if (now === null || prev === null) return { weeklyPct: null, fast: false };
-  const weeklyPct = (prev - now) / prev * 100;
-  return { weeklyPct, fast: weeklyPct > cfg.fastLossPct };
+  const from = addDays(todayStr, -(cfg.weightMaDays - 1));
+  const days = new Set((entries || []).filter(e => e.wt > 0 && e.date >= from && e.date <= todayStr).map(e => e.date)).size;
+  const w = days >= 4 ? weeklyTrend(entries || [], todayStr) : null;
+  if (!w || w.pct == null) return { weeklyPct: null, fast: false };
+  return { weeklyPct: w.pct, fast: w.pct > cfg.fastLossPct };
 }
 
 /** 提示文字（沒觸發時回傳 null） */

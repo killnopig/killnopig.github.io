@@ -115,11 +115,12 @@ test('長期指數：跳過沒記錄與記錄不完整的日子，資料足夠�
   assert.equal(longTermMessage(few, null), null);
 });
 
-test('體重下降速度（14 天平均）', () => {
+test('體重下降速度（和週報同一條趨勢體重）', () => {
   const today = '2026-11-30', es = [];
-  for (let i = 0; i < 28; i++) es.push({ date: addDays(today, -i), wt: 100 - (27 - i) * 0.2 }); // 每天 -0.2 kg ≈ 每週 1.4%
+  for (let i = 0; i < 90; i++) es.push({ date: addDays(today, -i), wt: 120 - (89 - i) * 0.2 }); // 每天 -0.2 kg ≈ 每週 1.4%（趨勢線前幾週會晃，用長一點的資料）
   const w = weightTrend(es, today);
-  assert.ok(w.weeklyPct > 1.3 && w.weeklyPct < 1.6);
+  assert.ok(w.weeklyPct > 1.25 && w.weeklyPct < 1.45, String(w.weeklyPct));
+  assert.equal(weightTrend(es.filter(e => e.date < addDays(today, -20)), today).weeklyPct, null);   // 最近 14 天沒量：不判斷
   assert.equal(w.fast, true);
   assert.equal(weightTrend(es.slice(0, 3), today).weeklyPct, null);
 });

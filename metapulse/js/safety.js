@@ -110,7 +110,7 @@ export function paceAdvice(b, entries, todayStr, cfg = SAFETY) {
   if (level === 'fast') advice.push('最近一週趨勢體重掉了約 ' + pct + '%，比每週 ' + cfg.paceFastPct + '% 快（目標是 ' + goal + '%）。剛開始的幾週常是水分；持續太快的話，建議把目標調慢或至少吃到保底，蛋白質吃夠、做肌力訓練，比較能保住肌肉。');
   if (level === 'slow') advice.push('最近一週趨勢體重' + (pct >= 0 ? '只少了約 ' + pct : '多了約 ' + -pct) + '%（目標是 ' + goal + '%）。先檢查有沒有漏記（飲料、醬料、零食、試吃），份量有沒有估太少；記錄完整的話，可以把「每天消耗用」改成「依我的記錄」，讓 App 照你的實際狀況重算點數。');
   if (level === 'ok') advice.push('最近一週趨勢體重掉了約 ' + pct + '%，在每週 ' + cfg.paceSlowPct + '～' + cfg.paceFastPct + '% 之間，照現在的步調就好。');
-  advice.push('體重用最近 14 天平均和 7 天前的 14 天平均比，不看單日。這只是提醒，有不舒服請問醫師。');
+  advice.push('體重用「趨勢體重」（把每天的水分起伏抹平）跟 7 天前比，和週報、圖表是同一個數字，不看單日。這只是提醒，有不舒服請問醫師。');
   return { low, daily: b.dailyPoints, floor: b.floorPoints, pct, level, line, advice };
 }
 
