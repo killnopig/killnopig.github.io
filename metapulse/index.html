@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <script>
 /* 版本號：發布新版時改這裡。版本檢查會比對線上 index.html 的這一行。 */
-window.APP_VERSION = '0.9.91';
+window.APP_VERSION = '0.9.92';
 /* 載入失敗時不要只剩空白：記下錯誤，8 秒後程式還沒啟動就顯示原因與「重新載入」 */
 (function(){var errs=[];
 addEventListener('error',function(e){var t=e.target;if(t&&t!==window&&(t.src||t.href))errs.push('載入失敗：'+(t.src||t.href).split('/').slice(-2).join('/'));else errs.push((e.message||'程式檔載入失敗（網路或舊快取）')+(e.filename?'（'+e.filename.split('/').pop().split('?')[0]+':'+e.lineno+'）':''))},true);
@@ -346,6 +346,13 @@ b.big{font-size:40px;line-height:1.05;font-weight:750;letter-spacing:-.5px}
 .card{margin-bottom:6px}
 .card:has(>details:not([open])){padding-top:6px;padding-bottom:6px}
 .card>details:not([open])>summary .mu.small{margin-top:0!important}
+.cta-row.three{grid-template-columns:1.4fr 1fr 1fr;gap:6px}.cta-row.three .cta{padding-left:4px;padding-right:4px;gap:4px}
+/* v0.9.92 圖表頁：所有圖表在同一張卡，每張一行（名稱＋摘要同一行） */
+.chartlist>details{border-top:1px solid var(--ln);margin-top:8px!important;padding-top:8px}
+.chartlist>details>summary .grow{display:flex;align-items:baseline;gap:8px;min-width:0}
+.chartlist>details>summary h2{font-size:15px;flex:0 0 auto}
+.chartlist>details>summary .grow>div{margin-top:0!important;min-width:0;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto}
+.chartlist>details>summary>b{font-size:15px}
 </style>
 </head>
 <body>

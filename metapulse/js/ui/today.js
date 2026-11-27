@@ -131,10 +131,10 @@ export function renderToday(root) {
         low ? '今天只吃 ' + fmtPts(td.eaten) + ' 點，少於基本需要的 ' + b.floorPoints + ' 點，記得吃夠'
           : '今日 ' + Math.round(td.kcal) + ' 大卡' + (td.refund ? '・運動 +' + fmtPts(td.refund) : '') + '・存摺只算有記錄的日子'));
     }
-    top.append(h('div.cta-row' + (fi.fasting ? '.sm' : ''),
+    top.append(h('div.cta-row.three' + (fi.fasting ? '.sm' : ''),
       h('button.pri.cta', { type: 'button', onclick: () => openAddMeal() }, icon('camera'), '記一餐'),
-      h('button.ghost.cta', { type: 'button', onclick: () => openExercise() }, icon('run'), '記運動')),
-      recipeButton());
+      h('button.ghost.cta', { type: 'button', onclick: () => openExercise() }, icon('run'), '記運動'),
+      recipeButton()));
   }
   // 今天吃了：只列食物（斷食在「斷食與飲食記錄」裡）
   const todays = groups.filter(g => !g.pending && localDate(g.at) === todayStr).reverse();

@@ -140,4 +140,5 @@ export function openRecipe() {
 }
 
 /** 今天頁「今天剩餘」卡裡的入口 */
-export const recipeButton = () => h('button.ghost.full', { type: 'button', style: { marginTop: '8px' }, onclick: () => openRecipe() }, '🍽 推薦這週吃什麼 ›');
+/** 飲食運動頁按鈕列的第三顆：推薦這週吃什麼 */
+export const recipeButton = () => h('button.ghost.cta', { type: 'button', title: '推薦這週吃什麼', onclick: () => openRecipe() }, '🍽 推薦');

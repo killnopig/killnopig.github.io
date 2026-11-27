@@ -561,10 +561,10 @@ export async function renderCharts(root, keep = false) {
 async function drawCharts(root) {
   live.forEach(c => c && c.destroy()); live = [];
   root.textContent = '';
-  root.append(theoryCard());   // 瘦身循環：理論說明（預設收起）
   const any = S.entries.some(e => e.wt > 0 || e.dose > 0 || e.sys > 0 || e.fat > 0 || e.mus > 0 || e.vis > 0 || e.bage > 0 || e.bmr > 0)
     || S.meals.length || (S.exercise || []).length || (S.activity || []).length || (S.medLog || []).length;
   if (!any) {
+    root.append(theoryCard());
     root.append(h('div.card', h('div.empty', '還沒有可以畫圖的資料。到「身體」新增，或到「設定」→「備份與匯入」把同步版的記錄搬過來。')));
     if (!longTermStatus().lt.series.length) { root.append(longTermStatusCard()); return; }
     try { await loadChart(); } catch (e) { root.append(longTermStatusCard()); return; }
@@ -574,16 +574,17 @@ async function drawCharts(root) {
   const range = L.chartRange || 'all', bpv = L.chartBp || 'all';
   const charts = () => [...root.querySelectorAll('details')].filter(d => d.dataset.chart);
   const bulk = open => () => { if (!setFolds(charts(), open)) toast(open ? '已經全部打開' : '已經全部收起'); };
-  root.append(h('div.card', h('div.row.between', h('b.small', '範圍'), pills([['30', '近 30 天'], ['90', '近 90 天'], ['all', '全部']], range, v => { L.chartRange = v; commitLocal(); renderCharts(root, true); })),
-    h('div.row.between', { style: { marginTop: '8px' } }, h('b.small', '圖表'), h('div.row', { style: { gap: '14px' } },
-      h('button.link.small', { type: 'button', onclick: bulk(true) }, '全開'), h('button.link.small', { type: 'button', onclick: bulk(false) }, '全收')))));
+  root.append(h('div.card', h('div.row.between', h('b.small', '範圍'), pills([['30', '近 30 天'], ['90', '近 90 天'], ['all', '全部']], range, v => { L.chartRange = v; commitLocal(); renderCharts(root, true); }))));
+  // 所有圖表放在同一張卡，每張圖一行（名稱＋摘要），點了才展開（使用者要全收時一頁看完）
+  const list = h('div.card.chartlist', h('div.row.between', h('b.small', '圖表'), h('div.row', { style: { gap: '14px' } },
+    h('button.link.small', { type: 'button', onclick: bulk(true) }, '全開'), h('button.link.small', { type: 'button', onclick: bulk(false) }, '全收'))));
   const wait = h('div.card', h('div.row.small.mu', h('span.spin'), '正在準備圖表…'));
   root.append(wait);
   try { await loadChart(); } catch (e) {
     wait.textContent = ''; wait.append(h('div.notice', '畫圖的程式下載失敗。請確認有連上網路，再重新整理頁面。')); return;
   }
   wait.remove();
-  root.append(aiCard(range, bpv));
+  root.append(aiCard(range, bpv), list);
   const pal = chartDefaults();
   let ltSp = null;
   const more = [], moreDraw = [], moreD = fold('chart-more', h('div.grow', h('h2', { style: { margin: 0 } }, '飲食・運動・用藥'), h('div.mu.small.one', { style: { marginTop: '2px' } }, '點數存摺、進食時間、營養素、運動、用藥記錄')), more);
@@ -624,13 +625,14 @@ async function drawCharts(root) {
     };
     d.addEventListener('toggle', draw);
     if (inner) { moreD.addEventListener('toggle', draw); moreDraw.push(draw); more.push(h('div', { style: { borderTop: '1px solid var(--ln)', marginTop: '10px', paddingTop: '10px' } }, d)); continue; }
-    if (sp.id === 'bp') { late.push([h('div.card', d), draw]); continue; }
-    root.append(h('div.card', d));
+    if (sp.id === 'bp') { late.push([d, draw]); continue; }
+    list.append(d);
     draw();
   }
-  if (more.length) { moreD.append(...more); root.append(h('div.card', moreD)); moreDraw.forEach(f => f()); }
-  root.append(ltCard(ltSp));
-  for (const [c, draw] of late) { root.append(c); draw(); }
+  if (more.length) { moreD.append(...more); list.append(moreD); moreDraw.forEach(f => f()); }
+  list.append(ltCard(ltSp).firstChild);
+  for (const [d, draw] of late) { list.append(d); draw(); }
+  list.append(theoryCard().firstChild);   // 瘦身循環：理論說明放最後一行
 }
 
 function chartDefaults() {
