@@ -15,7 +15,7 @@ import { latestAdviceCard } from './advice.js';
 import { fastingCard, longTermCard, fastInfo, openGuessSheet, openJournal } from './fasting.js';
 import { guessFasts } from '../fasting.js';
 import { lowProteinMeal } from '../safety.js';
-import { paceTip } from './pace.js';
+import { paceTip, tdeeSwitchCard } from './pace.js';
 import { recipeButton } from './recipe.js';
 
 const r1 = x => Math.round(x * 10) / 10;
@@ -94,6 +94,7 @@ export function renderToday(root) {
 
   /* ---- ① 現在：斷食中／進食中 ---- */
   const fi = fastInfo();
+  { const sw = tdeeSwitchCard(() => renderToday(root)); if (sw) root.append(sw); }
   root.append(fastingCard());
   const lt = longTermCard();
   if (lt) root.append(lt);
