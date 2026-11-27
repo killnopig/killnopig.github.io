@@ -155,3 +155,27 @@ test('表格擺法更有彈性：上面有標題列、左邊有編號欄、月/�
   assert.equal(labDate('03/05/2024'), '2024-03-05');
   assert.equal(labDate('25/12/2024'), '2024-12-25');
 });
+
+import { labHints } from '../js/labs.js';
+test('抽血提醒：腎功能、降血糖藥', () => {
+  const labs = [
+    { id: 'a', date: '2024-03-05', v: { hba1c: 6.4, egfr: 80 }, r: { egfr: [60, null] } },
+    { id: 'b', date: '2024-09-03', v: { hba1c: 5.9, egfr: 55, cre: 1.0 }, r: { egfr: [60, null], cre: [0.7, 1.3] } },
+  ];
+  const h1 = labHints(labs, []);
+  assert.match(h1.kidney, /eGFR 55（9\/3）/);
+  assert.match(h1.kidney, /請先問醫師/);
+  assert.equal(h1.glucose, null);           // 沒有降血糖藥
+  const h2 = labHints(labs, [{ name: '降血糖藥', glucose: true }]);
+  assert.match(h2.glucose, /HbA1c 6.4 → 5.9/);
+  assert.deepEqual(labHints([{ id: 'a', date: '2024-03-05', v: { hba1c: 5.9, egfr: 90 }, r: { egfr: [60, null] } }], [{ glucose: true }]), { kidney: null, glucose: null });
+  assert.deepEqual(labHints([], []), { kidney: null, glucose: null });
+});
+
+test('手機貼上變空白、名稱有數字、擺法猜錯會換另一種', () => {
+  const t = '項目  113/03/05  113/06/04\nHbA1c  6.4  6.0\nGlu-AC  118  106\nVit B12  400  420';
+  assert.deepEqual(parseLabTable(t).recs, [{ date: '2024-03-05', v: { hba1c: 6.4, glu: 118, 'x:Vit B12': 400 } }, { date: '2024-06-04', v: { hba1c: 6, glu: 106, 'x:Vit B12': 420 } }]);
+  const t2 = '日期 HbA1c Glu-AC\n2024/3/5 6.4 118';
+  assert.deepEqual(parseLabTable(t2).recs, [{ date: '2024-03-05', v: { hba1c: 6.4, glu: 118 } }]);
+  assert.match(parseLabTable('a\tb\n1\t2').err, /找不到日期/);
+});

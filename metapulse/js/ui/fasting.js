@@ -12,6 +12,7 @@ import { longTermIndex, weightTrend, longTermMessage, leanTrend, leanSummary } f
 import { usage, localDate, roundTo } from '../points.js';
 import { onBoard, dn, md, wdOf } from '../records.js';
 import { hypoAlert, doseIncrease, waterHint, omadWarn } from '../safety.js';
+import { labHints } from '../labs.js';
 
 const MODES = [['PURE_DYNAMIC', '自由斷食'], ['HYBRID_GUIDED', '依施打週期'], ['STRICT_MANUAL', '自選固定']];
 const PLANS = ['16:8', '18:6', '20:4', '24H'];
@@ -190,6 +191,7 @@ export function fastingCard() {
   if (hy) card.append(h('div.notice', { style: { marginTop: '8px', padding: '6px 10px' } },
     h('div.small.one', { style: { fontWeight: 650 } }, '留意低血糖：手抖、冒冷汗、心悸、頭暈'),
     hy.ask.length ? h('div.small.one', hy.ask.join('、') + ' 斷食中要不要吃，記得問醫師或藥師') : null,
+    (lh => (lh ? h('div.small', { style: { marginTop: '4px' } }, '🩸 ' + lh) : null))(labHints(S.labs, P.meds).glucose),
     tip('你有勾「降血糖藥」，' + (hy.long ? '斷食已經超過 16 小時' : '斷食中到了吃藥時間') + '。有些降血糖藥（例如會刺激胰島素分泌的口服藥、胰島素）在沒吃東西時比較容易造成低血糖。',
       h('br'), '如果出現手抖、冒冷汗、心悸、頭暈、很餓、想睡或講話不清楚，一般建議先吃點含糖的東西（例如果汁、方糖）、結束這次斷食，並告訴醫師。',
       h('br'), '藥要不要空腹吃、斷食時要不要調整，請照醫師或藥師的指示；問過之後可以到「設定」→「提醒與通知」勾「問過了」。')));

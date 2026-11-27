@@ -94,8 +94,10 @@ export function labValue(cell) {
 export function parseLabTable(text) {
   const lines = String(text || '').split(/\r?\n/).filter(l => l.trim());
   if (!lines.length) return { recs: [], keys: [], raw: {}, err: '框裡是空的。' };
-  const sep = lines.some(l => l.includes('\t')) ? '\t' : ',';
-  const rows = lines.map(l => l.split(sep).map(c => c.trim().replace(/^"(.*)"$/, '$1')));
+  // 分隔：Tab（Excel 複製）→ 逗號 → 兩個以上空白 → 空白（手機貼上有時 Tab 會變空白）
+  const splitBy = re => lines.map(l => l.split(re).map(c => c.trim().replace(/^"(.*)"$/, '$1')));
+  let rows = lines.some(l => l.includes('\t')) ? splitBy('\t') : lines.some(l => l.includes(',')) ? splitBy(',') : splitBy(/\s{2,}/);
+  if (rows.every(r => r.length < 2)) rows = splitBy(/\s+/);
   const by = new Map(), raw = {}, ref = {};
   const put = (date, name, cell) => {
     if (/^(編號|序號|項次|no\.?|#|姓名|name|病歷|備註|類別|單位|unit)$/i.test(half(name).trim())) return;   // 不是檢驗項目的欄
@@ -107,36 +109,45 @@ export function parseLabTable(text) {
   };
   const isRef = c => /參考|正常值|ref|range/i.test(half(c || ''));
   const setRef = (name, cell) => { const k = labKey(name), r = labRef(cell); if (k && r) ref[k] = r; };
+  const named = c => !!c && /[A-Za-z一-鿿]/.test(c) && !labDate(c);   // 像項目名稱（有字母或中文，HbA1c 這種有數字的也算）
   // 找日期在哪：日期最多的那一欄（每一列是一次抽血），或日期最多的那一列（每一列是一個項目）；上面有標題列、左邊有編號欄都可以
   const W = Math.max(...rows.map(r => r.length));
   let bc = -1, bcN = 0, br = -1, brN = 0;
   for (let j = 0; j < W; j++) { const n = rows.filter(r => labDate(r[j])).length; if (n > bcN) { bcN = n; bc = j; } }
   rows.forEach((r, i) => { const n = r.filter(c => labDate(c)).length; if (n > brN) { brN = n; br = i; } });
+  if (!bcN) return { recs: [], keys: [], raw: {}, err: '找不到日期。表格裡要有抽血日期（例如 2024/3/5、113/03/05 或 20240305）。' };
   const filled = r => r.filter(c => c !== '').length;
-  // 一樣多時（例如只有一次）：日期那一列其他格大多是數字＝每一列是一次抽血；大多是字＝那一列是表頭
-  const numRow = r => { const o = r.filter(c => c !== '' && !labDate(c)); return o.length && o.filter(c => typeof labValue(c) === 'number').length > o.length / 2; };
-  if (bcN && (bcN > brN || (bcN === brN && numRow(rows[rows.findIndex(r => labDate(r[bc]))])))) {   // 每一列是一次抽血
+  const byCols = () => {   // 每一列是一次抽血
     const first = rows.findIndex(r => labDate(r[bc]));
     let hr = first - 1;                                                     // 項目名稱那一列：日期上面最近、有兩格以上字的那一列
     while (hr >= 0 && (filled(rows[hr]) < 2 || rows[hr].some(isRef))) hr--;
-    if (hr < 0) return { recs: [], keys: [], raw: {}, err: '找到日期，但日期上面沒有項目名稱那一列。' };
+    if (hr < 0) return '找到日期，但日期上面沒有項目名稱那一列。';
     const head = rows[hr];
+    if (head.filter(named).length < 1) return '找到日期，但日期上面那一列不像項目名稱。';
     for (let i = hr + 1; i < rows.length; i++) {
       const r = rows[i], d = labDate(r[bc]);
       if (d) { for (let j = 0; j < r.length; j++) if (j !== bc && head[j]) put(d, head[j], r[j]); }
       else if (r.some(isRef)) for (let j = 0; j < r.length; j++) if (j !== bc && head[j] && !isRef(r[j])) setRef(head[j], r[j]);   // 「參考值」那一列
     }
-  } else if (brN) {                                                         // 每一列是一個項目
+    return by.size ? '' : '找到日期和項目，但沒有讀到數字。';
+  };
+  const byRows = () => {   // 每一列是一個項目
     const head = rows[br], dateCols = head.map((c, j) => (labDate(c) ? j : -1)).filter(j => j >= 0);
     const below = rows.slice(br + 1);
-    // 項目名稱那一欄：日期欄以外，下面最多「有字、不是數字」的那一欄
+    // 項目名稱那一欄：日期欄以外，認得的檢驗項目最多的優先，其次是最多「像名稱」的（左邊有「類別」欄也不會選錯）
     let nc = -1, ncN = 0;
-    // 認得的檢驗項目最多的優先（左邊有「類別」欄也不會選錯）
-    for (let j = 0; j < W; j++) if (!dateCols.includes(j)) { const n = below.filter(r => r[j] && typeof labValue(r[j]) === 'string').length + below.filter(r => r[j] && !labKey(r[j]).startsWith('x:')).length * 100; if (n > ncN) { ncN = n; nc = j; } }
-    if (nc < 0) return { recs: [], keys: [], raw: {}, err: '找到日期，但找不到項目名稱那一欄。' };
+    for (let j = 0; j < W; j++) if (!dateCols.includes(j)) { const n = below.filter(r => named(r[j])).length + below.filter(r => named(r[j]) && !labKey(r[j]).startsWith('x:')).length * 100; if (n > ncN) { ncN = n; nc = j; } }
+    if (nc < 0) return '找到日期，但找不到項目名稱那一欄。';
     const rc = head.findIndex((c, j) => j !== nc && isRef(c));            // 「參考值」那一欄
-    for (const r of below) if (r[nc] && !labDate(r[nc])) { for (const j of dateCols) put(labDate(head[j]), r[nc], r[j]); if (rc >= 0) setRef(r[nc], r[rc]); }
-  } else return { recs: [], keys: [], raw: {}, err: '找不到日期。表格裡要有抽血日期（例如 2024/3/5、113/03/05 或 20240305）。' };
+    for (const r of below) if (named(r[nc])) { for (const j of dateCols) put(labDate(head[j]), r[nc], r[j]); if (rc >= 0) setRef(r[nc], r[rc]); }
+    return by.size ? '' : '找到日期和項目，但沒有讀到數字。';
+  };
+  // 一樣多時（例如只有一次）：日期那一列其他格大多是數字＝每一列是一次抽血；大多是字＝那一列是表頭
+  const numRow = r => { const o = r.filter(c => c !== '' && !labDate(c)); return o.length && o.filter(c => typeof labValue(c) === 'number' && !named(c)).length > o.length / 2; };
+  const colsFirst = bcN > brN || (bcN === brN && numRow(rows[rows.findIndex(r => labDate(r[bc]))]));
+  let err = colsFirst ? byCols() : byRows();
+  if (err) { by.clear(); const e2 = colsFirst ? byRows() : byCols(); if (!e2) err = ''; else by.clear(); }   // 一種擺法讀不懂，換另一種再試
+  if (err) return { recs: [], keys: [], raw: {}, err: err + '（可以把表格最上面兩三列截圖給開發者看）' };
   const recs = [...by].map(([date, v]) => withRef({ date, v }, ref)).filter(r => Object.keys(r.v).length).sort((a, b) => (a.date < b.date ? -1 : 1));
   const keys = [...new Set(recs.flatMap(r => Object.keys(r.v)))].sort(labSort);
   return { recs, keys, raw, err: recs.length ? '' : '有找到日期，但沒有讀到數字。' };
@@ -243,4 +254,28 @@ export function labSummaryLines(labs) {
   const keys = [...new Set(list.flatMap(x => Object.keys(x.v)))].sort(labSort);
   return ['- 共 ' + list.length + ' 次（' + list[0].date + ' 到 ' + list[list.length - 1].date + '）。項目名稱已統一，數字照報告。']
     .concat(keys.map(k => '- ' + labName(k) + (labUnit(k) ? '（' + labUnit(k) + '）' : '') + '：' + labHistory(list, k).slice(-12).map(x => x.date + ' ' + vs(x.val)).join('；')));
+}
+
+/** 某項目最近一次的值和參考範圍、前一次的值（沒有就 null） */
+function latestOf(labs, k) {
+  const list = [...(labs || [])].filter(x => k in x.v).sort((a, b) => (a.date < b.date ? -1 : 1));
+  if (!list.length) return null;
+  const x = list[list.length - 1], p = list[list.length - 2];
+  return { date: x.date, val: x.v[k], ref: (x.r || {})[k] || null, flag: labFlag(x.v[k], (x.r || {})[k]), prev: p ? p.v[k] : null };
+}
+/**
+ * 抽血的提醒（只提醒、不改點數或斷食）：
+ * kidney：腎功能（eGFR 偏低、肌酸酐或尿蛋白偏高，照報告的參考範圍）→ 蛋白質目標旁提醒先問醫師
+ * glucose：有勾降血糖藥，而且最近血糖數字下降或偏低 → 低血糖提醒多一句
+ */
+export function labHints(labs, meds) {
+  const out = { kidney: null, glucose: null };
+  const bad = [['egfr', 'lo'], ['cre', 'hi'], ['uacr', 'hi']].map(([k, f]) => { const x = latestOf(labs, k); return x && x.flag === f ? labName(k) + ' ' + vs(x.val) + '（' + mdS(x.date) + '）' : null; }).filter(Boolean);
+  if (bad.length) out.kidney = '腎功能數字超出報告範圍：' + bad.join('、') + '。App 的蛋白質目標沒有考慮腎功能，蛋白質要吃多少請先問醫師。';
+  if ((meds || []).some(m => m && m.glucose)) {
+    const a = latestOf(labs, 'hba1c'), g = latestOf(labs, 'glu');
+    const down = (a && typeof a.val === 'number' && typeof a.prev === 'number' && a.prev - a.val >= 0.3) || (a && a.flag === 'lo') || (g && g.flag === 'lo');
+    if (down) out.glucose = '最近抽血的血糖數字' + (a && a.flag !== 'lo' && !(g && g.flag === 'lo') ? '下降了（HbA1c ' + vs(a.prev) + ' → ' + vs(a.val) + '）' : '偏低') + '：原本的降血糖藥量可能變得比較強，斷食時更容易低血糖，回診時請跟醫師討論藥量。';
+  }
+  return out;
 }

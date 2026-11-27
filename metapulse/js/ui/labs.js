@@ -4,7 +4,7 @@ import { S, L, commit, commitLocal } from '../state.js';
 import { h, toast, fold, tip, openSheet, closeSheet } from './common.js';
 import { localDate } from '../points.js';
 import { readLabShot, shrinkImage } from '../gemini.js';
-import { parseLabTable, shotLabRecs, planLabs, applyLabs, labRows, labHistory, labName, labUnit, labFlag, refText, labSort } from '../labs.js';
+import { labHints, parseLabTable, shotLabRecs, planLabs, applyLabs, labRows, labHistory, labName, labUnit, labFlag, refText, labSort } from '../labs.js';
 
 let pick = '';   // 正在看哪一次（日期）；空的 = 最近一次
 const md = d => d.slice(0, 4) + '/' + +d.slice(5, 7) + '/' + +d.slice(8);
@@ -29,6 +29,8 @@ export function labsCard() {
       if (!del.dataset.c) { del.dataset.c = 1; del.textContent = '再按一次確認'; setTimeout(() => { del.dataset.c = ''; del.textContent = '刪除這次'; }, 3000); return; }
       S.labs = (S.labs || []).filter(x => x.date !== date); pick = ''; commit(); toast('已刪除 ' + md(date) + ' 的抽血記錄');
     };
+    const lh = labHints(labs, (S.prefs || {}).meds);
+    for (const t of [lh.kidney, lh.glucose]) if (t) body.push(h('div.notice.small', { style: { marginBottom: '8px' } }, '🩸 ' + t));
     body.push(h('div.row', { style: { gap: '10px', alignItems: 'center' } }, sel, del));
     for (const r of labRows(labs, date)) {
       const n = typeof r.val === 'number' && r.prev && typeof r.prev.val === 'number' ? Math.round((r.val - r.prev.val) * 100) / 100 : null;

@@ -9,6 +9,7 @@ import { itemCard } from './mealEditor.js';
 import { analyzeMeal, listModels, DEFAULT_MODELS } from '../gemini.js';
 import { syncCard } from './backup.js';
 import { paceTip } from './pace.js';
+import { labHints } from '../labs.js';
 import { dangerCard } from './reset.js';
 import { medsSettings } from './meds.js';
 import { soundSettings } from './sounds.js';
@@ -147,6 +148,7 @@ function profileCard() {
     ]));
     sum.append(tip('蛋白質目標會跟著最新體重自動變。體重超過理想體重（BMI 22，你是 ' + (pg.ibw || '–') + ' kg）時，不用實際體重乘，改用「調整體重」＝理想體重 + 0.4 ×（實際 − 理想），因為脂肪本身不太需要蛋白質；體重很重的人直接乘會高估很多。減重期間一般建議每公斤 1.2～1.5 g。有腎臟病的人，蛋白質要吃多少請先問醫師。'));
     { const pt = paceTip(); if (pt) sum.append(pt); }
+    { const lh = labHints(S.labs, (S.prefs || {}).meds); if (lh.kidney) sum.append(h('div.notice.small', { style: { marginTop: '6px' } }, '🩸 ' + lh.kidney)); }
     if (b.capped) sum.append(h('div.notice.small', '你設定的速度大約每週減 ' + r2(b.wantedPct) + '%，超過安全上限（每週體重的 1%），已改用 1% 計算。'));
     sumEl.textContent = w + ' → ' + (+P.targetWeight || '–') + ' kg・每週 ' + b.poolPoints + ' 點';
   }
