@@ -15,6 +15,7 @@ import { latestAdviceCard } from './advice.js';
 import { fastingCard, longTermCard, fastInfo, openGuessSheet, openJournal } from './fasting.js';
 import { guessFasts } from '../fasting.js';
 import { lowProteinMeal } from '../safety.js';
+import { paceTip } from './pace.js';
 import { recipeButton } from './recipe.js';
 
 const r1 = x => Math.round(x * 10) / 10;
@@ -130,6 +131,7 @@ export function renderToday(root) {
       top.append(h('div.mu.tiny.num.one', { style: { marginTop: '6px', color: low ? 'var(--warn)' : '' } },
         low ? '今天只吃 ' + fmtPts(td.eaten) + ' 點，少於基本需要的 ' + b.floorPoints + ' 點，記得吃夠'
           : '今日 ' + Math.round(td.kcal) + ' 大卡' + (td.refund ? '・運動 +' + fmtPts(td.refund) : '') + '・存摺只算有記錄的日子'));
+      const pt = paceTip({ marginTop: '2px' }); if (pt) top.append(pt);
     }
     top.append(h('div.cta-row.three' + (fi.fasting ? '.sm' : ''),
       h('button.pri.cta', { type: 'button', onclick: () => openAddMeal() }, icon('camera'), '記一餐'),

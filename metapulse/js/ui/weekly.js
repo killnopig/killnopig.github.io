@@ -8,6 +8,7 @@ import { dailyFastDetail } from '../summary.js';
 import { targetHours } from '../fasting.js';
 import { weeklyTrend } from '../adaptive.js';
 import { ADAPT } from '../config.js';
+import { paceTip } from './pace.js';
 
 const fmt = x => (Math.round(x * 2) / 2).toString();
 const sgn = x => (x > 0 ? '+' : x < 0 ? '−' : '') + fmt(Math.abs(x));
@@ -97,6 +98,7 @@ export function weeklyCard(bare = false) {
       tile('運動賺', fmt(r.cur.refund), '點', cmp(Math.round(r.cur.refund), Math.round(r.prev.refund), '', r.hasPrev)),
       tile('趨勢體重', wt ? wt.trend.toFixed(1) : '--', 'kg', wNote)),
     h('div.small.one', { style: { marginTop: '12px', fontWeight: 650 } }, '每天剩下的點數・' + title),
+    paceTip({ marginTop: '8px' }),
     bars(r.days, today, r.first),
     h('div.mu.tiny.one', sw('var(--ac)'), ' 有剩　', sw('var(--warn)'), ' 超吃（用存摺補）　淡色＝今天'),
     h('div.tiprow', { style: { marginTop: '6px' } }, h('div.small.num.one', few ? '存摺：過完的日子記滿 3 天才算（目前 ' + r.cur.logged + ' 天）' : '存摺 ' + sgn(r.cur.balance) + ' 點（只算有記錄的日子）'), tip('格子裡的 ▲▼ 是跟上一段比多或少；「沒超吃」＝那天剩下的點數 ≥ 0。趨勢體重＝把每天的體重平滑過（水分造成的跳動會被抹平），下面寫的是跟 7 天前比、每週變化體重的幾 %；超過 ' + ADAPT.fastWeekPct + '% 變橘色（一般建議每週 0.5～1%）。', h('br'), '長條上的數字是那天剩下的點數，正的是有剩、負的是超吃；「沒記」的日子不算；開始記錄以前的日子不會算成沒記。存摺要等已經過完的日子記滿 3 天才算，今天還沒結束，先另外顯示。只算有記錄的日子：沒記的日子不算預算，也不算省下來。整天都在斷食的日子算「有記錄、吃 0 點」。斷食達標＝那天結束的最長一段斷食到了目標 ' + goal + ' 小時。'))),

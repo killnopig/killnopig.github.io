@@ -8,6 +8,7 @@ import { libraryManager } from './library.js';
 import { itemCard } from './mealEditor.js';
 import { analyzeMeal, listModels, DEFAULT_MODELS } from '../gemini.js';
 import { syncCard } from './backup.js';
+import { paceTip } from './pace.js';
 import { dangerCard } from './reset.js';
 import { medsSettings } from './meds.js';
 import { soundSettings } from './sounds.js';
@@ -99,7 +100,7 @@ function profileCard() {
         ? '依記錄 ' + a.tdee.toLocaleString() + (a.clamped ? '（已限 ±25%）' : '') + '・公式 ' + a.formula.toLocaleString() + ' 大卡'
         : (mode === 'adaptive' ? '先用公式・' : '') + '還要記：' + a.need.join('、')),
       tip('依我的記錄＝用最近 28 天的資料反推：平均每天吃進 ' + (a.ready ? a.intake.toLocaleString() + ' 大卡' : '多少') + '，加上體重的變化（' + (a.ready ? '每週' + (a.kgPerWeek >= 0 ? '掉 ' : '增加 ') + Math.abs(a.kgPerWeek).toFixed(2) + ' kg' : '每週掉多少') + '，每公斤約 7700 大卡），算出你實際一天用掉多少' + (a.ready && a.exercise ? '；已扣掉加回點數的運動（每天約 ' + a.exercise + ' 大卡），免得算兩次' : '') + '。',
-        h('br'), '資料不夠時，選了「依我的記錄」也會先用公式，夠了才自動換。條件：28 天裡至少 21 天有完整飲食記錄（當天熱量到基礎代謝的 30%，或整天斷食），而且至少 10 天量過體重。漏記餐點會讓結果偏低，所以最多只跟公式差 ±25%。',
+        h('br'), '資料不夠時，選了「依我的記錄」也會先用公式，夠了才自動換。條件：最近 28 天裡至少 10 天有完整飲食記錄（當天熱量到基礎代謝的 30%，或整天斷食），至少 6 天量過體重，第一次和最後一次量體重隔 10 天以上。天數越多越準。漏記餐點會讓結果偏低，所以最多只跟公式差 ±25%。',
         h('br'), '剛開始用藥或減重的前幾週，體重會因為水分掉得比較快，反推的數字可能偏高；記得越久越準。這只是估算，飲食調整請和醫師討論。'));
   }
   const weeksIn = bind(numIn(P.targetWeeks, { inputmode: 'numeric', placeholder: '可留空' }), 'targetWeeks');
@@ -145,6 +146,7 @@ function profileCard() {
       ['每日蛋白質', b.proteinTarget, 0, 'g', pg.adjusted ? '依體重自動算：調整體重 ' + pg.basis + ' kg × ' + pg.perKg : '依體重自動算：' + pg.basis + ' kg × ' + pg.perKg],
     ]));
     sum.append(tip('蛋白質目標會跟著最新體重自動變。體重超過理想體重（BMI 22，你是 ' + (pg.ibw || '–') + ' kg）時，不用實際體重乘，改用「調整體重」＝理想體重 + 0.4 ×（實際 − 理想），因為脂肪本身不太需要蛋白質；體重很重的人直接乘會高估很多。減重期間一般建議每公斤 1.2～1.5 g。有腎臟病的人，蛋白質要吃多少請先問醫師。'));
+    { const pt = paceTip(); if (pt) sum.append(pt); }
     if (b.capped) sum.append(h('div.notice.small', '你設定的速度大約每週減 ' + r2(b.wantedPct) + '%，超過安全上限（每週體重的 1%），已改用 1% 計算。'));
     sumEl.textContent = w + ' → ' + (+P.targetWeight || '–') + ' kg・每週 ' + b.poolPoints + ' 點';
   }

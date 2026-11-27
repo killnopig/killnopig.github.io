@@ -8,6 +8,7 @@ import { fastLossAlert, WARNING_SIGNS } from '../safety.js';
 import { symptomCard } from './symptoms.js';
 import { shotEntry } from './omronShot.js';
 import { labsCard } from './labs.js';
+import { paceTip } from './pace.js';
 import { SITES, sortEntries, onBoard, nextDose, bmi, leanMass, dn, md, wdOf, TYPES, hasValue } from '../records.js';
 
 const r1 = x => Math.round(x * 10) / 10;
@@ -121,6 +122,7 @@ function scaleCard(es) {
   const body = h('div', { style: { marginTop: '10px' } }, h('div.grid3', { style: { rowGap: '12px' } }, ...more),
     mx && lost >= 0.5 ? h('div.small.num.one', { style: { marginTop: '8px' } }, '最高 ' + mx.wt + '（' + md(mx.date) + '）→ 現在 ' + w.wt + '・已瘦 ' + r1(lost) + ' kg') : null,
     lsum ? h('div.small.num', { style: { marginTop: '8px', fontWeight: 600, color: lsum.tone === 'good' ? 'var(--ac-tx)' : lsum.tone === 'mid' ? '#ca8a04' : 'var(--warn)' } }, lsum.line) : null,
+    paceTip({ marginTop: '8px' }),
     !S.profile.height ? h('div.mu.tiny.one', { style: { marginTop: '6px' } }, '設定身高後顯示 BMI') : null);
   return deviceCard('dev-scale', '體重計', summary, addBtn('wt', '記錄'), body);
 }

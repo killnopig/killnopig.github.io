@@ -89,3 +89,27 @@ export function symptomStats(list, from, to) {
     }),
   };
 }
+
+/**
+ * 點數和體重步調：每日點數低於保底（目標設太快）、趨勢體重每週掉太快／太慢／剛好
+ * b = plan()；回傳 null（沒預算）或 { low, daily, floor, pct, level: 'fast'|'slow'|'ok'|null, line, advice: [段落] }
+ */
+export function paceAdvice(b, entries, todayStr, cfg = SAFETY) {
+  if (!b || !b.ok) return null;
+  const low = b.dailyPoints < b.floorPoints;
+  const wt = weightTrend(entries || [], todayStr);
+  const pct = wt.weeklyPct === null ? null : Math.round(wt.weeklyPct * 10) / 10;
+  const level = pct === null ? null : pct > cfg.paceFastPct ? 'fast' : pct < cfg.paceSlowPct ? 'slow' : 'ok';
+  if (!low && !level) return null;
+  const sp = pct === null ? '' : '體重每週' + (pct >= 0 ? ' −' + pct : ' +' + -pct) + '%';
+  const goal = Math.round(b.weeklyLossPct * 10) / 10;
+  const line = low ? '⚠ 每天 ' + b.dailyPoints + ' 點＜保底 ' + b.floorPoints + (sp ? '・' + sp : '')
+    : sp + (level === 'fast' ? '，偏快' : level === 'slow' ? '，偏慢' : '，步調剛好');
+  const advice = [];
+  if (low) advice.push('你的每日點數（' + b.dailyPoints + '）比保底（' + b.floorPoints + '，約等於基礎代謝）還低，這是目前設定的減重目標造成的。長期吃得比基礎代謝少，比較容易流失肌肉、疲倦、掉頭髮，這個風險要自己評估。想提高點數，可以到「設定 → 個人資料與每日預算」把「預計達成週數」改長。');
+  if (level === 'fast') advice.push('最近一週趨勢體重掉了約 ' + pct + '%，比每週 ' + cfg.paceFastPct + '% 快（目標是 ' + goal + '%）。剛開始的幾週常是水分；持續太快的話，建議把目標調慢或至少吃到保底，蛋白質吃夠、做肌力訓練，比較能保住肌肉。');
+  if (level === 'slow') advice.push('最近一週趨勢體重' + (pct >= 0 ? '只少了約 ' + pct : '多了約 ' + -pct) + '%（目標是 ' + goal + '%）。先檢查有沒有漏記（飲料、醬料、零食、試吃），份量有沒有估太少；記錄完整的話，可以把「每天消耗用」改成「依我的記錄」，讓 App 照你的實際狀況重算點數。');
+  if (level === 'ok') advice.push('最近一週趨勢體重掉了約 ' + pct + '%，在每週 ' + cfg.paceSlowPct + '～' + cfg.paceFastPct + '% 之間，照現在的步調就好。');
+  advice.push('體重用最近 14 天平均和 7 天前的 14 天平均比，不看單日。這只是提醒，有不舒服請問醫師。');
+  return { low, daily: b.dailyPoints, floor: b.floorPoints, pct, level, line, advice };
+}

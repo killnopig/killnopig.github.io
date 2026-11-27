@@ -80,6 +80,8 @@ export const STRENGTH = ['weights', 'band', 'bodyweight'];
 export const SAFETY = {
   hypoHours: 16,            // 有降血糖藥、斷食超過幾小時就提醒留意低血糖
   doseUpDays: 14,           // 加劑量後幾天內，依施打週期一律建議比較溫和的方案
+  paceFastPct: 1,           // 點數旁的步調建議：趨勢體重每週掉超過 1% 算偏快
+  paceSlowPct: 0.2,         // 少於 0.2%（或變重）算偏慢
   fastLossPct: 1.5,         // 體重每週下降超過體重的幾 % → 顯示警訊說明
   waterHours: 12,           // 斷食超過幾小時，提醒喝水、補一點鹽
   omadDoseDays: 14,         // 近幾天有打針又選一天一餐 → 提醒
@@ -94,9 +96,9 @@ export const ADAPT = {
   weightAlpha: 0.1,          // 趨勢體重：每天往當天體重移 10%
   slopeBeta: 0.1,            // 趨勢體重的斜率也慢慢跟（消掉穩定變瘦時的落後）
   window: 28,                // 看最近 28 天（不含今天）
-  minFoodDays: 21,           // 至少 21 天有完整飲食記錄
-  minWeighDays: 10,          // 至少 10 天有量體重
-  minWeighSpan: 21,          // 第一次和最後一次量體重至少隔 21 天
+  minFoodDays: 10,           // 至少 10 天有完整飲食記錄（2026-11-27 使用者覺得 21 天太久；天數越多越準，最多看 28 天）
+  minWeighDays: 6,           // 至少 6 天有量體重
+  minWeighSpan: 10,          // 第一次和最後一次量體重至少隔 10 天
   clamp: 0.25,               // 反推結果最多和公式差 ±25%（漏記會讓結果偏低）
   fastWeekPct: 1,            // 週報：趨勢體重每週掉超過 1% 變橘色
 };
