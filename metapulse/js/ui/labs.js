@@ -88,6 +88,7 @@ function preview(out, r, dateEdit = false) {
       if (other.length) box.append(h('div.tiny.mu', { style: { marginTop: '2px' } }, '照原名存：' + other.map(labName).join('、')));
     }
     out.append(box);
+    if (r.warn) out.append(h('div.notice.small', { style: { marginTop: '6px' } }, r.warn));
     if (r.note) out.append(h('div.mu.tiny', { style: { marginTop: '4px' } }, 'AI：' + r.note));
     if (!p.add.length && !p.upd.length) { out.append(h('div.notice.ok', { style: { marginTop: '8px' } }, '這些都已經有了，不用再存。')); return; }
     out.append(h('div.mu.tiny', { style: { marginTop: '6px' } }, '請對一下日期、項目和數字跟報告一樣再存；存了也能刪掉這次重來。'),

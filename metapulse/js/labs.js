@@ -11,15 +11,15 @@ export const LAB_ITEMS = [
   { k: 'hdl', name: '高密度膽固醇 HDL', unit: 'mg/dL', re: /hdl|高密度/ },
   { k: 'tg', name: '三酸甘油酯', unit: 'mg/dL', re: /^tg$|triglycer|三酸甘油/ },
   { k: 'chol', name: '總膽固醇', unit: 'mg/dL', re: /膽固醇|chol|^t-?cho|^tc$/ },
-  { k: 'ast', name: 'AST（GOT）', unit: 'U/L', re: /^s?got$|^ast|got\)|\(ast/ },
-  { k: 'alt', name: 'ALT（GPT）', unit: 'U/L', re: /^s?gpt$|^alt|gpt\)|\(alt/ },
+  { k: 'ast', name: 'AST（GOT）', unit: 'U/L', re: /^s?got|^ast|got\)|\(ast|草醯乙酸/ },
+  { k: 'alt', name: 'ALT（GPT）', unit: 'U/L', re: /^s?gpt|^alt|gpt\)|\(alt|丙酮酸|丙胺酸/ },
   { k: 'ggt', name: 'γ-GT', unit: 'U/L', re: /ggt|γ-?gt|r-?gt|^gamma/ },
   { k: 'uacr', name: '尿蛋白／肌酸酐比 UACR', unit: 'mg/g', re: /uacr|^acr$|微量白蛋白|albumin.*creat/ },
   { k: 'egfr', name: '腎絲球過濾率 eGFR', unit: 'mL/min', re: /egfr|腎絲球|過濾率/ },
   { k: 'cre', name: '肌酸酐', unit: 'mg/dL', re: /肌酸酐|creat|^cre|^cr$/ },
   { k: 'bun', name: '尿素氮', unit: 'mg/dL', re: /bun|尿素氮/ },
   { k: 'ua', name: '尿酸', unit: 'mg/dL', re: /尿酸|uric|^ua$/ },
-  { k: 'alb', name: '白蛋白', unit: 'g/dL', re: /白蛋白|^alb/ },
+  { k: 'alb', name: '白蛋白', unit: 'g/dL', re: /^白蛋白|^alb/ },
   { k: 'hb', name: '血色素 Hb', unit: 'g/dL', re: /血色素|血紅素|^hgb$|^hb$/ },
   { k: 'tsh', name: '甲狀腺刺激素 TSH', unit: 'μIU/mL', re: /tsh|甲狀腺刺激/ },
   { k: 'crp', name: 'C 反應蛋白 CRP', unit: 'mg/dL', re: /crp|c反應/ },
@@ -33,6 +33,7 @@ export function labKey(raw) {
   const name = half(raw).trim();
   const n = name.toLowerCase().replace(/\s+/g, '');
   if (!n) return '';
+  if (n.includes('/') && !LAB_ITEMS.find(x => x.k === 'uacr').re.test(n)) return 'x:' + name.slice(0, 30);   // 比值（CHOL/HDL、A/G）不是單一項目
   for (const it of LAB_ITEMS) if (it.re.test(n)) return it.k;
   return 'x:' + name.slice(0, 30);
 }
@@ -61,7 +62,7 @@ export function labDate(cell) {
 
 /** 參考範圍文字 → [下限, 上限]（沒有的一邊是 null）：「70-100」「70~100」「<5.7」「≧40」；看不懂回傳 null */
 export function labRef(text) {
-  const s = half(text).replace(/\s+/g, '').replace(/[≦≤]/g, '<=').replace(/[≧≥]/g, '>=');
+  const s = half(text).replace(/\s+/g, '').replace(/[≦≤]/g, '<=').replace(/[≧≥]/g, '>=').replace(/[《«]/g, '<').replace(/[》»]/g, '>').replace(/^[^\d<>=\-.]+/, '');
   if (!s) return null;
   let m = s.match(/^(-?\d+(?:\.\d+)?)[-~～–—](-?\d+(?:\.\d+)?)/);
   if (m) return +m[1] <= +m[2] ? [+m[1], +m[2]] : null;
@@ -79,6 +80,7 @@ export function labFlag(val, ref) {
 
 /** 一格的值：有數字取數字（「5.6 H」「<0.5」也行），沒數字的文字照存（例如「陰性」），空的不要 */
 export function labValue(cell) {
+  if (cell == null) return null;
   const s = half(cell).trim();
   if (!s || s === '-' || s === '—') return null;
   const m = s.replace(/,/g, '').match(/-?\d+(\.\d+)?/);
@@ -98,7 +100,8 @@ export function parseLabTable(text) {
   const splitBy = re => lines.map(l => l.split(re).map(c => c.trim().replace(/^"(.*)"$/, '$1')));
   let rows = lines.some(l => l.includes('\t')) ? splitBy('\t') : lines.some(l => l.includes(',')) ? splitBy(',') : splitBy(/\s{2,}/);
   if (rows.every(r => r.length < 2)) rows = splitBy(/\s+/);
-  const by = new Map(), raw = {}, ref = {};
+  rows = rows.map(r => { const o = r.slice(); while (o.length && o[o.length - 1] === '') o.pop(); return o; });   // 去掉每列最後的空格
+  const by = new Map(), raw = {}, ref = {}, warn = [];
   const put = (date, name, cell) => {
     if (/^(編號|序號|項次|no\.?|#|姓名|name|病歷|備註|類別|單位|unit)$/i.test(half(name).trim())) return;   // 不是檢驗項目的欄
     const k = labKey(name), v = labValue(cell);
@@ -132,13 +135,22 @@ export function parseLabTable(text) {
     return by.size ? '' : '找到日期和項目，但沒有讀到數字。';
   };
   const byRows = () => {   // 每一列是一個項目
-    const head = rows[br], dateCols = head.map((c, j) => (labDate(c) ? j : -1)).filter(j => j >= 0);
+    let head = rows[br];
+    // 日期那一列直接從日期開始、比下面的列短：前面的空格（名稱、說明、參考值那幾欄）被省掉了，往右對齊
+    if (head.length < W && labDate(head[0])) head = Array(W - head.length).fill('').concat(head);
+    const dateCols = head.map((c, j) => (labDate(c) ? j : -1)).filter(j => j >= 0);
+    for (const c of head) if (/^\d{6,8}$/.test(c) && !labDate(c)) warn.push(c);
     const below = rows.slice(br + 1);
     // 項目名稱那一欄：日期欄以外，認得的檢驗項目最多的優先，其次是最多「像名稱」的（左邊有「類別」欄也不會選錯）
     let nc = -1, ncN = 0;
     for (let j = 0; j < W; j++) if (!dateCols.includes(j)) { const n = below.filter(r => named(r[j])).length + below.filter(r => named(r[j]) && !labKey(r[j]).startsWith('x:')).length * 100; if (n > ncN) { ncN = n; nc = j; } }
     if (nc < 0) return '找到日期，但找不到項目名稱那一欄。';
-    const rc = head.findIndex((c, j) => j !== nc && isRef(c));            // 「參考值」那一欄
+    let rc = head.findIndex((c, j) => j !== nc && isRef(c));            // 「參考值」那一欄
+    if (rc < 0) {   // 沒有標題：挑最多格看得懂範圍（70-100、<40）的那一欄
+      let best = 0;
+      for (let j = 0; j < W; j++) if (j !== nc && !dateCols.includes(j)) { const n = below.filter(r => r[j] && labRef(r[j])).length; if (n > best) { best = n; rc = j; } }
+      if (best < below.length / 3) rc = -1;
+    }
     for (const r of below) if (named(r[nc])) { for (const j of dateCols) put(labDate(head[j]), r[nc], r[j]); if (rc >= 0) setRef(r[nc], r[rc]); }
     return by.size ? '' : '找到日期和項目，但沒有讀到數字。';
   };
@@ -150,7 +162,7 @@ export function parseLabTable(text) {
   if (err) return { recs: [], keys: [], raw: {}, err: err + '（可以把表格最上面兩三列截圖給開發者看）' };
   const recs = [...by].map(([date, v]) => withRef({ date, v }, ref)).filter(r => Object.keys(r.v).length).sort((a, b) => (a.date < b.date ? -1 : 1));
   const keys = [...new Set(recs.flatMap(r => Object.keys(r.v)))].sort(labSort);
-  return { recs, keys, raw, err: recs.length ? '' : '有找到日期，但沒有讀到數字。' };
+  return { recs, keys, raw, warn: warn.length ? '這些日期看不懂，那一欄沒有匯入：' + warn.join('、') + '（打錯的話，改好再貼一次）' : '', err: recs.length ? '' : '有找到日期，但沒有讀到數字。' };
 }
 /** 把參考範圍附在有那個項目的記錄上（沒有就不加 r） */
 function withRef(rec, ref) {

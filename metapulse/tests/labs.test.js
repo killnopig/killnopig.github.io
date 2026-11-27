@@ -179,3 +179,28 @@ test('手機貼上變空白、名稱有數字、擺法猜錯會換另一種', ()
   assert.deepEqual(parseLabTable(t2).recs, [{ date: '2024-03-05', v: { hba1c: 6.4, glu: 118 } }]);
   assert.match(parseLabTable('a\tb\n1\t2').err, /找不到日期/);
 });
+
+// 照使用者那種擺法編的假表格：日期列少了前面幾格、第一欄空白、名稱＋說明＋參考值、有打錯的日期、比值、《》寫法
+test('日期列前面少了幾格也對得齊；比值不當成單一項目；《》參考值', () => {
+  const t = [
+    '20200101\t20200401\t20200799\t20201001\t',
+    '\tGlucose AC空腹血糖\t空腹血糖\t70-100mg/dL\t101\t102\t103\t104\t',
+    '\tsGOT某某轉胺酶\t\t《40\t\t\t31\t32\t',
+    '\tsGPT某某轉胺酶\t肝指數\t《41\t\t\t\t45\t',
+    '\tAlbumin白蛋白\t\t3.5-5.5\t4.1\t4.2\t\t\t',
+    '\tA/G白蛋白/球蛋白\t\t1.1-2.5\t1.5\t\t\t\t',
+    '\tLDL/HDL\t中風機率\t0-3.3\t2.1\t\t\t\t',
+    '\tHDL-choloestrol\t高密度膽固醇\t》=40mg/dL\t35\t\t\t\t',
+    '\tBUN尿素氮\t\t‘6-23\t\t\t\t12\t',
+  ].join('\n');
+  const r = parseLabTable(t);
+  assert.equal(r.err, '');
+  assert.match(r.warn, /20200799/);
+  const by = Object.fromEntries(r.recs.map(x => [x.date, x]));
+  assert.deepEqual(by['2020-01-01'].v, { glu: 101, alb: 4.1, hdl: 35, 'x:A/G白蛋白/球蛋白': 1.5, 'x:LDL/HDL': 2.1 });
+  assert.deepEqual(by['2020-10-01'].v, { glu: 104, ast: 32, alt: 45, bun: 12 });
+  assert.equal(by['2020-04-01'].v.glu, 102);
+  assert.equal(r.recs.length, 3);   // 打錯的那一欄沒有匯入
+  assert.deepEqual(by['2020-10-01'].r, { glu: [70, 100], ast: [null, 40], alt: [null, 41], bun: [6, 23] });
+  assert.deepEqual(by['2020-01-01'].r.hdl, [40, null]);
+});
