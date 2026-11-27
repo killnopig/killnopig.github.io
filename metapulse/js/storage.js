@@ -2,6 +2,7 @@
  * - metapulse-v1：記錄資料，會列入 Drive 備份
  * - metapulse-local：只存在這台裝置（API key、主題、收合狀態…），不列入備份
  * 注意：同網域（github.io 帳號網域）的 localStorage 是共用的，這裡只讀寫上面兩個鍵（與 -undo 等衍生鍵）。 */
+import { normalizeLab } from './labs.js';
 
 export const KEY = 'metapulse-v1';
 export const LOCAL_KEY = 'metapulse-local';
@@ -30,7 +31,7 @@ export function defaultState() {
   return {
     schema: SCHEMA, ts: 0,
     profile: defaultProfile(),
-    entries: [], meals: [], foodLibrary: [], fasts: [], activity: [], medLog: [], exercise: [], symptoms: [], deleted: {},
+    entries: [], meals: [], foodLibrary: [], fasts: [], activity: [], medLog: [], exercise: [], symptoms: [], labs: [], deleted: {},
     prefs: { fastMode: 'PURE_DYNAMIC', strictPlan: '16:8', windowStart: '12:00', mealThresholds: { kcal: 800, carb: 100 }, longTermAlpha: 0.05, weekStart: 'roll', meds: [] },
   };
 }
@@ -112,6 +113,7 @@ export function normalizeState(p) {
     medLog: (Array.isArray(p.medLog) ? p.medLog : []).filter(x => x && x.id && x.med && /^\d{4}-\d{2}-\d{2}$/.test(x.date)).map(x => ({ id: str(x.id), med: str(x.med), date: x.date, at: str(x.at) })),
     exercise: (Array.isArray(p.exercise) ? p.exercise : []).filter(x => x && x.id && /^\d{4}-\d{2}-\d{2}$/.test(x.date)).map(x => ({ id: str(x.id), date: x.date, at: str(x.at), type: str(x.type), minutes: num(x.minutes), kcal: num(x.kcal) })),
     symptoms: (Array.isArray(p.symptoms) ? p.symptoms : []).map(normalizeSymptom).filter(Boolean),
+    labs: (Array.isArray(p.labs) ? p.labs : []).map(normalizeLab).filter(Boolean),
     prefs: Object.assign(d.prefs, p.prefs || {}),
     deleted: p.deleted && typeof p.deleted === 'object' ? { ...p.deleted } : {},
   };

@@ -7,6 +7,7 @@ import { leanStatus, leanCard } from './fasting.js';
 import { fastLossAlert, WARNING_SIGNS } from '../safety.js';
 import { symptomCard } from './symptoms.js';
 import { shotEntry } from './omronShot.js';
+import { labsCard } from './labs.js';
 import { SITES, sortEntries, onBoard, nextDose, bmi, leanMass, dn, md, wdOf, TYPES, hasValue } from '../records.js';
 
 const r1 = x => Math.round(x * 10) / 10;
@@ -250,6 +251,6 @@ export function renderLog(el) {
     tip('最近兩週平均每週掉體重的 ' + fl.pct + '%，比一般建議的 0.5～1% 快。掉太快比較容易流失肌肉、長膽結石。有下面這些情況，請盡快找醫師：',
       h('ul', { style: { paddingLeft: '18px', margin: '6px 0' } }, ...WARNING_SIGNS.map(x => h('li', x))),
       '這只是提醒，不是診斷。也可以把「圖表」→「回診報告」給醫師看。')) : null;
-  el.append(...(warn ? [warn] : []), ...(dueSoon ? [doseCard(false)] : []), scaleCard(all), ...(lc ? [lc] : []), bpCard(all), ...(shotEntry() ? [shotEntry()] : []), ...(dueSoon ? [] : [doseCard(false)]), symptomCard(), listCard(all));
+  el.append(...(warn ? [warn] : []), ...(dueSoon ? [doseCard(false)] : []), scaleCard(all), ...(lc ? [lc] : []), bpCard(all), ...(shotEntry() ? [shotEntry()] : []), ...(dueSoon ? [] : [doseCard(false)]), symptomCard(), labsCard(), listCard(all));
   showAllRecent = false;
 }

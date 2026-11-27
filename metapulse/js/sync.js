@@ -4,7 +4,7 @@
  * - 個人資料、設定：用比較新的那份
  * - 運動消耗依日期合併 */
 
-export const COLS = ['entries', 'meals', 'foodLibrary', 'fasts', 'medLog', 'exercise', 'symptoms'];
+export const COLS = ['entries', 'meals', 'foodLibrary', 'fasts', 'medLog', 'exercise', 'symptoms', 'labs'];
 const PRUNE_DAYS = 180;
 
 export function idsOf(S) {
