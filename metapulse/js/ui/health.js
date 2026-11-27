@@ -1,6 +1,6 @@
 /* 設定頁：Health Connect 同步（只在 APK 中可用；網頁版顯示說明） */
 import { S, L, commit, commitLocal, uid } from '../state.js';
-import { h, toast, section, sumLine, tip } from './common.js';
+import { h, toast, tip } from './common.js';
 import { latestText } from '../records.js';
 import { isNative, healthPlugin, diagnose, readHealth, buildRecords, planHealth, applyHealth, autoDue, autoPlan, readHealthQuiet } from '../health.js';
 
@@ -28,20 +28,21 @@ export async function autoHealth() {
   finally { autoBusy = false; }
 }
 
-export function healthCard() {
-  const sumEl = sumLine();
+/** 設定頁「同步與匯入」卡裡的 Health Connect 小格：回傳 {sum: 一行狀態, body} */
+export function healthPart() {
+  const sumEl = h('span');
   const native = isNative() && !!healthPlugin();
   const drawSum = () => {
     const x = L.lastHC;
     sumEl.textContent = !native ? '只能在 MetaPulse app 使用'
-      : x ? '上次同步：' + new Date(x.at).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + '・新增 ' + x.added + ' 筆' : '還沒同步過';
+      : x ? new Date(x.at).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + '・新增 ' + x.added + ' 筆' : '還沒同步過';
   };
   drawSum();
   if (!native) {
-    return section('hc', 'Health Connect 同步', sumEl, [
+    return { sum: sumEl, body: [
       tip('Health Connect 是 Android 手機內建的「健康資料中心」，Omron、手錶等 app 會把量到的資料放在這裡。只有安裝在手機上的 app 才能讀取，網頁版讀不到。安裝 MetaPulse 的 APK（Android 安裝檔）後，從主畫面的 MetaPulse 圖示打開，這裡會出現同步按鈕，可以讀取血壓、脈搏、體重、體脂、基礎代謝和運動消耗的熱量。'),
       /Android/i.test(navigator.userAgent || '') ? h('div.mu.tiny', { style: { marginTop: '6px' } }, '診斷：' + diagnose()) : null,
-    ]);
+    ] };
   }
 
   const days = h('select', h('option', { value: '30' }, '最近 30 天'), h('option', { value: '90' }, '最近 90 天'), h('option', { value: '365' }, '最近 1 年'));
@@ -108,10 +109,10 @@ export function healthCard() {
       commit(); undo.style.display = 'none'; out.textContent = ''; out.append(h('div.notice.ok', '已復原到上次同步之前。')); toast('已復原');
     } catch (e) { toast('復原失敗', true); }
   };
-  return section('hc', 'Health Connect 同步', sumEl, [
+  return { sum: sumEl, body: [
     h('label.row.one', { style: { color: 'var(--tx)', margin: '0 0 6px', fontSize: '14px' } }, auto, '打開 App 時自動匯入 Omron'),
     h('div.grid2', { style: { alignItems: 'center' } }, days, h('label.row.one', { style: { color: 'var(--tx)', margin: 0, fontSize: '14px' } }, all, '也讀其他 app')),
     btn, out, undo,
     tip('預設只讀 Omron 的血壓和體重，避免別的 app 的資料混進來。選「最近 1 年」時，要在權限畫面允許讀取 30 天以前的資料。'),
-  ], !L.lastHC);
+  ] };
 }

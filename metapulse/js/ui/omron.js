@@ -1,17 +1,19 @@
 /* 設定頁：Omron CSV 匯入（多檔、預覽、重複判斷、補上體組成、復原上次匯入） */
 import { S, L, commit, commitLocal, uid } from '../state.js';
-import { h, toast, section, sumLine, tip } from './common.js';
+import { h, toast, tip } from './common.js';
 import { planOmron } from '../omron.js';
 
 const UNDO_KEY = 'metapulse-v1-undo';
 const hasUndo = () => { try { return !!localStorage.getItem(UNDO_KEY); } catch (e) { return false; } };
 const fmtAt = t => new Date(t).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-export function omronCard() {
-  const sumEl = sumLine();
-  const drawSum = () => { const x = L.lastOmron; sumEl.textContent = x ? '上次匯入：' + fmtAt(x.at) + '・新增 ' + x.added + ' 筆' : '血壓計、體重計的 CSV 檔'; };
+/** 設定頁「同步與匯入」卡裡的 Omron CSV 小格：回傳 {sum: 一行狀態, body} */
+export function omronPart() {
+  const sumEl = h('span');
+  const drawSum = () => { const x = L.lastOmron; sumEl.textContent = x ? fmtAt(x.at) + '・新增 ' + x.added + ' 筆' : 'CSV 檔'; };
   drawSum();
-  const file = h('input', { type: 'file', accept: '.csv,.tsv,.txt,text/csv', multiple: true });
+  const file = h('input', { type: 'file', accept: '.csv,.tsv,.txt,text/csv', multiple: true, style: { display: 'none' } });
+  const pick = h('button.ghost.full', { type: 'button', onclick: () => file.click() }, '選 CSV 檔（可多個）');
   const out = h('div', { style: { marginTop: '10px' } });
   const undo = h('button.ghost.full', { type: 'button', style: { display: hasUndo() ? '' : 'none', marginTop: '8px' } }, '復原上次匯入');
 
@@ -48,8 +50,8 @@ export function omronCard() {
       commit(); undo.style.display = 'none'; out.textContent = ''; out.append(h('div.notice.ok', '已回到上次匯入之前。')); toast('已復原');
     } catch (e) { toast('復原失敗', true); }
   };
-  return section('omron', 'Omron 檔案匯入', sumEl, [
-    file, out, undo,
+  return { sum: sumEl, body: [
+    file, pick, out, undo,
     tip('在 OMRON connect app 把血壓、體重、體組成匯出成 CSV 檔（一種表格檔），在這裡選擇。可以一次選好幾個檔案。會先讓你看要加入幾筆，已經有的不會重複加入。Health Connect 沒有的骨骼肌、內臟脂肪、身體年齡，用這個方法補上。「復原上次匯入」和 Health Connect 同步共用，只能回到最近一次匯入之前。'),
-  ], false);
+  ] };
 }

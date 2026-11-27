@@ -8,6 +8,8 @@ import { addOnly } from '../sync.js';
 import { latestText } from '../records.js';
 import { normalizeState } from '../storage.js';
 import { parseSyncBackup, previewImport, applyImport } from '../migrate.js';
+import { healthPart } from './health.js';
+import { omronPart } from './omron.js';
 
 const ago = t => { if (!t) return ''; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? '剛剛' : m < 60 ? m + ' 分鐘前' : m < 1440 ? Math.round(m / 60) + ' 小時前' : Math.round(m / 1440) + ' 天前'; };
 const fmtAt = t => new Date(t).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -37,7 +39,6 @@ function reveal(el) {
 /* 還原會整頁重畫，結果先記下來，重畫後再顯示 */
 let lastResult = null;
 
-const sub = (t, first) => h('div.small', { style: { fontWeight: 650, margin: first ? '0 0 6px' : '18px 0 6px', paddingTop: first ? 0 : '14px', borderTop: first ? 0 : '1px solid var(--ln)' } }, t);
 
 const AI_PROMPT = '請把我貼上的健康記錄（體重、血壓、體組成、注射），轉換成下面格式的 JSON。只輸出 JSON，不要加任何說明文字。\n\n格式：\n{"entries":[{"date":"YYYY-MM-DD","time":"HH:MM","dose":劑量數字,"wt":體重數字,"sys":收縮壓,"dia":舒張壓,"pul":脈搏,"fat":體脂率,"mus":骨骼肌率,"vis":內臟脂肪等級,"bage":身體年齡,"bmr":基礎代謝,"site":"部位","note":"備註"}]}\n\n規則：\n1. date 必須是 YYYY-MM-DD。如果我的資料沒有年份，或日期有歧義（例如 03/04 可能是 3 月 4 日或 4 月 3 日），請先問我，不要自己猜。\n2. time 是量測時間（24 小時制 HH:MM），沒有就填空字串 ""。\n3. dose 是注射劑量（mg），wt 是體重（kg），sys／dia／pul 是收縮壓／舒張壓（mmHg）／脈搏（次/分），fat／mus 是體脂率／骨骼肌率（%），vis 是內臟脂肪等級，bage 是身體年齡（歲），bmr 是基礎代謝（kcal）。同一次量測的數值放同一筆；沒有的項目一律填 0。\n4. 如果體重單位是磅（lb），請換算成公斤，四捨五入到小數 1 位。\n5. site 只能是這七個之一：左腹、腹中、右腹、左大腿、右大腿、左上臂、右上臂。沒有部位或對不上就填空字串 ""，並把原本的部位文字寫進 note。\n6. 依日期由舊到新排序。\n7. 資料裡沒有的內容不要編造。\n\n以下是我的資料：\n（把你的記錄貼在這裡）';
 
@@ -49,15 +50,16 @@ function aiFold() {
     try { await navigator.clipboard.writeText(AI_PROMPT); } catch (e) { ta.select(); try { document.execCommand('copy'); } catch (e2) { /* 手動複製 */ } }
     cp.textContent = '已複製'; setTimeout(() => { cp.textContent = '複製提示詞'; }, 1500);
   };
-  return fold('ai-import', h('span.small', { style: { fontWeight: 650 } }, '從 Excel 或其他 App 匯入'), [h('div', { style: { marginTop: '8px' } },
+  return fold('ai-import', h('span.small.grow', h('b', '從 Excel 或其他 App 匯入')), [h('div', { style: { marginTop: '8px' } },
     cp, tip(h('ol', { style: { paddingLeft: '18px', margin: '0 0 6px' } },
       h('li', '按「複製提示詞」。'),
       h('li', '貼到你常用的 AI 對話（例如 ChatGPT、Gemini），再把你的記錄（Excel 複製的表格、CSV 內容都可以）貼在最後面。'),
-      h('li', '把 AI 回覆的內容複製起來，貼到上面的框，按「匯入或還原」。')),
+      h('li', '把 AI 回覆的內容複製起來，貼到「文字或檔案備份」→「貼上存檔文字」的框，按「匯入或還原」。')),
       '這樣匯入只會「加入」新的記錄，不會取代現有資料，已經有的也不會重複加入。只能匯入身體記錄（體重、血壓、體組成、注射），餐點不行。你的記錄會傳給你用的 AI 服務，請自己評估是否適合。', ta))]);
 }
 
-export function backupCard() {
+/** 設定頁「同步與匯入」：Google Drive、Health Connect、Omron CSV、文字或檔案備份、其他 App 匯入，合成一張卡、每項一行小格 */
+export function syncCard() {
   const sumEl = sumLine();
   const outDrive = h('div');   // Google Drive 匯入的預覽與結果（放在按鈕正下方）
   const outText = h('div');    // 文字／檔案的預覽與結果（放在按鈕正下方）
@@ -140,7 +142,10 @@ export function backupCard() {
 
   /* ---------- 其他：文字或檔案 ---------- */
   const ta = h('textarea', { rows: 3, placeholder: '貼上 MetaPulse 或同步版的存檔文字' });
-  const file = h('input', { type: 'file', accept: '.json,.txt,application/json,text/plain' });
+  const file = h('input', { type: 'file', accept: '.json,.txt,application/json,text/plain', style: { display: 'none' } });
+  const pickFile = h('button.ghost.full', { type: 'button', style: { marginTop: '8px' }, onclick: () => file.click() }, '選存檔檔案（.json／.txt）');
+  const taBox = h('div', { style: { display: 'none', marginTop: '8px' } });
+  const showTa = () => { taBox.style.display = ''; };
   const handle = (text, source) => {
     outText.textContent = '';
     let p;
@@ -199,9 +204,9 @@ export function backupCard() {
   };
   file.onchange = async () => {
     const f = file.files && file.files[0]; file.value = ''; if (!f) return;
-    try { const t = await f.text(); ta.value = t; syncClr(); await run(use, t, '檔案「' + f.name + '」'); } catch (e) { say(outText, '讀取檔案失敗。'); }
+    try { const t = await f.text(); showTa(); ta.value = t; syncClr(); await run(use, t, '檔案「' + f.name + '」'); } catch (e) { say(outText, '讀取檔案失敗。'); }
   };
-  const gen = h('button.ghost', { type: 'button', onclick: () => { ta.value = JSON.stringify(S); syncClr(); ta.select(); L.lastBackup = Date.now(); commitLocal(); draw(); say(outText, '已產生（' + S.entries.length + ' 筆身體記錄、' + S.meals.length + ' 筆餐點），請全選、複製後另外保存。', true); } }, '產生存檔文字');
+  const gen = h('button.ghost', { type: 'button', onclick: () => { showTa(); ta.value = JSON.stringify(S); syncClr(); ta.select(); L.lastBackup = Date.now(); commitLocal(); draw(); say(outText, '已產生（' + S.entries.length + ' 筆身體記錄、' + S.meals.length + ' 筆餐點），請全選、複製後另外保存。', true); } }, '產生存檔文字');
   // 清除文字：只清框裡的字和下方訊息，不動任何記錄；框是空的就藏起來
   const clr = h('button.link.small', { type: 'button', style: { display: 'none' } }, '清除文字');
   const clrRow = h('div', { style: { textAlign: 'right', marginTop: '2px' } }, clr);
@@ -211,29 +216,42 @@ export function backupCard() {
   const use = h('button.ghost', { type: 'button' }, '匯入或還原');
   use.onclick = () => { if (ta.value.trim()) run(use, ta.value, '貼上的文字'); else { say(outText, '框裡是空的，請先貼上存檔文字。'); ta.focus(); } };
 
+  const pasteBtn = h('button.ghost', { type: 'button', onclick: () => { showTa(); ta.focus(); } }, '貼上存檔文字');
+  use.classList.add('full'); use.style.marginTop = '6px';
+  taBox.append(ta, clrRow, use);   // 「匯入或還原」放在貼上框下面，框出現才看得到
+  const driveSum = h('span');
+
   function draw() {
     const em = driveEmail();
-    sumEl.textContent = linked() ? (em || 'Google Drive 已連線') + (L.lastBackup ? '・' + ago(L.lastBackup) + '存檔' : '') : 'Google Drive 尚未連線';
+    const hc = L.lastHC ? '・HC ' + fmtAt(L.lastHC.at) : '';
+    sumEl.textContent = (linked() ? (em || 'Google Drive 已連線') + (L.lastBackup ? '・' + ago(L.lastBackup) + '存檔' : '') : 'Google Drive 尚未連線') + hc;
     sumEl.style.color = linked() ? '' : 'var(--warn)';
-    acct.textContent = linked() ? driveStatus().replace(/（點這裡.*?）/, '') : '連線後，每次修改都自動存到雲端';   // 帳號已經寫在標題那行，這裡不重複
+    driveSum.textContent = linked() ? (L.lastBackup ? ago(L.lastBackup) + '存檔' : '已連線') : '尚未連線';
+    acct.textContent = linked() ? driveStatus().replace(/（點這裡.*?）/, '') : '連線後，每次修改都自動存到雲端';
     main.textContent = linked() ? (ready() ? '立即同步' : '重新登入 Google Drive') : '連線 Google Drive';
     acctBtns.style.display = linked() ? '' : 'none';
   }
   onDrive(() => { if (sumEl.isConnected) draw(); });
   draw();
 
+  /** 小格：標題＋一行狀態，點了才展開 */
+  const part = (key, title, st, kids) => fold(key, h('span.small.grow', { style: { padding: '5px 0' } }, h('b', title), st ? h('span.mu', { style: { fontWeight: 400 } }, '　', st) : null), [h('div', { style: { marginTop: '8px' } }, ...kids)]);
+  const hc = healthPart(), om = omronPart();
   const body = [
-    sub('Google', true), h('div.small.one', acct), main, acctBtns,
-    h('div.grid2', { style: { marginTop: '8px' } }, check, fromDrive), outCheck, outDrive,
-    tip('Google Drive（雲端硬碟）：MetaPulse 的存檔放在一個看不到的專用資料夾，只有這個 app 能讀寫，別人（包括作者）都看不到。手機和雲端的存檔會合併在一起，同一筆記錄以最後修改的為準，不會整份互相蓋掉。', h('br'),
-      '同步版：你之前用的「注射與體重記錄 同步版」app。「匯入同步版（Drive）」會把它存在 Google Drive 的記錄搬過來；只會讀取，不會改動同步版，可以重複按，不會重複加入。'),
-    sub('其他：文字或檔案'),
-    ta, clrRow, h('div.grid2', { style: { marginTop: '6px' } }, gen, use), outText,
-    h('label', '或選擇存檔檔案'), file,
-    tip('「產生存檔文字」會把全部記錄變成一段文字，可以複製貼到記事本或傳給自己保存。貼上或選擇檔案（.json 或 .txt）後，app 會自動判斷：MetaPulse 的存檔會「還原」（用它取代現在全部的資料，要再按一次確認）；同步版的存檔會「匯入」（只加入新的記錄，可以重複做）。'),
+    h('div.small.one.mu', { style: { marginTop: '-4px' } }, acct), main,
+    part('sync-drive', 'Google Drive', driveSum, [
+      acctBtns,
+      h('div.grid2', { style: { marginTop: '8px' } }, check, fromDrive), outCheck, outDrive,
+      tip('Google Drive（雲端硬碟）：MetaPulse 的存檔放在一個看不到的專用資料夾，只有這個 app 能讀寫，別人（包括作者）都看不到。手機和雲端的存檔會合併在一起，同一筆記錄以最後修改的為準，不會整份互相蓋掉。', h('br'),
+        '同步版：你之前用的「注射與體重記錄 同步版」app。「匯入同步版」會把它存在 Google Drive 的記錄搬過來；只會讀取，不會改動同步版，可以重複按，不會重複加入。')]),
+    part('sync-hc', 'Health Connect', hc.sum, hc.body),
+    part('sync-omron', 'Omron 檔案', om.sum, om.body),
+    part('sync-text', '文字或檔案備份', '產生、還原', [
+      h('div.grid2', gen, pasteBtn), taBox, pickFile, file, outText,
+      tip('「產生存檔文字」會把全部記錄變成一段文字，可以複製貼到記事本或傳給自己保存。貼上或選擇檔案（.json 或 .txt）後，app 會自動判斷：MetaPulse 的存檔會「還原」（用它取代現在全部的資料，要再按一次確認）；同步版的存檔會「匯入」（只加入新的記錄，可以重複做）。')]),
     aiFold(),
-    h('a.small.one', { href: 'guide.html', style: { display: 'block', marginTop: '8px', color: 'var(--ac-tx)', fontWeight: 600 } }, '搬家說明：把其他 app 的資料整合到 MetaPulse ›'),
+    h('a.small.one', { href: 'guide.html', style: { display: 'block', marginTop: '10px', color: 'var(--ac-tx)', fontWeight: 600 } }, '搬家說明：把其他 app 的資料整合進來 ›'),
   ];
-  if (lastResult && Date.now() - lastResult.at < 15000) { say(outText, lastResult.text, true); lastResult = null; }
-  return section('backup', '備份與匯入', sumEl, body, false);
+  if (lastResult && Date.now() - lastResult.at < 15000) { showTa(); say(outText, lastResult.text, true); lastResult = null; }
+  return section('sync', '同步與匯入', sumEl, body, false);
 }

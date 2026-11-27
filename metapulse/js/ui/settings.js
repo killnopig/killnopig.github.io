@@ -7,9 +7,7 @@ import { bmrMifflin, ageFrom, proteinGoal, budget } from '../points.js';
 import { libraryManager } from './library.js';
 import { itemCard } from './mealEditor.js';
 import { analyzeMeal, listModels, DEFAULT_MODELS } from '../gemini.js';
-import { backupCard } from './backup.js';
-import { healthCard } from './health.js';
-import { omronCard } from './omron.js';
+import { syncCard } from './backup.js';
 import { dangerCard } from './reset.js';
 import { medsSettings } from './meds.js';
 import { soundSettings } from './sounds.js';
@@ -276,7 +274,7 @@ function prefsCard() {
 export function renderSettings(root) {
   root.textContent = '';
   sectionBudget.left = 1;
-  root.append(foldAllBtn(root), healthCard(), omronCard(), backupCard(), profileCard(), fastSettings(), medsSettings(), aiCard(),
+  root.append(foldAllBtn(root), syncCard(), profileCard(), fastSettings(), medsSettings(), aiCard(),
     (() => { const sl = sumLine(); sl.textContent = S.foodLibrary.length ? S.foodLibrary.length + ' 項' : '還沒有常用食物'; return section('lib', '常用食物庫', sl, [libraryManager(itemCard)]); })(),
     prefsCard(),
     (() => { const sl = sumLine(); sl.textContent = '名詞說明・免責聲明・清除資料'; return section('other', '其他', sl, [
