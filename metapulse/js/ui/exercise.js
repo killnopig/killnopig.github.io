@@ -4,6 +4,7 @@ import { S, L, commit, commitLocal, uid, currentWeight } from '../state.js';
 import { h, toast, fold, tip, openSheet, closeSheet, fmtPts, timePick } from './common.js';
 import { EXERCISES, BUDGET, SAFETY } from '../config.js';
 import { strengthCount } from '../safety.js';
+import { moveTip } from './pace.js';
 import { localDate } from '../points.js';
 import { md, wdOf } from '../records.js';
 import { editActivity, restoreActivity } from '../health.js';
@@ -33,7 +34,7 @@ export function exerciseCard(bare = false) {
   const sc = strengthCount(S.exercise, today), goal = SAFETY.strengthGoal;
   const head = h('div.row.between.grow', { style: { gap: '10px' } }, h('div.small.one', { style: { fontWeight: 600 } }, sum),
     h('span.tiny.num', { style: { flex: '0 0 auto', color: sc >= goal ? 'var(--ac-tx)' : 'var(--mu)', fontWeight: 600 } }, '肌力 ' + sc + '/' + goal));
-  return h(bare ? 'div' : 'div.card', bare ? { style: { marginTop: '6px' } } : null, fold('ex-card', head, [list, h('div.tiprow', logLink || hint, tip('「肌力 1/2」＝近 7 天做了幾次肌力訓練（重量訓練、彈力帶、徒手深蹲或伏地挺身），建議每週至少 2 次，減重時比較能保住肌肉。記運動時選這幾種就會算進去。', h('br'), '加回點數＝消耗熱量 × 0.75 ÷ 40（手機 App 和估算常常算多，所以打 75 折）。消耗用「運動強度（MET）× 體重 × 時間」估算，估得不準可以直接改大卡數。Health Connect 已經自動匯入的運動，不要再手動記一次，不然會算兩次。'))]));
+  return h(bare ? 'div' : 'div.card', bare ? { style: { marginTop: '6px' } } : null, moveTip(), fold('ex-card', head, [list, h('div.tiprow', logLink || hint, tip('「肌力 1/2」＝近 7 天做了幾次肌力訓練（重量訓練、彈力帶、徒手深蹲或伏地挺身），建議每週至少 2 次，減重時比較能保住肌肉。記運動時選這幾種就會算進去。', h('br'), '加回點數＝消耗熱量 × 0.75 ÷ 40（手機 App 和估算常常算多，所以打 75 折）。消耗用「運動強度（MET）× 體重 × 時間」估算，估得不準可以直接改大卡數。Health Connect 已經自動匯入的運動，不要再手動記一次，不然會算兩次。'))]));
 }
 
 /** 記運動／修改運動 */

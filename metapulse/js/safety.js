@@ -113,3 +113,20 @@ export function paceAdvice(b, entries, todayStr, cfg = SAFETY) {
   advice.push('體重用最近 14 天平均和 7 天前的 14 天平均比，不看單日。這只是提醒，有不舒服請問醫師。');
   return { low, daily: b.dailyPoints, floor: b.floorPoints, pct, level, line, advice };
 }
+
+/**
+ * 肌力訓練提醒（飲食運動頁）：近 7 天肌力訓練不到目標就提醒；整週都沒記運動另外說
+ * 只看自己記的運動（Health Connect 的手機活動量不算）
+ */
+export function moveAdvice(exercise, todayStr, cfg = SAFETY) {
+  const sc = strengthCount(exercise, todayStr), goal = cfg.strengthGoal;
+  if (sc >= goal) return null;
+  const from = addDays(todayStr, -6);
+  const days = new Set((exercise || []).filter(x => x.date >= from && x.date <= todayStr).map(x => x.date)).size;
+  const line = days ? '💪 肌力 ' + sc + '/' + goal + '：走路、打球不會長肌肉' : '💪 這 7 天沒有運動・肌力 ' + sc + '/' + goal;
+  const advice = [];
+  if (!days) advice.push('這 7 天都沒有記到運動。減重時身體會同時掉脂肪和肌肉，完全不動的話掉的肌肉會比較多，代謝也比較容易變慢。');
+  advice.push('走路、打籃球、高爾夫對心肺、消耗熱量都很好，但不太會增加肌肉。想在減重時保住肌肉，每週至少 ' + goal + ' 次肌力訓練（重量訓練、彈力帶、徒手深蹲或伏地挺身），再加上吃夠蛋白質。');
+  advice.push('記運動時選「重量訓練」「彈力帶」「徒手（深蹲、伏地挺身）」就會算進「肌力」。這只是提醒；有心血管疾病、關節問題，開始重訓前先問醫師。');
+  return { strength: sc, goal, days, line, advice };
+}
